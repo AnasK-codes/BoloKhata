@@ -4,6 +4,7 @@ import {
   AUDIO_FRAME_BYTES,
   AUDIO_SAMPLE_RATE,
   PROTOCOL_VERSION,
+  extractKeyterms,
   isValidAudioFrame,
   parseClientMessage,
   type CatalogCustomer,
@@ -15,6 +16,7 @@ import {
 import type { GatewayConfig } from '../config';
 import type { CreditGuard } from '../guard/creditGuard';
 import type { Metrics } from '../metrics';
+import { SttLink } from '../gnani/sttLink';
 import { TurnTimer } from '../timing';
 import { CLOSE } from './closeCodes';
 import { SendQueue } from './sendQueue';
@@ -51,10 +53,14 @@ export class Session {
   readonly timer = new TurnTimer();
   catalog: Catalog | null = null;
 
-  protected readonly log: FastifyBaseLogger;
-  protected readonly config: GatewayConfig;
-  protected readonly guard: CreditGuard;
-  protected readonly metrics: Metrics;
+  private readonly log: FastifyBaseLogger;
+  private readonly config: GatewayConfig;
+  private readonly guard: CreditGuard;
+  private readonly metrics: Metrics;
+  private stt: SttLink | null = null;
+  /** The turn currently being captured or transcribed, if any. */
+  private activeTurn: number | null = null;
+  private sttReserved = 0;
 
   private readonly socket: WebSocket;
   private readonly onClosed: (session: Session) => void;
@@ -133,9 +139,11 @@ export class Session {
     this.close(code, reason);
   }
 
-  protected teardown(): void {
+  private teardown(): void {
     if (this.closed) return;
     this.closed = true;
+    this.releaseTurn();
+    this.stt?.close();
     for (const timer of this.timers) {
       clearTimeout(timer);
       clearInterval(timer);
@@ -163,9 +171,8 @@ export class Session {
     this.onAudioFrame(frame);
   }
 
-  /** Audio frame hook; the STT link attaches here. */
-  protected onAudioFrame(_frame: Buffer): void {
-    // Wired up with the STT link.
+  private onAudioFrame(frame: Buffer): void {
+    if (this.activeTurn !== null) this.stt?.pushFrame(frame);
   }
 
   private onText(raw: string): void {
@@ -180,7 +187,7 @@ export class Session {
     this.dispatch(parsed.value);
   }
 
-  protected dispatch(message: ClientMessage): void {
+  private dispatch(message: ClientMessage): void {
     if (message.type === 'hello') return this.onHello(message);
     if (!this.isReady) {
       this.sendError('BAD_MESSAGE', 'Send hello first.', false);
@@ -193,14 +200,88 @@ export class Session {
       case 'context_update':
         this.onContextUpdate(message);
         return;
+      case 'ptt_start':
+        this.onPttStart(message.turnId);
+        return;
+      case 'ptt_end':
+        this.onPttEnd(message.turnId);
+        return;
       default:
-        // ptt_start, ptt_end, interrupt and speak are handled by the turn plumbing.
-        this.onTurnMessage(message);
+        // interrupt and speak are handled once the TTS link is attached.
+        return;
     }
   }
 
-  protected onTurnMessage(_message: ClientMessage): void {
-    // Wired up with the STT and TTS links.
+  private onPttStart(turnId: number): void {
+    if (!this.stt) return;
+    if (this.activeTurn !== null) this.releaseTurn(); // a new press supersedes the old turn
+    if (!this.guard.checkAndReserve('stt_seconds', this.config.gnani.stt.maxUtteranceSeconds)) {
+      this.out.json({
+        type: 'limit',
+        reason: 'budget',
+        message: 'Today\'s demo budget is used up.',
+        resetAt: this.guard.resetAt(),
+      });
+      return;
+    }
+    this.sttReserved = this.config.gnani.stt.maxUtteranceSeconds;
+    this.activeTurn = turnId;
+    this.metrics.turnsTotal++;
+    this.timer.start(turnId);
+    this.out.markLive(turnId);
+    this.stt.beginTurn(turnId);
+    if (!this.stt.turnActive) this.settleTurn(0); // refused to start (for example, STT is down)
+  }
+
+  /** Replaces the reserved estimate with the audio seconds really streamed. */
+  private settleTurn(seconds: number): void {
+    this.guard.record('stt_seconds', seconds, this.sttReserved);
+    this.sttReserved = 0;
+    this.activeTurn = null;
+  }
+
+  private onPttEnd(turnId: number): void {
+    if (turnId !== this.activeTurn) return;
+    this.timer.mark(turnId, 'release');
+    this.stt?.endTurn();
+  }
+
+  /** Abandons the turn in flight (superseded press, interrupt, disconnect). */
+  private releaseTurn(): void {
+    this.stt?.abortTurn();
+    this.activeTurn = null;
+  }
+
+  private attachStt(stt: SttLink): void {
+    stt.on('speechStart', (turnId) => this.out.json({ type: 'speech_start', turnId }));
+    stt.on('processing', (turnId) => {
+      this.timer.mark(turnId, 'processing');
+      this.out.json({ type: 'processing', turnId });
+    });
+    stt.on('commitSent', (turnId) => this.timer.mark(turnId, 'commit_sent'));
+    stt.on('transcript', ({ turnId, text, language, sttMs }) => {
+      this.timer.mark(turnId, 'transcript');
+      this.out.json({
+        type: 'transcript',
+        turnId,
+        text,
+        ...(language !== undefined ? { language } : {}),
+        ...(sttMs !== undefined ? { sttMs } : {}),
+      });
+      this.sendTiming(turnId);
+    });
+    stt.on('usage', (turnId, seconds) => {
+      if (turnId === this.activeTurn) this.settleTurn(seconds);
+    });
+    stt.on('failure', ({ turnId, code, message, retryable }) => {
+      this.metrics.sttErrors++;
+      this.sendError(code, message, retryable, turnId);
+    });
+  }
+
+  private sendTiming(turnId: number): void {
+    const timing = this.timer.message(turnId);
+    if (timing) this.out.json(timing);
   }
 
   private onHello(message: Extract<ClientMessage, { type: 'hello' }>): void {
@@ -227,9 +308,17 @@ export class Session {
     this.out.json(ready);
   }
 
-  /** Called once after `hello`: the place to pre-warm upstream links. */
-  protected onCatalogReady(): void {
-    // Wired up with the STT and TTS links.
+  /** Called once after `hello`: pre-warm upstream links so the first press pays no handshake. */
+  private onCatalogReady(): void {
+    const catalog = this.catalog;
+    if (!catalog) return;
+    this.stt = new SttLink({
+      gnani: this.config.gnani,
+      keyterms: extractKeyterms(catalog.products, catalog.customers),
+      log: this.log,
+    });
+    this.attachStt(this.stt);
+    this.stt.prewarm();
   }
 
   private onContextUpdate(message: Extract<ClientMessage, { type: 'context_update' }>): void {
@@ -241,6 +330,7 @@ export class Session {
       products: message.catalog.products ?? current.products,
       customers: message.catalog.customers ?? current.customers,
     };
+    this.stt?.setKeyterms(extractKeyterms(this.catalog.products, this.catalog.customers));
   }
 
   private onHelloTimeout(): void {
