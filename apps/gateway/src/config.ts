@@ -53,6 +53,10 @@ const envSchema = z
     LLM_PROVIDER: z.enum(['bedrock', 'openai-compatible', 'none']).default('none'),
     AWS_REGION: z.string().min(1).default('ap-south-1'),
     BEDROCK_MODEL_ID: optionalString,
+    // For LLM_PROVIDER=openai-compatible: any server that speaks POST {base}/chat/completions.
+    OPENAI_BASE_URL: optionalString,
+    OPENAI_API_KEY: optionalString,
+    OPENAI_MODEL: optionalString,
     LLM_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(1200),
 
     ALLOWED_ORIGINS: z
@@ -93,6 +97,17 @@ const envSchema = z
         message: 'required when LLM_PROVIDER=bedrock (or set LLM_PROVIDER=none)',
       });
     }
+    if (env.LLM_PROVIDER === 'openai-compatible') {
+      for (const name of ['OPENAI_BASE_URL', 'OPENAI_MODEL'] as const) {
+        if (!env[name]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: 'required when LLM_PROVIDER=openai-compatible (or set LLM_PROVIDER=none)',
+          });
+        }
+      }
+    }
   });
 
 export interface GatewayConfig {
@@ -127,6 +142,7 @@ export interface GatewayConfig {
     provider: 'bedrock' | 'openai-compatible' | 'none';
     awsRegion: string;
     bedrockModelId: string | undefined;
+    openai: { baseUrl: string | undefined; apiKey: string | undefined; model: string | undefined };
     timeoutMs: number;
   };
   guard: {
@@ -195,6 +211,7 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
       provider: e.LLM_PROVIDER,
       awsRegion: e.AWS_REGION,
       bedrockModelId: e.BEDROCK_MODEL_ID,
+      openai: { baseUrl: e.OPENAI_BASE_URL, apiKey: e.OPENAI_API_KEY, model: e.OPENAI_MODEL },
       timeoutMs: e.LLM_TIMEOUT_MS,
     },
     guard: {

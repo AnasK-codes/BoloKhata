@@ -415,6 +415,7 @@ Defined in `.env.example`. **Never commit `.env`.** Only `NEXT_PUBLIC_GATEWAY_UR
 | `GNANI_TTS_CACHE_DIR`, `TTS_CACHE_MEMORY_MB` | gateway | Phrase cache location (default `.tts-cache`, git-ignored) and in-memory LRU size (default 16 MB) |
 | `LLM_PROVIDER` | gateway | `bedrock`, `openai-compatible` or `none`. **Default `none`** until Bedrock access is verified on your account |
 | `AWS_REGION`, `BEDROCK_MODEL_ID` | gateway | Use a small fast model your account has access to; check the console for the exact ID or inference profile |
+| `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` | gateway | Only for `LLM_PROVIDER=openai-compatible` (any `POST {base}/chat/completions` server); the key is optional. How to verify a provider by hand: [docs/LLM.md](docs/LLM.md) |
 | `LLM_TIMEOUT_MS` | gateway | Default `1200` |
 | `ALLOWED_ORIGINS`, `SESSION_TOKEN_SECRET`, `DEMO_ACCESS_CODE` | gateway | Origin allowlist, token signing, optional demo gate |
 | `MAX_SESSIONS`, `MAX_SESSION_MINUTES` | gateway | Concurrency and session length caps |

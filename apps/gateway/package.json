@@ -8,10 +8,12 @@
     "dev:mock": "tsx watch --env-file=mock.env src/main.ts",
     "build": "tsup",
     "start": "node dist/main.js",
+    "llm:check": "tsx src/parse/llm/check.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1161.0",
     "@bolbill/shared": "workspace:*",
     "@fastify/websocket": "^11.3.6",
     "fastify": "^5.12.8",
