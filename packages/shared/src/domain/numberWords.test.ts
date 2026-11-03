@@ -102,6 +102,19 @@ describe('parseNumber: fractions', () => {
   });
 });
 
+describe('parseNumber: English number words from mixed speech', () => {
+  it.each([
+    ['one', 1],
+    ['two', 2],
+    ['ten', 10],
+    ['half', 0.5],
+    ['two hundred', 200],
+    ['five hundred fifty', null],
+  ])('%s -> %s', (text, expected) => {
+    expect(parseNumber(text)).toBe(expected);
+  });
+});
+
 describe('parseNumber: Devanagari', () => {
   it.each([
     ['एक', 1],

@@ -132,10 +132,17 @@ const DEVANAGARI_EXTRA: ReadonlyArray<readonly [string, number]> = [
   ['सिफर', 0],
 ];
 
+/** Speech recognisers often write mixed-language numbers in English. */
+const ENGLISH_NUMBERS: ReadonlyArray<readonly [string, number]> = [
+  ['one', 1], ['two', 2], ['three', 3], ['four', 4], ['five', 5], ['six', 6], ['seven', 7],
+  ['eight', 8], ['nine', 9], ['ten', 10], ['half', 0.5], ['hundred', 100],
+];
+
 const MULTIPLIERS: ReadonlyArray<readonly [string, number]> = [
   ['sau', 100],
   ['so', 100],
   ['सौ', 100],
+  ['hundred', 100],
   ['hazaar', 1000],
   ['hazar', 1000],
   ['hajar', 1000],
@@ -208,6 +215,7 @@ function buildTables(): {
   }
   for (const [w, n] of DEVANAGARI_EXTRA) add(w, n);
   for (const [w, v] of FRACTION_NUMBERS) add(w, v);
+  for (const [w, v] of ENGLISH_NUMBERS) if (v < 100) add(w, v);
   return { atoms, conflicts };
 }
 
@@ -371,3 +379,6 @@ export function extractQuantityAndUnit(tokens: readonly string[]): ParsedQuantit
   }
   return null;
 }
+
+/** Splits an utterance into normalised word tokens (lowercase, NFC, ASCII digits, no punctuation). */
+export { tokenize as tokenizeSpeech };
