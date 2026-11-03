@@ -1,0 +1,311 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`client message context_update > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "catalog": {
+      "customers": [
+        {
+          "aliases": [],
+          "balance": -50,
+          "id": "c-sharma",
+          "name": "Sharma ji",
+        },
+      ],
+      "version": 4,
+    },
+    "type": "context_update",
+  },
+}
+`;
+
+exports[`client message hello > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "catalog": {
+      "customers": [
+        {
+          "aliases": [
+            "sharma uncle",
+          ],
+          "balance": 320,
+          "id": "c-sharma",
+          "name": "Sharma ji",
+        },
+      ],
+      "products": [
+        {
+          "aliases": [
+            "atta",
+            "gehu ka aata",
+          ],
+          "category": "staples",
+          "id": "p-aata",
+          "name": "Aata",
+          "pricePerUnit": 45,
+          "unit": "kg",
+        },
+        {
+          "aliases": [
+            "maggi noodles",
+          ],
+          "id": "p-maggi",
+          "name": "Maggi",
+          "pricePerUnit": 14,
+          "unit": "packet",
+        },
+      ],
+      "version": 3,
+    },
+    "clientTime": 1700000000000,
+    "lang": "hi-en",
+    "type": "hello",
+    "v": 1,
+  },
+}
+`;
+
+exports[`client message interrupt > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "turnId": 4294967295,
+    "type": "interrupt",
+  },
+}
+`;
+
+exports[`client message ping > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "t": 12.5,
+    "type": "ping",
+  },
+}
+`;
+
+exports[`client message ptt_end > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "turnId": 1,
+    "type": "ptt_end",
+  },
+}
+`;
+
+exports[`client message ptt_start > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "turnId": 1,
+    "type": "ptt_start",
+  },
+}
+`;
+
+exports[`client message speak > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "text": "Bill save ho gaya.",
+    "turnId": 2,
+    "type": "speak",
+  },
+}
+`;
+
+exports[`server message draft > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "bill": {
+      "items": [
+        {
+          "lineTotal": 90,
+          "name": "Aata",
+          "productId": "p-aata",
+          "quantity": 2,
+          "unit": "kg",
+          "unitPrice": 45,
+        },
+        {
+          "lineTotal": 14,
+          "name": "Maggi",
+          "productId": "p-maggi",
+          "quantity": 1,
+          "unit": "packet",
+          "unitPrice": 14,
+        },
+      ],
+      "paid": 0,
+      "total": 104,
+      "udhaar": 104,
+    },
+    "confidence": 0.92,
+    "customer": {
+      "id": "c-sharma",
+      "isNew": false,
+      "name": "Sharma ji",
+    },
+    "draftId": "d-0001",
+    "intent": "create_bill",
+    "replyText": [
+      "Sharma ji ka bill ek sau chaar rupaye.",
+      "Poora udhaar likh doon?",
+    ],
+    "source": "rules",
+    "turnId": 7,
+    "type": "draft",
+    "unresolved": [
+      {
+        "candidates": [
+          {
+            "id": "p-cheeni",
+            "name": "Cheeni",
+            "score": 0.81,
+          },
+        ],
+        "kind": "item",
+        "quantity": 0.5,
+        "spoken": "chini",
+        "unit": "kg",
+      },
+    ],
+    "warnings": [
+      "Cheeni confirm kar lijiye.",
+    ],
+  },
+}
+`;
+
+exports[`server message error > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "code": "STT_UNAVAILABLE",
+    "message": "Speech service is not reachable. Please try again.",
+    "retryable": true,
+    "turnId": 7,
+    "type": "error",
+  },
+}
+`;
+
+exports[`server message limit > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "message": "Demo abhi busy hai. Thodi der baad try karein.",
+    "reason": "busy",
+    "retryAfterSec": 30,
+    "type": "limit",
+  },
+}
+`;
+
+exports[`server message pong > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "t": 12.5,
+    "type": "pong",
+  },
+}
+`;
+
+exports[`server message processing > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "turnId": 7,
+    "type": "processing",
+  },
+}
+`;
+
+exports[`server message ready > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "audio": {
+      "inputFrameBytes": 1024,
+      "inputSampleRate": 16000,
+    },
+    "limits": {
+      "maxSessionMinutes": 10,
+      "maxUtteranceSeconds": 20,
+    },
+    "sessionId": "s-abc123",
+    "type": "ready",
+    "v": 1,
+  },
+}
+`;
+
+exports[`server message speech_start > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "turnId": 7,
+    "type": "speech_start",
+  },
+}
+`;
+
+exports[`server message timing > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "parseSource": "rules",
+    "spans": {
+      "commit_sent": 0,
+      "draft": 351,
+      "transcript": 342,
+      "tts_first_chunk": 640,
+    },
+    "turnId": 7,
+    "type": "timing",
+  },
+}
+`;
+
+exports[`server message transcript > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "language": "hi-IN",
+    "sttMs": 320,
+    "text": "do kilo aata aur ek Maggi",
+    "turnId": 7,
+    "type": "transcript",
+  },
+}
+`;
+
+exports[`server message tts_end > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "interrupted": true,
+    "turnId": 7,
+    "type": "tts_end",
+  },
+}
+`;
+
+exports[`server message tts_start > matches its snapshot 1`] = `
+{
+  "ok": true,
+  "value": {
+    "cached": false,
+    "format": "pcm_s16le",
+    "sampleRate": 24000,
+    "turnId": 7,
+    "type": "tts_start",
+  },
+}
+`;
