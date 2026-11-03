@@ -63,6 +63,11 @@ const DO_AFTER = foldSet(['likh', 'likho', 'jod', 'jodo', 'kar', 'de', 'rehne', 
 const INJECTION =
   /\b(?:ignore|disregard|forget)\b.{0,40}\b(?:instruction|instructions|previous|above|prompt|system)\b|system prompt|you are now|jailbreak/i;
 
+/** True for text that tries to instruct the system. Callers must not forward it to a model. */
+export function isInstructionLike(transcript: string): boolean {
+  return typeof transcript === 'string' && INJECTION.test(transcript.slice(0, LIMITS.maxTranscriptLength));
+}
+
 const MAX_AMOUNT_TOKENS = 8;
 
 const EMPTY: ParsedUtterance = {
@@ -320,7 +325,7 @@ function customerFactor(customer: string | null, matcher: CatalogMatcher | undef
 export function parseUtterance(transcript: string, matcher?: CatalogMatcher): ParsedUtterance {
   if (typeof transcript !== 'string') return { ...EMPTY };
   const text = transcript.slice(0, LIMITS.maxTranscriptLength);
-  if (INJECTION.test(text)) return { ...EMPTY };
+  if (isInstructionLike(text)) return { ...EMPTY };
 
   const raw = tokenizeSpeech(text);
   if (raw.length === 0) return { ...EMPTY };
