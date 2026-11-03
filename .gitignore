@@ -1,0 +1,13 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+.turbo/
+.env
+.env.*
+!.env.example
+.DS_Store
+# local scratch: phone clips for the latency spike may contain voices, keep them out of git
+scripts/spike/clips/*.wav
+.tts-cache/

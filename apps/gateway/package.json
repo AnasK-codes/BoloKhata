@@ -1,0 +1,30 @@
+{
+  "name": "@bolbill/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "dev:mock": "tsx watch --env-file=mock.env src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bolbill/shared": "workspace:*",
+    "@fastify/websocket": "^11.3.6",
+    "fastify": "^5.12.8",
+    "pino": "^10.4.0",
+    "ws": "^8.22.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@bolbill/mock-gnani": "workspace:*",
+    "@types/ws": "^8.18.2",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "bol-bill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Realtime Hinglish voice-to-bill PWA for kirana stores",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n web,gateway -c cyan,magenta \"pnpm --filter @bolbill/web dev\" \"pnpm --filter @bolbill/gateway dev\"",
+    "dev:mock": "concurrently -n mock,web,gateway -c yellow,cyan,magenta \"pnpm --filter @bolbill/mock-gnani start\" \"pnpm --filter @bolbill/web dev\" \"pnpm --filter @bolbill/gateway dev:mock\"",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "spike": "pnpm --filter @bolbill/scripts spike"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

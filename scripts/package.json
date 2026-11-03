@@ -1,0 +1,12 @@
+{
+  "name": "@bolbill/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "tsx spike.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}

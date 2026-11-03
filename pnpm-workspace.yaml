@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+  - scripts
+
+# Only esbuild may run its install script (needed by tsx, tsup and vitest).
+allowBuilds:
+  esbuild: true
