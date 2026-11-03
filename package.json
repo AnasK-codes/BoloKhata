@@ -14,7 +14,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build",
-    "spike": "pnpm --filter @bolbill/scripts spike"
+    "spike": "pnpm --filter @bolbill/scripts spike",
+    "warm-phrases": "pnpm --filter @bolbill/scripts warm-phrases"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

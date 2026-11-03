@@ -6,7 +6,8 @@
   "scripts": {
     "spike": "tsx spike.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "warm-phrases": "tsx warm-phrases.ts"
   },
   "dependencies": {
     "ws": "^8.22.1",

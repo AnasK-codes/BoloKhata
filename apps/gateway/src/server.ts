@@ -5,6 +5,7 @@ import type { DestinationStream } from 'pino';
 import type { WebSocket } from 'ws';
 import { MAX_ANY_MESSAGE_BYTES } from '@bolbill/shared';
 import type { GatewayConfig } from './config';
+import { PhraseCache } from './gnani/phraseCache';
 import { DailyCreditGuard, type CreditGuard } from './guard/creditGuard';
 import { RateLimiter } from './guard/rateLimit';
 import { createTokenService, type TokenService } from './guard/token';
@@ -87,6 +88,7 @@ export function buildServer(
     },
   };
   app.decorate('gateway', ctx);
+  const phraseCache = new PhraseCache(config.gnani.tts.cacheDir, config.gnani.tts.cacheMemoryBytes);
 
   const perIp = new RateLimiter(config.guard.sessionRatePerIpPerMin, 60_000);
   const global = new RateLimiter(config.guard.sessionRateGlobalPerMin, 60_000);
@@ -222,6 +224,7 @@ export function buildServer(
       log: request.log.child({ sessionId: id }),
       guard: ctx.guard,
       metrics: ctx.metrics,
+      cache: phraseCache,
       onClosed: (s) => ctx.sessions.remove(s),
     });
     ctx.sessions.add(session);

@@ -47,7 +47,7 @@ const envSchema = z
         message: `must be one of ${TTS_SAMPLE_RATES.join(', ')}`,
       })
       .default(24000),
-    GNANI_TTS_CACHE_DIR: z.string().min(1).default('.cache/tts'),
+    GNANI_TTS_CACHE_DIR: z.string().min(1).default('.tts-cache'),
     TTS_CACHE_MEMORY_MB: z.coerce.number().min(0).max(256).default(16),
 
     LLM_PROVIDER: z.enum(['bedrock', 'openai-compatible', 'none']).default('none'),

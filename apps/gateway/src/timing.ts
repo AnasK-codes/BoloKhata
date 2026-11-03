@@ -30,6 +30,11 @@ export class TurnTimer {
     }
   }
 
+  /** Starts timing a turn that has no `ptt_start` (client-initiated speech), unless already timed. */
+  ensure(turnId: number): void {
+    if (!this.turns.has(turnId)) this.start(turnId);
+  }
+
   mark(turnId: number, span: TimingSpan): void {
     const turn = this.turns.get(turnId);
     if (!turn || turn.spans[span] !== undefined) return;

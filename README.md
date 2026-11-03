@@ -396,6 +396,7 @@ Microphone access needs HTTPS except on `localhost`. To test on a phone, deploy 
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | Quality gates |
 | `pnpm build` | Build everything |
 | `pnpm spike` | Latency spike against the real Gnani API (spends a few credits) |
+| `pnpm warm-phrases --dry-run` | Lists the fixed spoken phrases and the characters a warm-up would spend; without `--dry-run` it fills the TTS phrase cache (spends TTS credits unless pointed at the mock). `--budget N` caps characters |
 
 ## 14. Environment variables
 
@@ -408,12 +409,18 @@ Defined in `.env.example`. **Never commit `.env`.** Only `NEXT_PUBLIC_GATEWAY_UR
 | `GNANI_STT_URL`, `GNANI_TTS_URL` | gateway | Gnani WebSocket endpoints. Default to the real API; `pnpm dev:mock` points them at `tools/mock-gnani` through `apps/gateway/mock.env` |
 | `GNANI_STT_MODEL`, `GNANI_STT_LANGUAGE`, `GNANI_STT_FORMAT` | gateway | Defaults `prisma-v3.0`, `indic-auto`, chosen by the spike |
 | `GNANI_STT_VAD_THRESHOLD`, `GNANI_STT_MIN_SILENCE_MS`, `GNANI_STT_MIN_SPEECH_MS`, `GNANI_STT_MIN_SEGMENT_MS` | gateway | VAD tuning |
+| `GNANI_STT_STRATEGY`, `GNANI_STT_IDLE_TIMEOUT_SEC`, `GNANI_STT_ROTATE_AFTER_MIN` | gateway | STT connection: `persistent` (default) or `spare`; idle timeout 5 to 900 s (default 900); rotation before the 15 min cap (default 13 min). Unmeasured until the spike runs |
+| `STT_DRAIN`, `MAX_UTTERANCE_SECONDS` | gateway | `paced` (default) or `burst` drain of the audio backlog on release; per-press audio cap (default 30) |
 | `GNANI_TTS_MODEL`, `GNANI_TTS_VOICE`, `GNANI_TTS_LANGUAGE`, `GNANI_TTS_SAMPLE_RATE` | gateway | Defaults `timbre-v2.5`, `Nalini`, `hi-IN`, `24000`, chosen by the spike |
+| `GNANI_TTS_CACHE_DIR`, `TTS_CACHE_MEMORY_MB` | gateway | Phrase cache location (default `.tts-cache`, git-ignored) and in-memory LRU size (default 16 MB) |
 | `LLM_PROVIDER` | gateway | `bedrock`, `openai-compatible` or `none`. **Default `none`** until Bedrock access is verified on your account |
 | `AWS_REGION`, `BEDROCK_MODEL_ID` | gateway | Use a small fast model your account has access to; check the console for the exact ID or inference profile |
 | `LLM_TIMEOUT_MS` | gateway | Default `1200` |
 | `ALLOWED_ORIGINS`, `SESSION_TOKEN_SECRET`, `DEMO_ACCESS_CODE` | gateway | Origin allowlist, token signing, optional demo gate |
 | `MAX_SESSIONS`, `MAX_SESSION_MINUTES` | gateway | Concurrency and session length caps |
+| `SESSION_RATE_PER_IP_PER_MIN`, `SESSION_RATE_GLOBAL_PER_MIN` | gateway | Rate limits on `POST /session` (defaults 10 and 60) |
+| `METRICS_TOKEN` | gateway | Bearer token for `GET /metrics`; the endpoint is disabled when unset |
+| `TRUST_PROXY`, `DRAIN_TIMEOUT_MS` | gateway | Trust `X-Forwarded-For` (set `true` behind Caddy); how long SIGTERM waits for sessions to finish (default 10 s) |
 | `DAILY_STT_SECONDS_CAP`, `DAILY_TTS_CHARS_CAP` | gateway | Credit guard |
 | `PORT`, `LOG_LEVEL` | gateway | Server settings |
 

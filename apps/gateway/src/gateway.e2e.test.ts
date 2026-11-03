@@ -131,3 +131,162 @@ describe('speech to transcript through the gateway', () => {
     expect(logs.text()).not.toContain('SECRET_TRANSCRIPT_WORDS');
   });
 });
+
+describe('text to speech through the gateway', () => {
+  const frames = (client: WsTestClient) =>
+    client.binary.map((b) => ({
+      tag: b[0],
+      turnId: b.readUInt32BE(1),
+      pcmBytes: b.byteLength - 5,
+    }));
+
+  it('speak returns tts_start, binary frames with the shared header, then tts_end', async () => {
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+    client.sendJson({ type: 'speak', turnId: 7, text: 'Namaste ji, kya haal hai?' });
+
+    expect(await client.next('tts_start')).toMatchObject({
+      turnId: 7,
+      sampleRate: 24000,
+      format: 'pcm_s16le',
+    });
+    const end = await client.next('tts_end');
+    expect(end).toMatchObject({ turnId: 7 });
+    expect(end['interrupted']).toBeUndefined();
+
+    expect(client.binary.length).toBeGreaterThan(0);
+    for (const f of frames(client)) {
+      expect(f.tag).toBe(0x01);
+      expect(f.turnId).toBe(7);
+      expect(f.pcmBytes % 2).toBe(0);
+    }
+    const totalPcm = frames(client).reduce((sum, f) => sum + f.pcmBytes, 0);
+    const chars = 'Namaste ji, kya haal hai?'.length;
+    expect(totalPcm).toBe(Math.round((24000 * 2 * Math.max(200, chars * 60)) / 1000 / 2) * 2);
+    expect(mock!.tts.requests).toHaveLength(1);
+    expect(mock!.tts.rejectedConcurrent).toBe(0);
+  });
+
+  it('runs the whole loop: talk, get the transcript, then have the reply spoken', async () => {
+    mock!.stt.queueTranscripts('do kilo cheeni');
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+
+    await talk(client, 1);
+    expect(await client.next('transcript')).toMatchObject({ turnId: 1, text: 'do kilo cheeni' });
+    client.sendJson({ type: 'speak', turnId: 1, text: 'Bill ek sau rupaye ka hai.' });
+    await client.next('tts_start');
+    await client.next('tts_end');
+
+    const timings = client.messages.filter((m) => m['type'] === 'timing') as {
+      spans: Record<string, number>;
+    }[];
+    const last = timings.at(-1)!;
+    expect(Object.keys(last.spans)).toEqual(
+      expect.arrayContaining(['release', 'commit_sent', 'transcript', 'tts_request', 'tts_first_chunk']),
+    );
+    expect(last.spans['tts_first_chunk']!).toBeGreaterThanOrEqual(last.spans['tts_request']!);
+  });
+
+  it('interrupt stops audio at once and no stale chunk ever reaches the client', async () => {
+    await mock!.close();
+    mock = await startMockGnani({ tts: { chunkBytes: 2400, interChunkDelayMs: 25 } });
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+
+    client.sendJson({
+      type: 'speak',
+      turnId: 3,
+      text: 'Yeh ek bahut lamba jawab hai jo beech mein rok diya jayega, dhyan se suniye.',
+    });
+    await client.next('tts_start');
+    await client.waitBinary(3);
+    client.sendJson({ type: 'interrupt', turnId: 3 });
+
+    const end = await client.next('tts_end');
+    expect(end).toMatchObject({ turnId: 3, interrupted: true });
+    const framesAtEnd = client.binary.length;
+    await sleep(400);
+    expect(client.binary.length).toBe(framesAtEnd); // nothing arrives after tts_end
+    expect(framesAtEnd).toBeLessThan(25);
+    await sleep(50);
+    expect(mock!.tts.requests[0]!.aborted).toBe(true);
+
+    // the session is still healthy: a new reply works
+    client.sendJson({ type: 'speak', turnId: 4, text: 'Naya jawab.' });
+    const start = await client.next('tts_start');
+    expect(start).toMatchObject({ turnId: 4 });
+    expect((await client.next('tts_end'))['interrupted']).toBeUndefined();
+  });
+
+  it('pressing the button while the shop is speaking silences it (barge-in)', async () => {
+    await mock!.close();
+    mock = await startMockGnani({ tts: { chunkBytes: 2400, interChunkDelayMs: 25 } });
+    mock.stt.queueTranscripts('bolna shuru');
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+
+    client.sendJson({ type: 'speak', turnId: 1, text: 'Bahut lamba jawab jo kabhi khatam nahi hota is demo mein dekho.' });
+    await client.waitBinary(2);
+    await talk(client, 2); // ptt_start interrupts the speech in flight
+    expect(await client.next('tts_end')).toMatchObject({ turnId: 1, interrupted: true });
+    const n = client.binary.length;
+    await sleep(300);
+    expect(client.binary.length).toBe(n);
+    expect(await client.next('transcript')).toMatchObject({ turnId: 2, text: 'bolna shuru' });
+  });
+
+  it('rejects empty speech and keeps the session open', async () => {
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+    client.sendJson({ type: 'speak', turnId: 1, text: '<tag>' });
+    expect(await client.next('error')).toMatchObject({ code: 'BAD_MESSAGE', turnId: 1 });
+    expect(client.closed).toBeUndefined();
+    expect(mock!.tts.requests).toHaveLength(0);
+  });
+
+  it('says TTS_UNAVAILABLE (text-only mode) when synthesis fails', async () => {
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+    mock!.tts.failNextRequest('boom');
+    client.sendJson({ type: 'speak', turnId: 9, text: 'Yeh fail hoga.' });
+    expect(await client.next('error')).toMatchObject({
+      code: 'TTS_UNAVAILABLE',
+      turnId: 9,
+      retryable: true,
+    });
+  });
+
+  it('sends a budget limit and calls no upstream once the TTS character cap is reached', async () => {
+    const guard = new DailyCreditGuard({ stt_seconds: 100, tts_chars: 10 });
+    gateway = await startGateway(upstreamEnv(), { guard });
+    const client = await gateway.connect();
+    client.sendJson(HELLO);
+    await client.next('ready');
+    client.sendJson({ type: 'speak', turnId: 1, text: 'Yeh vaakya das akshar se lamba hai.' });
+    expect(await client.next('limit')).toMatchObject({ reason: 'budget' });
+    expect(mock!.tts.requests).toHaveLength(0);
+  });
+
+  it('never writes spoken text to the logs', async () => {
+    const { captureLogs } = await import('./testing/harness');
+    const logs = captureLogs();
+    gateway = await startGateway({ ...upstreamEnv(), LOG_LEVEL: 'debug' }, { logStream: logs.stream });
+    const client = await gateway.ready();
+    client.sendJson({ type: 'speak', turnId: 1, text: 'SECRET_SPOKEN_REPLY' });
+    await client.next('tts_end');
+    await gateway.close();
+    gateway = undefined;
+    expect(logs.text()).not.toContain('SECRET_SPOKEN_REPLY');
+  });
+
+  it('closes both upstream sockets when the client leaves', async () => {
+    gateway = await startGateway(upstreamEnv());
+    const client = await gateway.ready();
+    await sleep(100);
+    client.close();
+    await sleep(200);
+    expect(mock!.stt.connections.every((c) => c.closeCode !== undefined)).toBe(true);
+    expect(gateway.app.gateway.sessions.size).toBe(0);
+  });
+});
