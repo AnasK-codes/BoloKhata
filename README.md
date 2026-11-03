@@ -178,15 +178,18 @@ Defined once in `packages/shared/src/protocol` with Zod schemas, and used by bot
 
 | Message | Kind | Purpose |
 |---|---|---|
-| `ready` | JSON | Session accepted; echo of limits and audio format. |
+| `ready` | JSON | `{v, sessionId, limits:{maxSessionMinutes, maxUtteranceSeconds}, audio:{inputSampleRate, inputFrameBytes}}`: session accepted, with limits and the expected microphone format. |
 | `speech_start`, `processing` | JSON | Pass-through of Gnani's speech and end-of-speech signals for instant UI feedback. |
 | `transcript` | JSON | `{turnId, text, language, sttMs}` |
-| `draft` | JSON | `{turnId, intent, source:'rules'\|'llm', confidence, bill?, payment?, balance?, unresolved[], warnings[], replyText}` |
+| `draft` | JSON | `{turnId, draftId, intent, source:'rules'\|'llm', confidence, customer?, bill?, payment?, balance?, unresolved[], warnings[], replyText}`. `draftId` is the idempotency key for saving once; `replyText` is 1 to 2 short sentences. |
 | `tts_start` / `tts_end` | JSON | `{turnId, sampleRate, format:'pcm_s16le'}` |
 | TTS audio | **binary** | 1 byte type tag (`0x01`), 4-byte turn ID, then raw PCM. |
 | `timing` | JSON | Per-turn spans for the latency HUD. |
 | `error` | JSON | `{turnId?, code, message, retryable}` |
 | `limit` | JSON | Demo busy or budget reached, with a reset time if known. |
+| `pong` | JSON | `{t}`: reply to the client's `ping`, echoing its timestamp so the browser can measure RTT. |
+
+Binary TTS frames put a 5-byte header in front of the PCM, so the PCM view starts at an odd byte offset: read it with a `DataView` or copy it rather than wrapping it in an `Int16Array`.
 
 Rules: every JSON message is validated with Zod on receipt; unknown types are ignored and logged; binary frames of the wrong length are dropped and counted.
 
@@ -402,6 +405,7 @@ Defined in `.env.example`. **Never commit `.env`.** Only `NEXT_PUBLIC_GATEWAY_UR
 |---|---|---|
 | `NEXT_PUBLIC_GATEWAY_URL` | web | `https://` base URL of the gateway (public, not a secret) |
 | `GNANI_API_KEY` | gateway | Gnani key |
+| `GNANI_STT_URL`, `GNANI_TTS_URL` | gateway | Gnani WebSocket endpoints. Default to the real API; `pnpm dev:mock` points them at `tools/mock-gnani` through `apps/gateway/mock.env` |
 | `GNANI_STT_MODEL`, `GNANI_STT_LANGUAGE`, `GNANI_STT_FORMAT` | gateway | Defaults `prisma-v3.0`, `indic-auto`, chosen by the spike |
 | `GNANI_STT_VAD_THRESHOLD`, `GNANI_STT_MIN_SILENCE_MS`, `GNANI_STT_MIN_SPEECH_MS`, `GNANI_STT_MIN_SEGMENT_MS` | gateway | VAD tuning |
 | `GNANI_TTS_MODEL`, `GNANI_TTS_VOICE`, `GNANI_TTS_LANGUAGE`, `GNANI_TTS_SAMPLE_RATE` | gateway | Defaults `timbre-v2.5`, `Nalini`, `hi-IN`, `24000`, chosen by the spike |
