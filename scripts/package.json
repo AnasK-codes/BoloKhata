@@ -4,9 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "spike": "tsx spike.ts"
+    "spike": "tsx spike.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "ws": "^8.22.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "tsx": "^4.23.15"
+    "@bolbill/mock-gnani": "workspace:*",
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
   }
 }
