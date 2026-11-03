@@ -29,6 +29,14 @@ const envSchema = z
     GNANI_STT_MIN_SPEECH_MS: z.coerce.number().int().min(50).max(2000).default(100),
     // Keep this low: a high value silently drops one-word answers like "haan" and "nahi".
     GNANI_STT_MIN_SEGMENT_MS: z.coerce.number().int().min(100).max(1000).default(120),
+    // Connection strategy is unmeasured until the spike runs (docs/LATENCY.md); switchable here.
+    GNANI_STT_STRATEGY: z.enum(['persistent', 'spare']).default('persistent'),
+    GNANI_STT_IDLE_TIMEOUT_SEC: z.coerce.number().int().min(5).max(900).default(900),
+    // Gnani caps a session at 15 minutes; rotate well before.
+    GNANI_STT_ROTATE_AFTER_MIN: z.coerce.number().min(0.05).max(14).default(13),
+    // 'paced' keeps the documented cadence on release; 'burst' sends the backlog at once.
+    STT_DRAIN: z.enum(['paced', 'burst']).default('paced'),
+    MAX_UTTERANCE_SECONDS: z.coerce.number().int().min(2).max(60).default(30),
 
     GNANI_TTS_MODEL: z.enum(['timbre-v2.5', 'timbre-v3.0']).default('timbre-v2.5'),
     GNANI_TTS_VOICE: z.string().min(1).default('Nalini'),
@@ -39,6 +47,8 @@ const envSchema = z
         message: `must be one of ${TTS_SAMPLE_RATES.join(', ')}`,
       })
       .default(24000),
+    GNANI_TTS_CACHE_DIR: z.string().min(1).default('.cache/tts'),
+    TTS_CACHE_MEMORY_MB: z.coerce.number().min(0).max(256).default(16),
 
     LLM_PROVIDER: z.enum(['bedrock', 'openai-compatible', 'none']).default('none'),
     AWS_REGION: z.string().min(1).default('ap-south-1'),
@@ -61,6 +71,14 @@ const envSchema = z
     MAX_SESSION_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
     DAILY_STT_SECONDS_CAP: z.coerce.number().int().min(0).default(1800),
     DAILY_TTS_CHARS_CAP: z.coerce.number().int().min(0).default(20_000),
+    SESSION_RATE_PER_IP_PER_MIN: z.coerce.number().int().min(1).default(10),
+    SESSION_RATE_GLOBAL_PER_MIN: z.coerce.number().int().min(1).default(60),
+    METRICS_TOKEN: optionalString,
+    TRUST_PROXY: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    DRAIN_TIMEOUT_MS: z.coerce.number().int().min(0).max(60_000).default(10_000),
 
     PORT: z.coerce.number().int().min(1).max(65_535).default(8080),
     LOG_LEVEL: z
@@ -89,6 +107,11 @@ export interface GatewayConfig {
       minSilenceMs: number;
       minSpeechMs: number;
       minSegmentMs: number;
+      strategy: 'persistent' | 'spare';
+      idleTimeoutSec: number;
+      rotateAfterMs: number;
+      drain: 'paced' | 'burst';
+      maxUtteranceSeconds: number;
     };
     tts: {
       url: string;
@@ -96,6 +119,8 @@ export interface GatewayConfig {
       voice: string;
       language: string;
       sampleRate: number;
+      cacheDir: string;
+      cacheMemoryBytes: number;
     };
   };
   llm: {
@@ -112,8 +137,11 @@ export interface GatewayConfig {
     maxSessionMinutes: number;
     dailySttSecondsCap: number;
     dailyTtsCharsCap: number;
+    sessionRatePerIpPerMin: number;
+    sessionRateGlobalPerMin: number;
+    metricsToken: string | undefined;
   };
-  server: { port: number; logLevel: string };
+  server: { port: number; logLevel: string; trustProxy: boolean; drainTimeoutMs: number };
 }
 
 export class ConfigError extends Error {
@@ -147,6 +175,11 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
         minSilenceMs: e.GNANI_STT_MIN_SILENCE_MS,
         minSpeechMs: e.GNANI_STT_MIN_SPEECH_MS,
         minSegmentMs: e.GNANI_STT_MIN_SEGMENT_MS,
+        strategy: e.GNANI_STT_STRATEGY,
+        idleTimeoutSec: e.GNANI_STT_IDLE_TIMEOUT_SEC,
+        rotateAfterMs: Math.round(e.GNANI_STT_ROTATE_AFTER_MIN * 60_000),
+        drain: e.STT_DRAIN,
+        maxUtteranceSeconds: e.MAX_UTTERANCE_SECONDS,
       },
       tts: {
         url: e.GNANI_TTS_URL,
@@ -154,6 +187,8 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
         voice: e.GNANI_TTS_VOICE,
         language: e.GNANI_TTS_LANGUAGE,
         sampleRate: e.GNANI_TTS_SAMPLE_RATE,
+        cacheDir: e.GNANI_TTS_CACHE_DIR,
+        cacheMemoryBytes: Math.round(e.TTS_CACHE_MEMORY_MB * 1024 * 1024),
       },
     },
     llm: {
@@ -170,7 +205,15 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
       maxSessionMinutes: e.MAX_SESSION_MINUTES,
       dailySttSecondsCap: e.DAILY_STT_SECONDS_CAP,
       dailyTtsCharsCap: e.DAILY_TTS_CHARS_CAP,
+      sessionRatePerIpPerMin: e.SESSION_RATE_PER_IP_PER_MIN,
+      sessionRateGlobalPerMin: e.SESSION_RATE_GLOBAL_PER_MIN,
+      metricsToken: e.METRICS_TOKEN,
     },
-    server: { port: e.PORT, logLevel: e.LOG_LEVEL },
+    server: {
+      port: e.PORT,
+      logLevel: e.LOG_LEVEL,
+      trustProxy: e.TRUST_PROXY,
+      drainTimeoutMs: e.DRAIN_TIMEOUT_MS,
+    },
   };
 }

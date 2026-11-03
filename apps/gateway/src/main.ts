@@ -17,12 +17,19 @@ function main() {
   const config = readConfig();
   const app = buildServer(config);
 
+  // Graceful drain: stop accepting, tell clients, let sessions finish (bounded), then exit.
+  let shuttingDown = false;
   const shutdown = (signal: string) => {
-    app.log.info({ signal }, 'shutting down');
-    app.close().then(
-      () => process.exit(0),
-      () => process.exit(1),
-    );
+    if (shuttingDown) return;
+    shuttingDown = true;
+    app.log.info({ signal }, 'draining');
+    app.gateway
+      .drain()
+      .then(() => app.close())
+      .then(
+        () => process.exit(0),
+        () => process.exit(1),
+      );
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
