@@ -181,11 +181,11 @@ Defined once in `packages/shared/src/protocol` with Zod schemas, and used by bot
 | `ready` | JSON | `{v, sessionId, limits:{maxSessionMinutes, maxUtteranceSeconds}, audio:{inputSampleRate, inputFrameBytes}}`: session accepted, with limits and the expected microphone format. |
 | `speech_start`, `processing` | JSON | Pass-through of Gnani's speech and end-of-speech signals for instant UI feedback. |
 | `transcript` | JSON | `{turnId, text, language, sttMs}` |
-| `draft` | JSON | `{turnId, draftId, intent, source:'rules'\|'llm', confidence, customer?, bill?, payment?, balance?, unresolved[], warnings[], replyText}`. `draftId` is the idempotency key for saving once; `replyText` is 1 to 2 short sentences. |
+| `draft` | JSON | `{turnId, draftId, intent, source:'rules'\|'llm', confidence, customer?, bill?, payment?, balance?, unresolved[], warnings[], replyText}`. `draftId` is the idempotency key for saving once; `replyText` is 1 to 2 short sentences. For a spoken "haan" or "nahi" the gateway sends a `draft` with `intent` `confirm` or `cancel` and the **pending draft's `draftId`**: the browser performs the save or discard, the gateway only names the draft and speaks the short reply. With nothing pending, yes/no comes back as `unknown`. |
 | `tts_start` / `tts_end` | JSON | `{turnId, sampleRate, format:'pcm_s16le'}` |
 | TTS audio | **binary** | 1 byte type tag (`0x01`), 4-byte turn ID, then raw PCM. |
 | `timing` | JSON | Per-turn spans for the latency HUD. |
-| `error` | JSON | `{turnId?, code, message, retryable}` |
+| `error` | JSON | `{turnId?, code, message, retryable}`. `LLM_TIMEOUT` and `TTS_UNAVAILABLE` are not fatal: a `draft` was already sent, so show it (with a review banner) and ignore the error otherwise. |
 | `limit` | JSON | Demo busy or budget reached, with a reset time if known. |
 | `pong` | JSON | `{t}`: reply to the client's `ping`, echoing its timestamp so the browser can measure RTT. |
 

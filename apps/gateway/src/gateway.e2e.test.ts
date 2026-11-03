@@ -230,9 +230,11 @@ describe('text to speech through the gateway', () => {
     await client.waitBinary(2);
     await talk(client, 2); // ptt_start interrupts the speech in flight
     expect(await client.next('tts_end')).toMatchObject({ turnId: 1, interrupted: true });
-    const n = client.binary.length;
+    // Turn 2 now answers with its own reply, so only the silenced turn's frames are counted.
+    const silenced = () => client.binary.filter((b) => b.readUInt32BE(1) === 1).length;
+    const n = silenced();
     await sleep(300);
-    expect(client.binary.length).toBe(n);
+    expect(silenced()).toBe(n);
     expect(await client.next('transcript')).toMatchObject({ turnId: 2, text: 'bolna shuru' });
   });
 

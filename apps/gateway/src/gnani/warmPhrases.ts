@@ -3,6 +3,7 @@ import {
   cancelled,
   customerNotFound,
   itemNotFound,
+  nothingPending,
   notUnderstood,
   paymentRecorded,
   saved,
@@ -30,6 +31,7 @@ export function fixedPhrases(): string[] {
     add(saved(variant));
     add(cancelled(variant));
     add(notUnderstood(variant));
+    add(nothingPending(variant));
     add(customerNotFound(null, variant));
     add(itemNotFound(null, variant));
     // Only the closing question of these is free of names and amounts.

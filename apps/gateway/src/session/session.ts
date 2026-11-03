@@ -4,12 +4,9 @@ import {
   AUDIO_FRAME_BYTES,
   AUDIO_SAMPLE_RATE,
   PROTOCOL_VERSION,
-  TTS_PCM_FORMAT,
   extractKeyterms,
   isValidAudioFrame,
   parseClientMessage,
-  type CatalogCustomer,
-  type CatalogProduct,
   type ClientMessage,
   type ErrorCode,
   type ServerMessage,
@@ -20,20 +17,18 @@ import type { Metrics } from '../metrics';
 import type { PhraseCache } from '../gnani/phraseCache';
 import { SttLink } from '../gnani/sttLink';
 import { TtsLink } from '../gnani/ttsLink';
+import type { Orchestrator } from '../parse/orchestrator';
 import { TurnTimer } from '../timing';
 import { CLOSE } from './closeCodes';
 import { SendQueue } from './sendQueue';
+import { TurnEngine, type Catalog } from './turnEngine';
 
 const HELLO_TIMEOUT_MS = 10_000;
 const HEARTBEAT_MS = 15_000;
 /** A client that keeps sending garbage is cut off rather than parsed forever. */
 const MAX_BAD_MESSAGES = 25;
 
-export interface Catalog {
-  version: number;
-  products: CatalogProduct[];
-  customers: CatalogCustomer[];
-}
+export type { Catalog };
 
 export interface SessionDeps {
   id: string;
@@ -44,13 +39,15 @@ export interface SessionDeps {
   metrics: Metrics;
   /** Shared across sessions: fixed phrases are synthesised once. */
   cache?: PhraseCache | null;
+  /** Shared across sessions: stateless, so one instance serves them all. */
+  orchestrator: Orchestrator;
   onClosed: (session: Session) => void;
 }
 
 /**
- * One browser connection. Owns the socket, the catalog snapshot from `hello`, the send queue and
- * the per-turn timer. Upstream links (Gnani STT and TTS) are attached by later parts of the
- * gateway; this class only routes validated client messages.
+ * One browser connection. Owns the socket, the catalog snapshot from `hello`, the send queue,
+ * the upstream Gnani links and the heartbeat. It routes validated client messages; the turn
+ * lifecycle itself lives in TurnEngine.
  */
 export class Session {
   readonly id: string;
@@ -63,11 +60,10 @@ export class Session {
   private readonly guard: CreditGuard;
   private readonly metrics: Metrics;
   private readonly cache: PhraseCache | null;
+  private readonly orchestrator: Orchestrator;
   private stt: SttLink | null = null;
   private tts: TtsLink | null = null;
-  /** The turn currently being captured or transcribed, if any. */
-  private activeTurn: number | null = null;
-  private sttReserved = 0;
+  private engine: TurnEngine | null = null;
 
   private readonly socket: WebSocket;
   private readonly onClosed: (session: Session) => void;
@@ -84,6 +80,7 @@ export class Session {
     this.guard = deps.guard;
     this.metrics = deps.metrics;
     this.cache = deps.cache ?? null;
+    this.orchestrator = deps.orchestrator;
     this.onClosed = deps.onClosed;
     this.out = new SendQueue(deps.socket, {}, (type) =>
       this.log.error({ type }, 'dropped an invalid outbound message'),
@@ -150,7 +147,7 @@ export class Session {
   private teardown(): void {
     if (this.closed) return;
     this.closed = true;
-    this.releaseTurn();
+    this.engine?.dispose();
     this.stt?.close();
     this.tts?.close();
     for (const timer of this.timers) {
@@ -181,7 +178,7 @@ export class Session {
   }
 
   private onAudioFrame(frame: Buffer): void {
-    if (this.activeTurn !== null) this.stt?.pushFrame(frame);
+    this.engine?.onAudioFrame(frame);
   }
 
   private onText(raw: string): void {
@@ -210,140 +207,18 @@ export class Session {
         this.onContextUpdate(message);
         return;
       case 'ptt_start':
-        this.onPttStart(message.turnId);
+        this.engine?.onPttStart(message.turnId);
         return;
       case 'ptt_end':
-        this.onPttEnd(message.turnId);
+        this.engine?.onPttEnd(message.turnId);
         return;
       case 'interrupt':
-        this.onInterrupt(message.turnId);
+        this.engine?.onInterrupt(message.turnId);
         return;
       case 'speak':
-        this.onSpeak(message.turnId, message.text);
+        this.engine?.onSpeak(message.turnId, message.text);
         return;
     }
-  }
-
-  private onSpeak(turnId: number, text: string): void {
-    this.timer.ensure(turnId);
-    this.out.markLive(turnId);
-    // Client text may contain names, so it is never cached (the cache is for fixed phrases).
-    if (!this.tts?.speak(turnId, [text])) {
-      this.sendError('BAD_MESSAGE', 'Nothing to say.', false, turnId);
-    }
-  }
-
-  /** Stops everything for the turn: capture, queued speech, speech in flight, late audio. */
-  private onInterrupt(turnId: number): void {
-    this.out.markStale(turnId);
-    this.tts?.interrupt(turnId);
-    if (turnId === this.activeTurn) this.releaseTurn();
-  }
-
-  private onPttStart(turnId: number): void {
-    if (!this.stt) return;
-    this.tts?.interruptAll(); // barge-in: pressing the button silences the shop's assistant
-    if (this.activeTurn !== null) this.releaseTurn(); // a new press supersedes the old turn
-    if (!this.guard.checkAndReserve('stt_seconds', this.config.gnani.stt.maxUtteranceSeconds)) {
-      this.out.json({
-        type: 'limit',
-        reason: 'budget',
-        message: 'Today\'s demo budget is used up.',
-        resetAt: this.guard.resetAt(),
-      });
-      return;
-    }
-    this.sttReserved = this.config.gnani.stt.maxUtteranceSeconds;
-    this.activeTurn = turnId;
-    this.metrics.turnsTotal++;
-    this.timer.start(turnId);
-    this.out.markLive(turnId);
-    this.stt.beginTurn(turnId);
-    if (!this.stt.turnActive) this.settleTurn(0); // refused to start (for example, STT is down)
-  }
-
-  /** Replaces the reserved estimate with the audio seconds really streamed. */
-  private settleTurn(seconds: number): void {
-    this.guard.record('stt_seconds', seconds, this.sttReserved);
-    this.sttReserved = 0;
-    this.activeTurn = null;
-  }
-
-  private onPttEnd(turnId: number): void {
-    if (turnId !== this.activeTurn) return;
-    this.timer.mark(turnId, 'release');
-    this.stt?.endTurn();
-  }
-
-  /** Abandons the turn in flight (superseded press, interrupt, disconnect). */
-  private releaseTurn(): void {
-    this.stt?.abortTurn();
-    this.activeTurn = null;
-  }
-
-  private attachStt(stt: SttLink): void {
-    stt.on('speechStart', (turnId) => this.out.json({ type: 'speech_start', turnId }));
-    stt.on('processing', (turnId) => {
-      this.timer.mark(turnId, 'processing');
-      this.out.json({ type: 'processing', turnId });
-    });
-    stt.on('commitSent', (turnId) => this.timer.mark(turnId, 'commit_sent'));
-    stt.on('transcript', ({ turnId, text, language, sttMs }) => {
-      this.timer.mark(turnId, 'transcript');
-      this.out.json({
-        type: 'transcript',
-        turnId,
-        text,
-        ...(language !== undefined ? { language } : {}),
-        ...(sttMs !== undefined ? { sttMs } : {}),
-      });
-      this.sendTiming(turnId);
-    });
-    stt.on('usage', (turnId, seconds) => {
-      if (turnId === this.activeTurn) this.settleTurn(seconds);
-    });
-    stt.on('failure', ({ turnId, code, message, retryable }) => {
-      this.metrics.sttErrors++;
-      this.sendError(code, message, retryable, turnId);
-    });
-  }
-
-  private attachTts(tts: TtsLink): void {
-    tts.on('request', (turnId) => this.timer.mark(turnId, 'tts_request'));
-    tts.on('firstChunk', (turnId) => this.timer.mark(turnId, 'tts_first_chunk'));
-    tts.on('start', (turnId, { sampleRate, cached }) => {
-      this.out.json({
-        type: 'tts_start',
-        turnId,
-        sampleRate,
-        format: TTS_PCM_FORMAT,
-        ...(cached ? { cached: true } : {}),
-      });
-    });
-    tts.on('chunk', (turnId, frame) => {
-      this.out.tts(frame, turnId);
-    });
-    tts.on('end', (turnId, interrupted) => {
-      this.out.json({ type: 'tts_end', turnId, ...(interrupted ? { interrupted: true } : {}) });
-      this.sendTiming(turnId);
-    });
-    tts.on('failure', ({ turnId, code, message, retryable }) => {
-      this.metrics.ttsErrors++;
-      this.sendError(code, message, retryable, turnId);
-    });
-    tts.on('budget', () => {
-      this.out.json({
-        type: 'limit',
-        reason: 'budget',
-        message: 'Today\'s demo budget is used up.',
-        resetAt: this.guard.resetAt(),
-      });
-    });
-  }
-
-  private sendTiming(turnId: number): void {
-    const timing = this.timer.message(turnId);
-    if (timing) this.out.json(timing);
   }
 
   private onHello(message: Extract<ClientMessage, { type: 'hello' }>): void {
@@ -379,16 +254,25 @@ export class Session {
       keyterms: extractKeyterms(catalog.products, catalog.customers),
       log: this.log,
     });
-    this.attachStt(this.stt);
-    this.stt.prewarm();
-
     this.tts = new TtsLink({
       gnani: this.config.gnani,
       guard: this.guard,
       log: this.log,
       cache: this.cache,
     });
-    this.attachTts(this.tts);
+    this.engine = new TurnEngine({
+      config: this.config,
+      log: this.log,
+      guard: this.guard,
+      metrics: this.metrics,
+      out: this.out,
+      timer: this.timer,
+      stt: this.stt,
+      tts: this.tts,
+      orchestrator: this.orchestrator,
+    });
+    this.engine.setCatalog(catalog);
+    this.stt.prewarm();
     this.tts.prewarm();
   }
 
@@ -401,6 +285,7 @@ export class Session {
       products: message.catalog.products ?? current.products,
       customers: message.catalog.customers ?? current.customers,
     };
+    this.engine?.setCatalog(this.catalog);
     this.stt?.setKeyterms(extractKeyterms(this.catalog.products, this.catalog.customers));
   }
 

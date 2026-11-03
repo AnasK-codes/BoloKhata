@@ -104,3 +104,15 @@ export function itemNotFound(spoken: string | null | undefined, variant = 0): st
     `Dobara boliye ya list se chuniye.`,
   ];
 }
+
+/** Two customers match the spoken name about equally: ask which one. */
+export function customerAmbiguous(candidates: readonly string[], variant = 0): string[] {
+  const [a, b] = candidates.map((c) => name(c)).filter((c) => c !== '');
+  if (!a || !b) return customerNotFound(a ?? null, variant);
+  return [clip(`${a} ya ${b}?`), pick([`Kaunsa customer hai?`, `Naam chun lijiye.`], variant)];
+}
+
+/** "haan" or "nahi" with no draft waiting. */
+export function nothingPending(variant = 0): string[] {
+  return [pick([`Abhi koi bill pending nahi hai.`, `Save karne ke liye kuch nahi hai.`], variant)];
+}

@@ -27,8 +27,8 @@ export interface Harness {
   wsUrl(token: string): string;
   token(): Promise<string>;
   connect(): Promise<WsTestClient>;
-  /** Connects, sends hello and waits for `ready`. */
-  ready(): Promise<WsTestClient>;
+  /** Connects, sends hello (the default catalog unless one is given) and waits for `ready`. */
+  ready(hello?: unknown): Promise<WsTestClient>;
   close(): Promise<void>;
 }
 
@@ -64,9 +64,9 @@ export async function startGateway(
     wsUrl: (t) => `${wsBase}/ws?token=${t}`,
     token,
     connect,
-    async ready() {
+    async ready(hello: unknown = HELLO) {
       const client = await connect();
-      client.sendJson(HELLO);
+      client.sendJson(hello);
       await client.next('ready');
       return client;
     },

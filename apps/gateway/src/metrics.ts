@@ -8,6 +8,10 @@ export class Metrics {
   droppedTtsFrames = 0;
   sttErrors = 0;
   ttsErrors = 0;
+  /** Turns where the rules were not enough and a model was asked. */
+  llmCalls = 0;
+  /** Of those, how many fell back to the rules result (timeout, error, invalid output). */
+  llmFallbacks = 0;
 
   snapshot(extra: Record<string, unknown>): Record<string, unknown> {
     return { ...this, ...extra };

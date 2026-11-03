@@ -4,8 +4,10 @@ import {
   balanceReply,
   billReadback,
   cancelled,
+  customerAmbiguous,
   customerNotFound,
   itemNotFound,
+  nothingPending,
   notUnderstood,
   paymentRecorded,
   saved,
@@ -28,6 +30,9 @@ const allReplies = (): string[][] =>
     customerNotFound(null, v),
     itemNotFound('laptop', v),
     itemNotFound('', v),
+    customerAmbiguous(['Ramesh Sharma', 'Ramesh Gupta'], v),
+    customerAmbiguous([], v),
+    nothingPending(v),
   ]);
 
 describe('limits that apply to every reply', () => {
@@ -136,5 +141,22 @@ describe('error replies', () => {
     expect(customerNotFound('Tiwari ji')[1]).toBeTruthy();
     expect(itemNotFound('laptop')[1]).toBeTruthy();
     expect(notUnderstood()).toHaveLength(2);
+  });
+});
+
+describe('customerAmbiguous and nothingPending', () => {
+  it('names both candidates and asks which one', () => {
+    const text = customerAmbiguous(['Ramesh Sharma', 'Ramesh Gupta'], 0).join(' ');
+    expect(text).toContain('Ramesh Sharma');
+    expect(text).toContain('Ramesh Gupta');
+    expect(customerAmbiguous(['Ramesh Sharma', 'Ramesh Gupta'], 0)).toHaveLength(2);
+  });
+  it('falls back to a not-found reply with fewer than two names', () => {
+    expect(customerAmbiguous([], 0).join(' ')).not.toContain('undefined');
+    expect(customerAmbiguous(['Ramesh Sharma'], 0).join(' ')).toContain('Ramesh Sharma');
+  });
+  it('says nothing is waiting', () => {
+    expect(nothingPending(0)).toHaveLength(1);
+    expect(nothingPending(0)[0]).toContain('pending');
   });
 });

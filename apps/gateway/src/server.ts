@@ -12,6 +12,8 @@ import { createTokenService, type TokenService } from './guard/token';
 import { Metrics } from './metrics';
 import { CLOSE } from './session/closeCodes';
 import { Session } from './session/session';
+import { Orchestrator } from './parse/orchestrator';
+import { createLlmAdapter, type LlmAdapter } from './parse/llm';
 import { SessionManager } from './session/sessionManager';
 import { GATEWAY_VERSION } from './version';
 
@@ -20,6 +22,8 @@ export interface BuildServerOptions {
   logStream?: DestinationStream;
   /** Test hook: replace the credit guard. */
   guard?: CreditGuard;
+  /** Test hook: replace the language model adapter (tests never call a real model). */
+  llm?: LlmAdapter;
 }
 
 export interface GatewayContext {
@@ -89,6 +93,10 @@ export function buildServer(
   };
   app.decorate('gateway', ctx);
   const phraseCache = new PhraseCache(config.gnani.tts.cacheDir, config.gnani.tts.cacheMemoryBytes);
+  const orchestrator = new Orchestrator({
+    llm: options.llm ?? createLlmAdapter(config.llm),
+    timeoutMs: config.llm.timeoutMs,
+  });
 
   const perIp = new RateLimiter(config.guard.sessionRatePerIpPerMin, 60_000);
   const global = new RateLimiter(config.guard.sessionRateGlobalPerMin, 60_000);
@@ -225,6 +233,7 @@ export function buildServer(
       guard: ctx.guard,
       metrics: ctx.metrics,
       cache: phraseCache,
+      orchestrator,
       onClosed: (s) => ctx.sessions.remove(s),
     });
     ctx.sessions.add(session);
