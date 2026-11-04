@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { getAccessCode } from '@/lib/accessCode';
 import { ContextSync } from '@/lib/db/contextSync';
 import { createRepo, type Repo } from '@/lib/db/repo';
 import { getDb, type BolDb } from '@/lib/db/schema';
@@ -63,6 +64,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         db = getDb();
         await seedIfFirstRun(db);
+        // Ask the browser not to evict the ledger when storage is tight (iOS Safari is the main risk).
+        void navigator.storage?.persist?.().catch(() => undefined);
       } catch {
         if (!disposed) setParts((p) => ({ ...p, dataError: 'Is browser mein data save nahi ho sakta. Local storage is blocked.' }));
         return;
@@ -77,6 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const session = createRealtimeSession({
         gatewayUrl: getGatewayUrl(),
         getCatalog: () => sync.snapshotForHello(),
+        getAccessCode,
         micSettings: settingsStore.getState().mic,
         ...(tone ? { createMic: (onFrame: (frame: ArrayBuffer) => void) => new ToneMic(onFrame) } : {}),
         handlers: {

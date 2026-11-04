@@ -375,6 +375,24 @@ describe('limits', () => {
   });
 });
 
+describe('a wrong or missing access code', () => {
+  it('can be retried with a new code: connect() works again from the blocked state', async () => {
+    const typed: { code?: string } = {};
+    net.respond(jsonResponse(403, { error: 'access_code_required' }));
+    const h = make({ accessCode: () => typed.code });
+    h.client.connect();
+    await flush();
+    expect(h.client.getState()).toMatchObject({ status: 'blocked' });
+
+    typed.code = 'sesame';
+    net.respond(jsonResponse(200, { token: 'tok-ok' }));
+    h.client.connect();
+    await flush();
+    expect(JSON.parse(net.calls.at(-1)?.init?.body as string)).toEqual({ accessCode: 'sesame' });
+    expect(FakeWebSocket.last.url).toContain('tok-ok');
+  });
+});
+
 describe('page lifecycle', () => {
   function pageHarness() {
     const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' as DocumentVisibilityState });

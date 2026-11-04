@@ -19,6 +19,8 @@ export interface MicPort {
 export interface SessionOptions {
   gatewayUrl: string;
   getCatalog: () => CatalogSnapshot | Promise<CatalogSnapshot>;
+  /** The demo access code, if the gateway asks for one. */
+  getAccessCode?: () => string | undefined;
   handlers?: TurnHandlers;
   micSettings?: MicSettings;
   /** Dev labs only: replace the microphone (see lib/dev/toneMic.ts). Must be labelled in the UI. */
@@ -70,7 +72,11 @@ export function createRealtimeSession(options: SessionOptions): RealtimeSession 
     });
 
   const client = new RealtimeClient(
-    { gatewayUrl: options.gatewayUrl, getCatalog: options.getCatalog },
+    {
+      gatewayUrl: options.gatewayUrl,
+      getCatalog: options.getCatalog,
+      ...(options.getAccessCode ? { accessCode: options.getAccessCode } : {}),
+    },
     {
       onState: (state) => wired.controller?.handleConnection(state),
       onMessage: (message) => wired.controller?.handleServerMessage(message),

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { DraftMessage } from '@bolbill/shared';
+import { setAccessCode } from '@/lib/accessCode';
 import { useLive } from '@/lib/db/live';
 import { useHoldOrLatch } from '@/lib/gesture/useHoldOrLatch';
 import type { MicState } from '@/lib/audio/micCapture';
@@ -28,6 +29,23 @@ function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: s
       <p className="text-stone-200">{hint}</p>
       {action && <button type="button" onClick={action.run} className="mt-2 min-h-12 rounded-xl bg-stone-700 px-4 font-semibold">{action.label}</button>}
     </div>
+  );
+}
+
+function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
+  const [code, setCode] = useState('');
+  return (
+    <form
+      className="rounded-xl border border-amber-500/60 bg-amber-500/10 px-4 py-3"
+      onSubmit={(e) => { e.preventDefault(); if (code.trim()) onSubmit(code); }}
+    >
+      <label htmlFor="access-code" className="font-bold">Demo code chahiye</label>
+      <p className="text-stone-200">Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
+      <div className="mt-2 flex gap-2">
+        <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-12 min-w-0 flex-1 rounded-xl bg-stone-900 px-3 text-lg" />
+        <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-amber-400 px-5 font-bold text-stone-950 disabled:opacity-40">Shuru</button>
+      </div>
+    </form>
   );
 }
 
@@ -154,7 +172,11 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
       </header>
 
       {!online && <Notice title="Internet nahi hai" hint="Bolne ke liye internet chahiye. Khata aur samaan ab bhi khul sakte hain." />}
-      {online && notice && <Notice title={notice.title} hint={notice.hint} />}
+      {online && connection.status === 'blocked' && connection.reason === 'access_code_required' ? (
+        <AccessCodeForm onSubmit={(code) => { setAccessCode(code); session.client.connect(); }} />
+      ) : (
+        online && notice && <Notice title={notice.title} hint={notice.hint} />
+      )}
       {mic.status === 'error' && mic.error && <Notice tone="error" {...micErrorText(mic.error)} action={{ label: 'Dobara try karo', run: () => void enable() }} />}
       {degraded.includes('tts_unavailable') && <Notice title="Awaaz abhi nahi aa rahi" hint="Text mode: jawab neeche screen par hai." />}
       {degraded.includes('llm_timeout') && <Notice title="Bill dhyaan se dekho" hint="Smart check time par nahi ho paya, isliye bill ek baar check kar lo." />}

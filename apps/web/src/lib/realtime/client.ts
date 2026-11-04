@@ -112,8 +112,8 @@ export class RealtimeClient {
   /** Starts connecting. Idempotent; call it when the page opens to pre-warm the session. */
   connect(): void {
     this.wantConnected = true;
+    // `blocked` is retried on purpose: it is how a visitor tries a new access code.
     if (this.state.status === 'connecting' || this.state.status === 'ready') return;
-    if (this.state.status === 'blocked') return;
     void this.open();
   }
 
