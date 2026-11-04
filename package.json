@@ -1,6 +1,7 @@
 {
   "name": "bol-bill",
   "version": "0.1.0",
+  "packageManager": "pnpm@12.16.1",
   "private": true,
   "description": "Realtime Hinglish voice-to-bill PWA for kirana stores",
   "engines": {
