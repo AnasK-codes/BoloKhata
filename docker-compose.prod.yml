@@ -1,0 +1,84 @@
+# Production stack for one small EC2 instance. Three containers, nothing else:
+#   caddy (TLS + reverse proxy)  ->  web (Next.js)  and  gateway (realtime WebSocket)
+# Usage:  docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Needs a .env next to this file (see docs/DEPLOY.md). Only the gateway reads secrets.
+
+name: bolbill
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    logging: *logging
+
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    restart: unless-stopped
+    init: true
+    # Longer than DRAIN_TIMEOUT_MS so the graceful drain can finish before Docker kills it.
+    stop_grace_period: 30s
+    env_file: .env
+    environment:
+      PORT: "8080"
+      TRUST_PROXY: "true"
+      # Same-origin: the browser origin is the site itself.
+      ALLOWED_ORIGINS: https://${DOMAIN}
+    expose:
+      - "8080"
+    volumes:
+      - tts_cache:/data/tts-cache
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging: *logging
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_GATEWAY_URL: https://${DOMAIN}
+    restart: unless-stopped
+    init: true
+    # No env_file: the web container never sees the Gnani key or any other secret.
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:
+  tts_cache:

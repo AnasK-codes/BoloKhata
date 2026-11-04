@@ -484,6 +484,8 @@ Start with Mumbai (`ap-south-1`) and verify with `scripts/measure-rtt.ts` (conne
 6. Keep heartbeats flowing so WebSockets stay open. Do not print secrets in logs.
 7. When the challenge is over, stop or delete every resource you created (the Prompt 8 step asks the agent to list them all).
 
+> Step-by-step instructions for this plan, with the Dockerfiles, `docker-compose.prod.yml` and `deploy/Caddyfile`, are in [`docs/DEPLOY.md`](docs/DEPLOY.md). Test results and the manual device matrix are in [`docs/TESTING.md`](docs/TESTING.md); the submission pack is [`docs/SUBMISSION.md`](docs/SUBMISSION.md).
+
 ## 17. Demo guard and cost control
 
 Gnani credits are limited, and their API has concurrency limits (per-organization STT session cap; one active TTS request recommended at a time). A public link could exhaust both.

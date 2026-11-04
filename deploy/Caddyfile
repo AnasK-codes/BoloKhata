@@ -1,0 +1,40 @@
+# One origin for everything: https://{$DOMAIN}
+#   /ws  /session  /healthz  -> the gateway (WebSocket and token endpoint)
+#   everything else          -> the web app
+# Caddy gets and renews the Let's Encrypt certificate by itself (ports 80 and 443 must be open).
+# /metrics is deliberately not routed: it is reachable only from inside the instance.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	@gateway path /ws /ws/* /session /session/* /healthz
+	handle @gateway {
+		# flush_interval -1: send bytes as they arrive (audio must not be buffered). No `encode`
+		# here: compressing audio frames only adds latency. WebSocket upgrades are proxied
+		# automatically.
+		reverse_proxy gateway:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "microphone=(self)"
+	}
+	# The service worker must be fetched fresh so updates are noticed.
+	@sw path /sw.js
+	header @sw Cache-Control "no-cache"
+
+	log {
+		output stdout
+		format console
+	}
+}
