@@ -26,9 +26,9 @@ export const CONFIDENCE_THRESHOLD = 0.7;
 const fold = (s: string): string => normalize(s, { stripHonorifics: false });
 const foldSet = (words: readonly string[]): ReadonlySet<string> => new Set(words.map(fold));
 
-const NEGATIVE = foldSet(['nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'mat', 'cancel', 'rehne', 'rahne', 'hatao', 'ruko', 'galat', 'नहीं', 'नही', 'रहने']);
+const NEGATIVE = foldSet(['hata', 'nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'mat', 'cancel', 'rehne', 'rahne', 'hatao', 'ruko', 'galat', 'नहीं', 'नही', 'रहने']);
 const CANCEL_VOCAB = foldSet([
-  'nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'mat', 'cancel', 'rehne', 'rahne', 'hatao', 'ruko', 'do',
+  'hata', 'nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'mat', 'cancel', 'rehne', 'rahne', 'hatao', 'ruko', 'do',
   'karo', 'kar', 'kardo', 'ji', 'bas', 'bilkul', 'abhi', 'hai', 'bhai', 'yaar', 'ye', 'wo', 'bill',
   'chhodo', 'chodo', 'dijiye', 'galat', 'नहीं', 'नही', 'रहने', 'दो',
 ]);
@@ -50,6 +50,8 @@ const MARKER_ALWAYS = foldSet(['ko', 'ne', 'se']);
 const MARKER_NEEDS_KEYWORD = foldSet(['ka', 'ki', 'ke']);
 const AFTER_MARKER_KW = foldSet(['kitna', 'kitni', 'kitne', 'udhaar', 'udhar', 'udhari', 'baki', 'bakaya', 'hisab', 'balance', 'khata', 'khate', 'total', 'pending', 'liye']);
 const CUSTOMER_FILLER = foldSet(['bill', 'bana', 'banao', 'likho', 'likh', 'naya', 'hisab', 'aaj', 'abhi', 'please', 'pls']);
+/** Particles that follow a customer name at the end of an order: "... Sharma ji ke naam pe". */
+const TRAILING_PARTICLES = foldSet(['ko', 'ke', 'ki', 'liye', 'naam', 'nam', 'pe', 'par', 'mein', 'me', 'mei']);
 const SEPARATORS = foldSet(['aur', 'and', 'plus', 'tatha', 'saath']);
 const NOISE = foldSet([
   'likh', 'likho', 'jod', 'jodo', 'kar', 'karo', 'dena', 'de', 'dijiye', 'chahiye', 'bill', 'bana', 'banao',
@@ -140,7 +142,8 @@ function findCustomer(w: Working, matcher: CatalogMatcher | undefined): string |
     if (marker === fold('ke') && f[m + 1] === fold('liye')) w.used[m + 1] = true;
     return titleCase(nameTokens);
   }
-  return matcher ? findCustomerWithoutMarker(w, matcher) : null;
+  if (!matcher) return null;
+  return findCustomerWithoutMarker(w, matcher) ?? findTrailingCustomer(w, matcher);
 }
 
 function isProductNotCustomer(matcher: CatalogMatcher, name: string): boolean {
@@ -161,6 +164,30 @@ function findCustomerWithoutMarker(w: Working, matcher: CatalogMatcher): string 
       markRange(w, 0, len - 1);
       return titleCase(w.raw.slice(0, len));
     }
+  }
+  return null;
+}
+
+/**
+ * "do kilo aata Sharma ji ko", "... aur ek Maggi Verma ji ke liye", "... Sharma ji ke naam pe": a KNOWN
+ * customer at the end of the sentence. Only a catalog match counts, so an item name can never be
+ * mistaken for a customer; a new customer must still be named first ("Naya ji ko ...").
+ */
+function findTrailingCustomer(w: Working, matcher: CatalogMatcher): string | null {
+  const { f } = w;
+  const skippable = (t: string) => NOISE.has(t) || UDHAAR_KW.has(t) || TRAILING_PARTICLES.has(t) || t === fold('do');
+  let end = f.length;
+  while (end > 0 && skippable(f[end - 1] ?? '')) end--;
+  for (let len = Math.min(3, end); len >= 1; len--) {
+    const start = end - len;
+    if (!allUnused(w, start, end - 1) || w.raw.slice(start, end).some(isNumeric)) continue;
+    const name = w.raw.slice(start, end).join(' ');
+    const c = matcher.matchCustomer(name);
+    if (!c.best || c.ambiguous || isProductNotCustomer(matcher, name)) continue;
+    let last = end - 1;
+    while (last + 1 < f.length && TRAILING_PARTICLES.has(f[last + 1] ?? '')) last++;
+    markRange(w, start, last);
+    return titleCase(w.raw.slice(start, end));
   }
   return null;
 }

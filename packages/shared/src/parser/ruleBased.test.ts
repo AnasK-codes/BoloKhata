@@ -118,6 +118,34 @@ describe('intents', () => {
   });
 });
 
+describe('customer at the end of the sentence', () => {
+  it.each([
+    ['do kilo aata Sharma ji ko', 'Sharma Ji'],
+    ['Dhai kilo aata aur ek Maggi Sharma ji ke naam pe', 'Sharma Ji'],
+    ['do kilo aata aur ek maggi Verma ji ko udhaar', 'Verma Ji'],
+    ['do kilo aata Sharma ji ke liye', 'Sharma Ji'],
+  ])('%s', (text, name) => {
+    const r = parse(text);
+    expect(r.customer?.toLowerCase()).toBe(name.toLowerCase());
+    expect(r.items.map((i) => i.name.toLowerCase())).not.toContainEqual(expect.stringContaining('ji'));
+    expect(r.confidence).toBeGreaterThanOrEqual(CONFIDENCE_THRESHOLD);
+  });
+
+  it('keeps the udhaar keyword for the amount when the name comes last', () => {
+    expect(parse('do kilo aata aur ek maggi Verma ji ko teen sau ka udhaar').udhaar_amount).toBe(300);
+  });
+
+  it('never takes an item for a customer', () => {
+    expect(parse('do kilo aata aur ek maggi').customer).toBeNull();
+  });
+});
+
+describe('"hata do"', () => {
+  it.each(['hata do', 'bill hata do', 'hatao'])('%s cancels instead of becoming an item called "2 hata"', (text) => {
+    expect(parse(text).intent).toBe('cancel');
+  });
+});
+
 describe('customers', () => {
   it('takes the name before ko / ne', () => {
     expect(parse('Sharma ji ko do kilo aata').customer).toBe('Sharma ji');
