@@ -40,6 +40,8 @@ export class PlaybackCore {
   private turn = NO_TURN;
   private sourceRate = 0;
   private ended = false;
+  /** `started` fires once per turn, not again after a rebuffer. */
+  private announced = false;
   private lastSample = 0;
   private fadeLeft = 0;
   underruns = 0;
@@ -85,6 +87,7 @@ export class PlaybackCore {
       this.ring.clear();
       this.turn = turnId;
       this.mode = 'buffering';
+      this.announced = false;
       this.fadeLeft = 0;
       this.lastSample = 0;
     }
@@ -135,7 +138,10 @@ export class PlaybackCore {
         this.ring.available >= this.prefillSamples || (this.ended && this.ring.available > 0);
       if (ready) {
         this.mode = 'playing';
-        this.events.started(this.turn, contextTime);
+        if (!this.announced) {
+          this.announced = true;
+          this.events.started(this.turn, contextTime);
+        }
       }
     }
 

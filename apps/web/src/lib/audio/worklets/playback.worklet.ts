@@ -48,10 +48,10 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     this.core.render(first, currentTime);
     for (let c = 1; c < output.length; c++) (output[c] as Float32Array).set(first);
 
-    // Stats while audio is moving, plus once when it stops, so an idle page stays quiet.
+    // Stats while audio is moving and on every start or stop, so an idle page stays quiet.
     this.sinceStats += first.length;
     const playing = this.core.playing;
-    if (this.sinceStats >= this.statsEvery && (playing || this.lastPlaying)) {
+    if ((this.sinceStats >= this.statsEvery && playing) || playing !== this.lastPlaying) {
       this.sendStats();
     }
     this.lastPlaying = playing;

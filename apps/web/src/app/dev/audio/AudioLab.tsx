@@ -19,6 +19,7 @@ type Delivery = 'burst' | 'steady' | 'jittery';
 
 const TTS_RATE = 24000;
 const CHUNK_MS = 40;
+const JITTER_MS = 60;
 
 function toneChunk(startSample: number, ms: number): Uint8Array {
   const samples = Math.round((TTS_RATE * ms) / 1000);
@@ -107,9 +108,10 @@ export function AudioLab() {
     let at = 0;
     for (let i = 0; i < count; i++) {
       const chunk = toneChunk(i * ((TTS_RATE * CHUNK_MS) / 1000), CHUNK_MS);
+      // Jitter is bounded lateness around a real-time schedule, like a real network path.
       if (delivery === 'burst') at = 0;
       else if (delivery === 'steady') at = i * CHUNK_MS;
-      else at += Math.random() * CHUNK_MS * 2; // mean one chunk per CHUNK_MS, but uneven
+      else at = i * CHUNK_MS + Math.random() * JITTER_MS;
       timers.current.push(setTimeout(() => engine.pushPcm(id, chunk), at));
     }
     timers.current.push(setTimeout(() => engine.endTurn(id), at + 1));
@@ -192,7 +194,7 @@ export function AudioLab() {
           {(['jittery', 'steady', 'burst'] as const).map((d) => (
             <label key={d} className="flex items-center gap-1">
               <input type="radio" name="delivery" checked={delivery === d} onChange={() => setDelivery(d)} />
-              {d}
+              {d === 'jittery' ? `jittery (0 to ${JITTER_MS} ms late)` : d}
             </label>
           ))}
         </div>

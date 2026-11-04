@@ -53,6 +53,17 @@ describe('PlaybackCore', () => {
     expect(h.started[0]?.time).toBeCloseTo((3 * QUANTUM) / RATE, 9);
   });
 
+  it('announces the start of a turn once, even after a rebuffer', () => {
+    const h = harness(20);
+    h.core.begin(1, 24000);
+    h.core.pushPcm(1, h.tone(40));
+    h.render(Math.ceil((RATE * 0.05) / QUANTUM) + 2); // plays out, underruns
+    h.core.pushPcm(1, h.tone(60));
+    h.render(4);
+    expect(h.core.underruns).toBe(1);
+    expect(h.log.filter((e) => e.startsWith('started'))).toEqual(['started:1']);
+  });
+
   it('plays a resampled tone at the right pitch and level', () => {
     const h = harness(20);
     h.core.begin(1, 24000);
