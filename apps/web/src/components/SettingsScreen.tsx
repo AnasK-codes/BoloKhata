@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { resetDemoData } from '@/lib/db/seed';
 import { useSettings } from '@/lib/settings';
 import { useApp } from './AppProvider';
 
@@ -37,7 +36,7 @@ export function SettingsScreen() {
     if (!db) return;
     setBusy(true);
     try {
-      await resetDemoData(db);
+      await (await import('@/lib/db/seed')).resetDemoData(db);
       toast('Demo data reset ho gaya', 'ok');
     } catch {
       toast('Reset nahi hua. Dobara try karo.', 'error');

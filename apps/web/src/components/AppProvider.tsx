@@ -5,9 +5,7 @@ import { getAccessCode } from '@/lib/accessCode';
 import { ContextSync } from '@/lib/db/contextSync';
 import { createRepo, type Repo } from '@/lib/db/repo';
 import { getDb, type BolDb } from '@/lib/db/schema';
-import { seedIfFirstRun } from '@/lib/db/seed';
 import { getGatewayUrl } from '@/lib/env';
-import { ToneMic } from '@/lib/dev/toneMic';
 import { createRealtimeSession, type RealtimeSession } from '@/lib/session/createSession';
 import { hydrateSettings, settingsStore } from '@/lib/settings';
 import { attachHandsFree } from '@/lib/voice/handsFree';
@@ -63,7 +61,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let db: BolDb;
       try {
         db = getDb();
-        await seedIfFirstRun(db);
+        // The seed catalog is loaded only on the very first run, so it is not part of every page's JavaScript.
+        if (!(await db.meta.get('seededAt'))) await (await import('@/lib/db/seed')).seedIfFirstRun(db);
         // Ask the browser not to evict the ledger when storage is tight (iOS Safari is the main risk).
         void navigator.storage?.persist?.().catch(() => undefined);
       } catch {
@@ -76,13 +75,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Development only: `?tone=1` swaps the microphone for a labelled synthetic tone, for machines with no mic.
       const tone = process.env.NODE_ENV !== 'production' && new URLSearchParams(location.search).get('tone') === '1';
       setSynthetic(tone);
+      // Loaded only in development with ?tone=1; the production build drops this branch and the module.
+      const ToneMic = tone ? (await import('@/lib/dev/toneMic')).ToneMic : null;
       const sync = new ContextSync({ db, send: (m) => holder.session?.client.send(m) ?? false });
       const session = createRealtimeSession({
         gatewayUrl: getGatewayUrl(),
         getCatalog: () => sync.snapshotForHello(),
         getAccessCode,
         micSettings: settingsStore.getState().mic,
-        ...(tone ? { createMic: (onFrame: (frame: ArrayBuffer) => void) => new ToneMic(onFrame) } : {}),
+        ...(ToneMic ? { createMic: (onFrame: (frame: ArrayBuffer) => void) => new ToneMic(onFrame) } : {}),
         handlers: {
           saveDraft: (draft) => {
             void saveDraft(repo, draft).then((outcome) => {
