@@ -68,7 +68,10 @@ export function buildServer(
       },
     },
     bodyLimit: 16 * 1024,
-    trustProxy: config.server.trustProxy,
+    // Only a proxy on a private address (Caddy on the Docker network) is trusted, and the client is the
+    // first PUBLIC address scanning X-Forwarded-For from the right, which is the one the proxy appended and
+    // a client cannot forge. `true` would trust the leftmost entry, which a client controls.
+    trustProxy: config.server.trustProxy ? ['loopback', 'linklocal', 'uniquelocal'] : false,
   });
 
   const guard =

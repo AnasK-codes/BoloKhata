@@ -27,19 +27,19 @@ const post = (g: Harness, ip: string) =>
 describe('rate limits on POST /session', () => {
   it('per IP: the third request in a minute is refused with a retry time, another IP is unaffected', async () => {
     gateway = await startGateway({ TRUST_PROXY: 'true', SESSION_RATE_PER_IP_PER_MIN: '2' });
-    expect((await post(gateway, '10.0.0.1')).status).toBe(200);
-    expect((await post(gateway, '10.0.0.1')).status).toBe(200);
-    const refused = await post(gateway, '10.0.0.1');
+    expect((await post(gateway, '203.0.113.1')).status).toBe(200);
+    expect((await post(gateway, '203.0.113.1')).status).toBe(200);
+    const refused = await post(gateway, '203.0.113.1');
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0);
     expect(await refused.json()).toMatchObject({ type: 'limit', reason: 'rate_limited' });
-    expect((await post(gateway, '10.0.0.2')).status).toBe(200);
+    expect((await post(gateway, '203.0.113.2')).status).toBe(200);
   });
 
   it('globally: once the whole demo hits its per-minute cap, every IP is refused', async () => {
     gateway = await startGateway({ TRUST_PROXY: 'true', SESSION_RATE_PER_IP_PER_MIN: '100', SESSION_RATE_GLOBAL_PER_MIN: '3' });
-    for (const ip of ['10.0.1.1', '10.0.1.2', '10.0.1.3']) expect((await post(gateway, ip)).status).toBe(200);
-    const refused = await post(gateway, '10.0.1.4');
+    for (const ip of ['203.0.113.11', '203.0.113.12', '203.0.113.13']) expect((await post(gateway, ip)).status).toBe(200);
+    const refused = await post(gateway, '203.0.113.14');
     expect(refused.status).toBe(429);
     expect(await refused.json()).toMatchObject({ reason: 'rate_limited' });
   });
@@ -49,6 +49,16 @@ describe('rate limits on POST /session', () => {
     await post(gateway, '1.1.1.1');
     await post(gateway, '2.2.2.2');
     expect((await post(gateway, '3.3.3.3')).status).toBe(429); // all three are the same real client
+  });
+});
+
+describe('X-Forwarded-For behind the proxy', () => {
+  it('uses the address the proxy appended, so a client cannot dodge the limit by forging the front of the header', async () => {
+    gateway = await startGateway({ TRUST_PROXY: 'true', SESSION_RATE_PER_IP_PER_MIN: '2' });
+    // "client-forged, address-the-proxy-saw": every request really comes from 203.0.113.99.
+    expect((await post(gateway, 'forged-a, 203.0.113.99')).status).toBe(200);
+    expect((await post(gateway, 'forged-b, 203.0.113.99')).status).toBe(200);
+    expect((await post(gateway, 'forged-c, 203.0.113.99')).status).toBe(429);
   });
 });
 

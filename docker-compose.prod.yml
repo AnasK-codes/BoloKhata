@@ -45,6 +45,8 @@ services:
     environment:
       PORT: "8080"
       TRUST_PROXY: "true"
+      # The volume, whatever .env says (the working directory in the image is not writable).
+      GNANI_TTS_CACHE_DIR: /data/tts-cache
       # Same-origin: the browser origin is the site itself.
       ALLOWED_ORIGINS: https://${DOMAIN}
     expose:

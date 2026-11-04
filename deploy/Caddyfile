@@ -35,6 +35,12 @@
 
 	log {
 		output stdout
-		format console
+		# The WebSocket URL carries a one-time session token: keep it out of the logs.
+		format filter {
+			request>uri query {
+				replace token REDACTED
+			}
+			wrap console
+		}
 	}
 }
