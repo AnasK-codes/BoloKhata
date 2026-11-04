@@ -16,15 +16,18 @@ const SAMPLE_TRANSCRIPTS = [
 async function main() {
   const sttPort = Number(process.env['MOCK_STT_PORT'] ?? 9101);
   const ttsPort = Number(process.env['MOCK_TTS_PORT'] ?? 9102);
+  // Bind address: 127.0.0.1 by default; 0.0.0.0 lets a Docker container reach the mock (compose test).
+  const host = process.env['MOCK_HOST'] ?? '127.0.0.1';
   let next = 0;
 
   const mock = await startMockGnani({
     stt: {
+      host,
       port: sttPort,
       transcriptLatencyMs: 200,
       defaultTranscript: () => SAMPLE_TRANSCRIPTS[next++ % SAMPLE_TRANSCRIPTS.length] ?? '',
     },
-    tts: { port: ttsPort, msPerChar: 55 },
+    tts: { host, port: ttsPort, msPerChar: 55 },
   });
 
   console.log('MOCK Gnani servers running. Transcripts are scripted and audio is a test tone.');
