@@ -54,5 +54,9 @@
     { "id": "c_meena_patel", "name": "Meena Patel", "aliases": ["Patel behen", "Meena ji"] },
     { "id": "c_kiran_joshi", "name": "Kiran Joshi", "aliases": ["Joshi ji"] },
     { "id": "c_pooja_nair", "name": "Pooja Nair", "aliases": ["Nair madam", "Pooja ji"] }
+  ],
+  "openingBalances": [
+    { "customerId": "c_ramesh_sharma", "amount": 120, "note": "Purana hisab" },
+    { "customerId": "c_suresh_verma", "amount": 300, "note": "Purana hisab" }
   ]
 }
