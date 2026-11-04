@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DraftMessage } from '@bolbill/shared';
 import { setAccessCode } from '@/lib/accessCode';
+import { rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
 import { useHoldOrLatch } from '@/lib/gesture/useHoldOrLatch';
 import type { MicState } from '@/lib/audio/micCapture';
@@ -14,6 +15,7 @@ import { draftFromTranscript } from '@/lib/voice/draftEdit';
 import { connectionNotice, friendlyError, micErrorText } from '@/lib/voice/errorText';
 import { statusText } from '@/lib/voice/statusText';
 import { useApp } from '../AppProvider';
+import { Icon } from '../Icon';
 import { BillCard } from './BillCard';
 import { BalanceCard, PaymentCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
@@ -26,8 +28,8 @@ function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: s
   return (
     <div role="alert" className={`rounded-xl border px-4 py-3 ${tone === 'error' ? 'border-red-500/70 bg-red-500/10' : 'border-amber-500/60 bg-amber-500/10'}`}>
       <p className="font-bold">{title}</p>
-      <p className="text-stone-200">{hint}</p>
-      {action && <button type="button" onClick={action.run} className="mt-2 min-h-12 rounded-xl bg-stone-700 px-4 font-semibold">{action.label}</button>}
+      <p className="text-ink">{hint}</p>
+      {action && <button type="button" onClick={action.run} className="mt-2 min-h-12 rounded-xl bg-control px-4 font-semibold">{action.label}</button>}
     </div>
   );
 }
@@ -40,9 +42,9 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
       onSubmit={(e) => { e.preventDefault(); if (code.trim()) onSubmit(code); }}
     >
       <label htmlFor="access-code" className="font-bold">Demo code chahiye</label>
-      <p className="text-stone-200">Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
+      <p className="text-ink">Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
       <div className="mt-2 flex gap-2">
-        <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-12 min-w-0 flex-1 rounded-xl bg-stone-900 px-3 text-lg" />
+        <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-12 min-w-0 flex-1 rounded-xl bg-inset px-3 text-lg" />
         <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-amber-400 px-5 font-bold text-stone-950 disabled:opacity-40">Shuru</button>
       </div>
     </form>
@@ -55,7 +57,7 @@ export function VoiceScreen() {
   if (!session || !repo) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center px-4" aria-busy="true">
-        <p className="text-stone-400">Shuru ho raha hai…</p>
+        <p className="text-muted">Shuru ho raha hai…</p>
       </main>
     );
   }
@@ -164,8 +166,8 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   return (
     <main className="mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-md flex-col gap-3 px-4 pb-4 pt-5">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold tracking-tight">Bol-<span className="text-amber-400">Bill</span></h1>
-        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${connection.status === 'ready' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-stone-700 text-stone-200'}`}>
+        <h1 className="text-2xl font-extrabold tracking-tight">Bol-<span className="text-accent">Bill</span></h1>
+        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${connection.status === 'ready' ? 'bg-emerald-500/15 text-good' : 'bg-control text-ink'}`}>
           <span className={`h-2 w-2 rounded-full ${connection.status === 'ready' ? 'bg-emerald-400' : 'bg-stone-400'}`} aria-hidden="true" />
           {!online ? 'Offline' : connection.status === 'ready' ? 'Online' : connection.status === 'limited' ? 'Busy' : 'Jud raha hai…'}
         </span>
@@ -190,22 +192,22 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
 
       <section className="flex flex-1 flex-col gap-3" aria-live="polite">
         {transcript && !editing && (
-          <div className="flex items-start justify-between gap-2 rounded-xl bg-stone-900 px-4 py-3">
-            <p className="text-lg text-stone-100">&ldquo;{transcript}&rdquo;</p>
+          <div className="flex items-start justify-between gap-2 rounded-xl bg-inset px-4 py-3">
+            <p className="text-lg text-ink">&ldquo;{transcript}&rdquo;</p>
             {draft && (draft.intent === 'create_bill' || draft.intent === 'record_payment') && (
-              <button type="button" aria-label="Transcript theek karo (edit)" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-stone-700" onClick={() => { setEditText(transcript); setEditing(true); }}>
+              <button type="button" aria-label="Transcript theek karo (edit)" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-control" onClick={() => { setEditText(transcript); setEditing(true); }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.3V21h3.7L17.8 9.9l-3.7-3.7L3 17.3ZM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.7L20.7 7Z" /></svg>
               </button>
             )}
           </div>
         )}
         {editing && (
-          <form className="rounded-xl bg-stone-900 p-3" onSubmit={(e) => { e.preventDefault(); applyTranscriptEdit(); }}>
-            <label className="text-sm text-stone-300" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
-            <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl bg-stone-800 px-3 text-lg" />
+          <form className="rounded-xl bg-inset p-3" onSubmit={(e) => { e.preventDefault(); applyTranscriptEdit(); }}>
+            <label className="text-sm text-dim" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
+            <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl bg-raised px-3 text-lg" />
             <div className="mt-2 flex gap-2">
               <button type="submit" className="min-h-12 flex-1 rounded-xl bg-amber-400 font-bold text-stone-950">Bill dobara banao</button>
-              <button type="button" className="min-h-12 rounded-xl bg-stone-700 px-4 font-semibold" onClick={() => setEditing(false)}>Raho</button>
+              <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => setEditing(false)}>Raho</button>
             </div>
           </form>
         )}
@@ -213,48 +215,64 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
         {draft ? showCard(draft) : null}
 
         {draft && (
-          <p className="flex items-start gap-2 rounded-xl bg-stone-900/70 px-4 py-3 text-stone-200">
-            <span aria-hidden="true">🔊</span>
+          <p className="flex items-start gap-2 rounded-xl bg-inset/70 px-4 py-3 text-ink">
+            <Icon name="speaker" size={22} />
             <span>{draft.replyText.join(' ')}</span>
           </p>
         )}
 
         {!draft && !transcript && !busy && !listening && !error && (
-          <div className="rounded-2xl border border-dashed border-stone-700 p-5 text-center">
+          <div className="rounded-2xl border border-dashed border-line p-5 text-center">
             <p className="text-lg font-semibold">Mic dabake aise bolo:</p>
-            <ul className="mt-3 space-y-2 text-stone-300">
+            <ul className="mt-3 space-y-2 text-dim">
               {EXAMPLES.map((e) => <li key={e}>&ldquo;{e}&rdquo;</li>)}
             </ul>
           </div>
         )}
       </section>
 
-      <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col gap-2 bg-gradient-to-t from-[#0f1115] via-[#0f1115] to-transparent px-4 pb-2 pt-6">
-      {confirmable && pending && (pending.intent === 'create_bill' || pending.intent === 'record_payment') && (
-          <div className="flex gap-2">
-            <button type="button" className="min-h-16 flex-1 rounded-2xl bg-emerald-500 text-xl font-extrabold text-stone-950 active:bg-emerald-400" onClick={() => controller.confirm()}>✓ Confirm</button>
-            <button type="button" className="min-h-16 rounded-2xl bg-stone-700 px-6 text-xl font-bold active:bg-stone-600" onClick={() => controller.discard()}>Cancel</button>
-          </div>
+      <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col items-center gap-1 bg-canvas px-4 pb-1 pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-gradient-to-t before:from-canvas before:to-transparent">
+        {confirmable && draft?.bill && (
+          <p className="num flex w-full items-baseline justify-between text-2xl font-extrabold">
+            <span>Total</span>
+            <span>{rupees(draft.bill.total)}</span>
+          </p>
         )}
-
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-lg font-semibold" role="status">{status}</p>
-          {micLive ? (
+        <p className="text-lg font-semibold" role="status">{status}</p>
+        {micLive ? (
+          <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div>
+              {confirmable && pending && (
+                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl bg-control text-base font-bold active:bg-raised" onClick={() => controller.discard()}>
+                  <Icon name="stop" size={20} />
+                  Cancel
+                </button>
+              )}
+            </div>
             <MicButton
               listening={listening}
               busy={busy}
+              speaking={phase === 'speaking'}
               disabled={!canTalk}
-              label="Microphone: dabake bolo, ya tap karke shuru karo"
+              label={phase === 'speaking' ? 'Microphone: dabao, awaaz ruk jayegi aur aap bol sakte hain' : 'Microphone: dabake bolo, ya tap karke shuru karo'}
               level={session.level}
               buttonProps={buttonProps}
             />
-          ) : (
-            <button type="button" disabled={audioStarting} onClick={() => void enable()} className="min-h-16 rounded-2xl bg-amber-400 px-8 text-xl font-extrabold text-stone-950 disabled:opacity-60">
-              {audioStarting ? 'Mic khul raha hai…' : '🎤 Mic chalu karo'}
-            </button>
-          )}
-          {!draft && <p className="text-center text-sm text-stone-400">Dabake bolo, chhodo to bhej dega · ya ek tap se shuru, doosre tap se band</p>}
-        </div>
+            <div>
+              {confirmable && pending && (
+                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl bg-emerald-500 text-base font-extrabold text-stone-950 active:bg-emerald-400" onClick={() => controller.confirm()}>
+                  <Icon name="check" size={24} />
+                  Confirm
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button type="button" disabled={audioStarting} onClick={() => void enable()} className="min-h-16 rounded-2xl bg-amber-400 px-8 text-xl font-extrabold text-stone-950 disabled:opacity-60">
+            <span className="flex items-center gap-2"><Icon name="mic" size={24} />{audioStarting ? 'Mic khul raha hai…' : 'Mic chalu karo'}</span>
+          </button>
+        )}
+        {!draft && !listening && !busy && <p className="text-center text-sm text-muted">Dabake bolo, chhodo to bhej dega · ya ek tap se shuru, doosre tap se band</p>}
       </div>
 
       {hud && <LatencyHud turns={turns} connection={connection} />}

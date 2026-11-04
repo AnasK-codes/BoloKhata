@@ -13,7 +13,7 @@ const ITEMS = [
 export function BottomNav() {
   const path = usePathname();
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-800 bg-[#0f1115]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
       <ul className="mx-auto flex max-w-md">
         {ITEMS.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
@@ -23,7 +23,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 aria-label={`${item.label} (${item.hint})`}
-                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-sm font-semibold ${active ? 'text-amber-400' : 'text-stone-400'}`}
+                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-sm font-semibold ${active ? 'text-accent' : 'text-muted'}`}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={item.icon} /></svg>
                 {item.label}

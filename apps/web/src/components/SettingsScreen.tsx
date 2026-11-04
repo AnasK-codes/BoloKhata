@@ -9,7 +9,7 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
     <label className="flex min-h-16 cursor-pointer items-center justify-between gap-4 px-4 py-3">
       <span>
         <span className="block text-lg font-semibold">{label}</span>
-        <span className="block text-sm text-stone-400">{hint}</span>
+        <span className="block text-sm text-muted">{hint}</span>
       </span>
       <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-7 w-7 shrink-0 accent-amber-400" />
     </label>
@@ -18,8 +18,8 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
 
 const Section = ({ title, children }: { title: string; children: ReactNode }) => (
   <section className="space-y-2">
-    <h2 className="text-sm font-bold uppercase tracking-wide text-stone-400">{title}</h2>
-    <div className="divide-y divide-stone-800 rounded-2xl bg-[#1d2128]">{children}</div>
+    <h2 className="text-base font-bold text-dim">{title}</h2>
+    <div className="divide-y divide-line rounded-2xl bg-card">{children}</div>
   </section>
 );
 
@@ -65,17 +65,17 @@ export function SettingsScreen() {
 
       <Section title="Demo data">
         <div className="space-y-3 px-4 py-4">
-          <p className="text-stone-300">Saare bill, khata aur samaan hata kar nakli (synthetic) demo data wapas laata hai.</p>
+          <p className="text-dim">Saare bill, khata aur samaan hata kar nakli (synthetic) demo data wapas laata hai.</p>
           {confirming ? (
             <div className="space-y-2" role="alertdialog" aria-label="Reset confirm">
-              <p className="font-bold text-red-300">Pakka? Yeh wapas nahi hoga. (This cannot be undone.)</p>
+              <p className="font-bold text-bad">Pakka? Yeh wapas nahi hoga. (This cannot be undone.)</p>
               <div className="flex gap-2">
                 <button type="button" disabled={busy || !db} onClick={() => void reset()} className="min-h-14 flex-1 rounded-xl bg-red-500 text-lg font-bold text-white disabled:opacity-50">Haan, reset karo</button>
-                <button type="button" onClick={() => setConfirming(false)} className="min-h-14 rounded-xl bg-stone-700 px-6 text-lg font-semibold">Nahi</button>
+                <button type="button" onClick={() => setConfirming(false)} className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold">Nahi</button>
               </div>
             </div>
           ) : (
-            <button type="button" disabled={!db} onClick={() => setConfirming(true)} className="min-h-14 w-full rounded-xl bg-stone-700 text-lg font-semibold disabled:opacity-50">Demo data reset karo</button>
+            <button type="button" disabled={!db} onClick={() => setConfirming(true)} className="min-h-14 w-full rounded-xl bg-control text-lg font-semibold disabled:opacity-50">Demo data reset karo</button>
           )}
         </div>
       </Section>

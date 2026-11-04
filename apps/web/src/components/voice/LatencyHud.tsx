@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ConnectionState } from '@/lib/realtime/types';
 import { turnMetrics } from '@/lib/turn/timing';
 import type { TurnRecord } from '@/lib/turn/types';
+import { Icon } from '../Icon';
 import { hudRows, hudExport } from '@/lib/voice/hud';
 
 /**
@@ -29,25 +30,25 @@ export function LatencyHud({ turns, connection }: { turns: readonly TurnRecord[]
   };
 
   return (
-    <section aria-label="Latency" className="rounded-2xl border border-stone-700 bg-[#14171c] p-3 font-mono text-sm">
+    <section aria-label="Latency" className="rounded-2xl border border-line bg-inset p-3 font-mono text-sm">
       <div className="flex items-center justify-between">
-        <h2 className="font-sans text-base font-bold">⚡ Latency <span className="font-normal text-stone-400">(measured)</span></h2>
-        <span className="num text-stone-300">RTT {rtt === null ? '–' : `${Math.round(rtt)} ms`}{metrics?.parseSource ? ` · ${metrics.parseSource}` : ''}</span>
+        <h2 className="font-sans text-base font-bold"><Icon name="bolt" size={18} /> Latency <span className="font-normal text-muted">(measured)</span></h2>
+        <span className="num text-dim">RTT {rtt === null ? '–' : `${Math.round(rtt)} ms`}{metrics?.parseSource ? ` · ${metrics.parseSource}` : ''}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="mt-2 font-sans text-stone-400">Ek turn bolo, phir yahan timing dikhegi.</p>
+        <p className="mt-2 font-sans text-muted">Ek turn bolo, phir yahan timing dikhegi.</p>
       ) : (
         <ul className="mt-2 space-y-1.5">
           {rows.map((r) => (
             <li key={r.key}>
-              <div className="flex justify-between"><span>{r.label}</span><span className="num font-bold text-amber-300">{r.ms === undefined ? '–' : `${Math.round(r.ms)} ms`}</span></div>
-              <div className="h-1.5 rounded bg-stone-800"><div className="h-full origin-left rounded bg-amber-400" style={{ transform: `scaleX(${r.ms === undefined ? 0 : r.ms / max})`, width: '100%' }} /></div>
+              <div className="flex justify-between"><span>{r.label}</span><span className="num font-bold text-warn">{r.ms === undefined ? '–' : `${Math.round(r.ms)} ms`}</span></div>
+              <div className="h-1.5 rounded bg-raised"><div className="h-full origin-left rounded bg-amber-400" style={{ transform: `scaleX(${r.ms === undefined ? 0 : r.ms / max})`, width: '100%' }} /></div>
             </li>
           ))}
         </ul>
       )}
-      <button type="button" onClick={() => void copy()} className="mt-3 min-h-12 w-full rounded-xl bg-stone-700 font-sans font-semibold">
-        {copied === 'ok' ? 'Copy ho gaya ✓' : copied === 'fail' ? 'Copy nahi hua' : 'Copy timings as JSON'}
+      <button type="button" onClick={() => void copy()} className="mt-3 min-h-12 w-full rounded-xl bg-control font-sans font-semibold">
+        {copied === 'ok' ? 'Copy ho gaya' : copied === 'fail' ? 'Copy nahi hua' : 'Copy timings as JSON'}
       </button>
     </section>
   );

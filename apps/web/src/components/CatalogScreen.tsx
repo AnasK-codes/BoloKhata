@@ -47,7 +47,7 @@ export function CatalogScreen() {
 
   const field = (key: keyof ProductFormInput) => (e: { target: { value: string } }) =>
     setEditing((s) => (s ? { ...s, form: { ...s.form, [key]: e.target.value } } : s));
-  const input = 'min-h-14 w-full rounded-xl bg-stone-900 px-4 text-lg';
+  const input = 'min-h-14 w-full rounded-xl bg-inset px-4 text-lg';
 
   if (editing) {
     return (
@@ -57,7 +57,7 @@ export function CatalogScreen() {
           <div>
             <label htmlFor="p-name" className="font-semibold">Naam</label>
             <input id="p-name" className={input} value={editing.form.name} onChange={field('name')} aria-invalid={!!errors.name} aria-describedby="e-name" />
-            {errors.name && <p id="e-name" className="mt-1 text-red-300">{errors.name}</p>}
+            {errors.name && <p id="e-name" className="mt-1 text-bad">{errors.name}</p>}
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
@@ -71,15 +71,15 @@ export function CatalogScreen() {
               </select>
             </div>
           </div>
-          {errors.price && <p id="e-price" className="-mt-2 text-red-300">{errors.price}</p>}
+          {errors.price && <p id="e-price" className="-mt-2 text-bad">{errors.price}</p>}
           <div>
             <label htmlFor="p-alias" className="font-semibold">Doosre naam (comma se alag)</label>
             <input id="p-alias" className={input} value={editing.form.aliases} onChange={field('aliases')} placeholder="atta, gehu ka aata" aria-describedby="e-alias" />
-            {errors.aliases && <p id="e-alias" className="mt-1 text-red-300">{errors.aliases}</p>}
+            {errors.aliases && <p id="e-alias" className="mt-1 text-bad">{errors.aliases}</p>}
           </div>
           <div className="flex gap-2">
             <button type="submit" className="min-h-14 flex-1 rounded-xl bg-amber-400 text-lg font-bold text-stone-950">Save</button>
-            <button type="button" className="min-h-14 rounded-xl bg-stone-700 px-6 text-lg font-semibold" onClick={() => setEditing(null)}>Raho</button>
+            <button type="button" className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold" onClick={() => setEditing(null)}>Raho</button>
           </div>
         </form>
       </main>
@@ -103,18 +103,18 @@ export function CatalogScreen() {
           {!query && <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-amber-400 px-5 font-bold text-stone-950">+ Samaan jodo</button>}
         </StateView>
       ) : (
-        <ul className="divide-y divide-stone-800 rounded-2xl bg-[#1d2128]">
+        <ul className="divide-y divide-line rounded-2xl bg-card">
           {shown.map((p) => (
             <li key={p.id} className="flex items-center gap-2 px-4 py-2">
               <button type="button" onClick={() => open(p)} className="min-h-14 flex-1 text-left" aria-label={`${p.name} badlo`}>
                 <span className="block text-lg font-semibold">{p.name}</span>
-                {p.aliases.length > 0 && <span className="block truncate text-sm text-stone-400">{p.aliases.join(', ')}</span>}
+                {p.aliases.length > 0 && <span className="block truncate text-sm text-muted">{p.aliases.join(', ')}</span>}
               </button>
-              <span className="num whitespace-nowrap text-lg font-bold">{rupees(p.pricePerUnit)}<span className="text-sm font-normal text-stone-400">/{p.unit}</span></span>
+              <span className="num whitespace-nowrap text-lg font-bold">{rupees(p.pricePerUnit)}<span className="text-sm font-normal text-muted">/{p.unit}</span></span>
               {confirmDelete === p.id ? (
                 <button type="button" className="min-h-12 rounded-xl bg-red-500 px-3 font-bold text-white" onClick={() => { void repo?.deleteProduct(p.id); setConfirmDelete(null); }}>Pakka hatao</button>
               ) : (
-                <button type="button" aria-label={`${p.name} hatao`} className="flex h-12 w-12 items-center justify-center rounded-xl text-red-300 active:bg-stone-800" onClick={() => setConfirmDelete(p.id)}>
+                <button type="button" aria-label={`${p.name} hatao`} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-raised" onClick={() => setConfirmDelete(p.id)}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Z" /></svg>
                 </button>
               )}

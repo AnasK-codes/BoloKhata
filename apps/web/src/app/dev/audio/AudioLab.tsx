@@ -152,7 +152,7 @@ export function AudioLab() {
           Start audio and microphone
         </button>
       ) : (
-        <p className="text-stone-400">
+        <p className="text-muted">
           Context {rate} Hz · mic {micState.status}
           {micState.error ? ` (${micState.error})` : ''} · mic live: {String(micState.live)}
         </p>
@@ -160,10 +160,10 @@ export function AudioLab() {
 
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">Microphone</h2>
-        <div className="h-4 w-full overflow-hidden rounded bg-stone-800">
+        <div className="h-4 w-full overflow-hidden rounded bg-raised">
           <div ref={meter} className="h-full w-0 bg-emerald-500" />
         </div>
-        <div className="flex flex-wrap gap-3 text-stone-300">
+        <div className="flex flex-wrap gap-3 text-dim">
           {(Object.keys(settings) as (keyof MicSettings)[]).map((key) => (
             <label key={key} className="flex items-center gap-1">
               <input type="checkbox" checked={settings[key]} onChange={() => toggleSetting(key)} />
@@ -178,11 +178,11 @@ export function AudioLab() {
           onPointerUp={release}
           onPointerCancel={release}
           onPointerLeave={() => gate && release()}
-          className={`min-h-14 rounded-lg px-4 font-semibold select-none touch-none ${gate ? 'bg-red-500 text-white' : 'bg-stone-700 text-stone-100'} disabled:opacity-40`}
+          className={`min-h-14 rounded-lg px-4 font-semibold select-none touch-none ${gate ? 'bg-red-500 text-white' : 'bg-control text-ink'} disabled:opacity-40`}
         >
           {gate ? 'Gate OPEN: sending frames' : 'Hold to open the gate'}
         </button>
-        <p className="text-stone-400">
+        <p className="text-muted">
           Frames {frames.frames} · bytes {frames.bytes} · wrong size {frames.bad}
           {frames.frames > 0 && frames.bytes === frames.frames * AUDIO_FRAME_BYTES ? ' ✓ all 1,024 B' : ''}
         </p>
@@ -210,12 +210,12 @@ export function AudioLab() {
             Interrupt
           </button>
         </div>
-        <p className="text-stone-400">
+        <p className="text-muted">
           {stats
             ? `buffered ${stats.bufferedMs.toFixed(0)} ms · waiting ${stats.pendingMs.toFixed(0)} ms · underruns ${stats.underruns} · overflow ${stats.overflowed} · ${stats.playing ? 'playing' : 'idle'}`
             : 'no stats yet'}
         </p>
-        <p className="text-stone-400">
+        <p className="text-muted">
           {audible
             ? `first audible ${(audible.perfMs - playedAt).toFixed(0)} ms after the button (${audible.method})`
             : 'first audible: waiting'}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { udhaarNeedsCustomer, type CatalogProduct, type DraftMessage } from '@bolbill/shared';
+import { Icon } from '../Icon';
 import { formatQuantity, rupees } from '@/lib/format';
 import { removeItem, resolveCustomer, resolveItem, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
 
@@ -15,7 +16,7 @@ interface Props {
 const stepFor = (unit: string) => (unit === 'kg' || unit === 'l' ? 0.5 : 1);
 
 function Stepper({ value, step, label, onChange }: { value: number; step: number; label: string; onChange(v: number): void }) {
-  const btn = 'flex h-12 w-12 items-center justify-center rounded-xl bg-stone-700 text-2xl font-bold active:bg-stone-600';
+  const btn = 'flex h-12 w-12 items-center justify-center rounded-xl bg-control text-2xl font-bold active:bg-control';
   return (
     <div className="flex items-center gap-1" role="group" aria-label={label}>
       <button type="button" className={btn} aria-label="Kam karo (less)" onClick={() => onChange(Math.max(step, Math.round((value - step) * 1000) / 1000))}>−</button>
@@ -39,7 +40,7 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
     <div className="rounded-xl border border-amber-500/60 bg-amber-500/10 p-3" role="group" aria-label={`Item chuno: ${spoken}`}>
       <p className="font-semibold">
         &ldquo;{spoken}&rdquo; kaunsa hai?{' '}
-        <span className="font-normal text-stone-300">{quantity !== undefined ? `${formatQuantity(quantity)} ${unit ?? ''}` : ''}</span>
+        <span className="font-normal text-dim">{quantity !== undefined ? `${formatQuantity(quantity)} ${unit ?? ''}` : ''}</span>
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((p) => (
@@ -47,14 +48,14 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
             {p.name} · {rupees(p.pricePerUnit)}/{p.unit}
           </button>
         ))}
-        {options.length === 0 && <span className="py-3 text-stone-300">{query ? 'Kuch nahi mila.' : 'Neeche se dhundo.'}</span>}
+        {options.length === 0 && <span className="py-3 text-dim">{query ? 'Kuch nahi mila.' : 'Neeche se dhundo.'}</span>}
       </div>
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Samaan dhundo (search)"
         aria-label="Samaan dhundo"
-        className="mt-2 min-h-12 w-full rounded-xl bg-stone-900 px-3 text-base"
+        className="mt-2 min-h-12 w-full rounded-xl bg-inset px-3 text-base"
       />
     </div>
   );
@@ -74,7 +75,7 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
   };
 
   return (
-    <article className="pop rounded-2xl bg-[#1d2128] p-4" aria-label="Bill">
+    <article className="pop rounded-2xl bg-card p-4" aria-label="Bill">
       <div className="flex items-center justify-between gap-2">
         {editingCustomer ? (
           <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); applyCustomer(); }}>
@@ -85,7 +86,7 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
               onChange={(e) => setCustomerText(e.target.value)}
               placeholder="Grahak ka naam"
               aria-label="Grahak ka naam"
-              className="min-h-12 flex-1 rounded-xl bg-stone-900 px-3 text-base"
+              className="min-h-12 flex-1 rounded-xl bg-inset px-3 text-base"
             />
             <datalist id="customer-options">{customers.map((c) => <option key={c.id} value={c.name} />)}</datalist>
             <button type="submit" className="min-h-12 rounded-xl bg-amber-400 px-4 font-semibold text-stone-950">OK</button>
@@ -94,10 +95,10 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
           <button
             type="button"
             onClick={() => { setCustomerText(draft.customer?.name ?? ''); setEditingCustomer(true); }}
-            className="flex min-h-12 items-center gap-2 rounded-full bg-stone-700 px-4 text-lg font-semibold"
+            className="flex min-h-12 items-center gap-2 rounded-full bg-control px-4 text-lg font-semibold"
             aria-label="Grahak badlo (change customer)"
           >
-            <span aria-hidden="true">👤</span>
+            <Icon name="user" size={20} />
             {draft.customer ? draft.customer.name : 'Grahak chuno'}
             {draft.customer?.isNew && <span className="rounded bg-amber-400 px-1.5 text-xs font-bold text-stone-950">NAYA</span>}
           </button>
@@ -105,7 +106,7 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
       </div>
 
       {bill && bill.items.length > 0 && (
-        <ul className="mt-3 divide-y divide-stone-700/70">
+        <ul className="mt-3 divide-y divide-line">
           {bill.items.map((item, i) => (
             <li key={`${draft.draftId}:${item.productId}`} className="rise py-3" style={{ ['--i' as string]: i }}>
               <div className="flex items-baseline justify-between gap-3">
@@ -113,10 +114,10 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
                 <p className="num text-xl font-bold">{rupees(item.lineTotal)}</p>
               </div>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="num text-sm text-stone-300">{rupees(item.unitPrice)} / {item.unit}</p>
+                <p className="num text-sm text-dim">{rupees(item.unitPrice)} / {item.unit}</p>
                 <div className="flex items-center gap-2">
                   <Stepper value={item.quantity} step={stepFor(item.unit)} label={`${item.name} quantity`} onChange={(q) => onChange(setItemQuantity(draft, i, q))} />
-                  <button type="button" aria-label={`${item.name} hatao (remove)`} className="flex h-12 w-12 items-center justify-center rounded-xl text-red-300 active:bg-stone-700" onClick={() => onChange(removeItem(draft, i))}>
+                  <button type="button" aria-label={`${item.name} hatao (remove)`} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-control" onClick={() => onChange(removeItem(draft, i))}>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Z" /></svg>
                   </button>
                 </div>
@@ -144,7 +145,7 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
       )}
 
       {bill && (
-        <dl className="num mt-3 space-y-1 border-t border-stone-700 pt-3 text-lg">
+        <dl className="num mt-3 space-y-1 border-t border-line pt-3 text-lg">
           <div className="flex justify-between text-2xl font-extrabold"><dt>Total</dt><dd>{rupees(bill.total)}</dd></div>
           <div className="flex items-center justify-between">
             <dt>Abhi diye (paid)</dt>
@@ -155,23 +156,23 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
                 value={bill.paid === 0 ? '' : bill.paid}
                 placeholder="0"
                 onChange={(e) => onChange(setPaid(draft, Number(e.target.value.replace(/\D/g, '')) || 0))}
-                className="num min-h-12 w-28 rounded-xl bg-stone-900 px-3 text-right text-lg"
+                className="num min-h-12 w-28 rounded-xl bg-inset px-3 text-right text-lg"
               />
             </dd>
           </div>
-          <div className={`flex justify-between font-bold ${bill.udhaar > 0 ? 'text-amber-300' : 'text-emerald-300'}`}><dt>Udhaar</dt><dd>{rupees(bill.udhaar)}</dd></div>
+          <div className={`flex justify-between font-bold ${bill.udhaar > 0 ? 'text-warn' : 'text-good'}`}><dt>Udhaar</dt><dd>{rupees(bill.udhaar)}</dd></div>
         </dl>
       )}
 
       {bill && udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && (
-        <p role="status" className="mt-3 rounded-xl bg-amber-400/15 px-3 py-2 font-semibold text-amber-200">
+        <p role="status" className="mt-3 rounded-xl bg-amber-400/15 px-3 py-2 font-semibold text-warn">
           Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
         </p>
       )}
 
       {draft.warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 text-sm text-amber-200" role="status">
-          {draft.warnings.map((w) => <li key={w}>⚠ {w}</li>)}
+        <ul className="mt-3 space-y-1 text-sm text-warn" role="status">
+          {draft.warnings.map((w) => <li key={w} className="flex gap-2"><Icon name="alert" size={18} />{w}</li>)}
         </ul>
       )}
     </article>

@@ -108,7 +108,7 @@ function LabBody({ session, useTone, setUseTone, connection, micLive, playback, 
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 px-4 py-6 text-sm">
       <h1 className="text-xl font-bold">Turn lab (dev only)</h1>
 
-      <p className="rounded-lg bg-stone-800 px-3 py-2">
+      <p className="rounded-lg bg-raised px-3 py-2">
         Gateway <code>{getGatewayUrl()}</code>: <strong>{connection.status}</strong>
         {rtt}
         {connection.status === 'limited' ? ` (${connection.message})` : ''}
@@ -120,7 +120,7 @@ function LabBody({ session, useTone, setUseTone, connection, micLive, playback, 
         Use a synthetic test tone instead of the microphone
       </label>
       {useTone && (
-        <p className="rounded-lg border border-amber-500 px-3 py-2 text-amber-300">
+        <p className="rounded-lg border border-amber-500 px-3 py-2 text-warn">
           SYNTHETIC SOURCE: a 220 Hz test tone is being sent, not your voice. Transcripts will only be
           what the mock Gnani server is scripted to say.
         </p>
@@ -135,7 +135,7 @@ function LabBody({ session, useTone, setUseTone, connection, micLive, playback, 
           >
             Enable audio and microphone
           </button>
-          {audioError && <p className="text-red-400">{audioError}</p>}
+          {audioError && <p className="text-bad">{audioError}</p>}
         </div>
       )}
 
@@ -148,13 +148,13 @@ function LabBody({ session, useTone, setUseTone, connection, micLive, playback, 
         {listening ? (mode === 'latched' ? 'Listening… tap to stop' : 'Listening… release to send') : 'Hold to talk · tap to latch'}
       </button>
 
-      <section className="rounded-lg bg-stone-800 px-3 py-2">
+      <section className="rounded-lg bg-raised px-3 py-2">
         <p>
           Phase: <strong>{phase}</strong>
           {degraded.length > 0 ? ` · degraded: ${degraded.join(', ')}` : ''}
         </p>
         {error && (
-          <p className="text-red-400">
+          <p className="text-bad">
             {error.code}: {error.message}{' '}
             <button type="button" className="underline" onClick={() => controller.dismissError()}>
               dismiss
@@ -165,24 +165,24 @@ function LabBody({ session, useTone, setUseTone, connection, micLive, playback, 
         <p>
           Draft: {draft ? `${draft.intent} · ${draft.source} · total ${draft.bill?.total ?? '–'}` : '–'}
         </p>
-        {draft && <p className="text-stone-400">{draft.replyText.join(' ')}</p>}
+        {draft && <p className="text-muted">{draft.replyText.join(' ')}</p>}
         {pending && (
           <div className="mt-2 flex gap-2">
             <button type="button" className="min-h-12 flex-1 rounded-lg bg-emerald-600 font-semibold text-white" onClick={() => controller.confirm()}>
               Confirm
             </button>
-            <button type="button" className="min-h-12 flex-1 rounded-lg bg-stone-600 font-semibold text-white" onClick={() => controller.discard()}>
+            <button type="button" className="min-h-12 flex-1 rounded-lg bg-control font-semibold text-white" onClick={() => controller.discard()}>
               Discard
             </button>
           </div>
         )}
       </section>
 
-      <section className="rounded-lg bg-stone-800 px-3 py-2">
+      <section className="rounded-lg bg-raised px-3 py-2">
         <h2 className="font-semibold">Last turns (ms)</h2>
         <table className="w-full text-left text-xs">
           <thead>
-            <tr className="text-stone-400">
+            <tr className="text-muted">
               <th>turn</th>
               <th>1st frame</th>
               <th>rel→proc</th>
@@ -207,13 +207,13 @@ function LabBody({ session, useTone, setUseTone, connection, micLive, playback, 
             })}
           </tbody>
         </table>
-        <p className="mt-1 text-stone-400">
+        <p className="mt-1 text-muted">
           Playback: {playback ? `buffered ${Math.round(playback.bufferedMs)} ms · underruns ${playback.underruns}` : '–'} · frames sent{' '}
           {session.client.stats.audioFramesSent} · dropped {session.client.stats.audioFramesDropped}
         </p>
       </section>
 
-      <section className="rounded-lg bg-stone-900 px-3 py-2 font-mono text-xs text-stone-300">
+      <section className="rounded-lg bg-inset px-3 py-2 font-mono text-xs text-dim">
         {log.map((line, i) => (
           <div key={i}>{line}</div>
         ))}
