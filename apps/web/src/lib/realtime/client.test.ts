@@ -288,6 +288,35 @@ describe('reconnecting', () => {
   });
 });
 
+describe('close codes and failed handshakes', () => {
+  it.each([[1001, 'the server is going away'], [1008, 'the server closed us for a policy reason'], [1013, 'try again later'], [1006, 'the connection dropped']])(
+    'on close %i (%s) it backs off and then reconnects with a fresh hello',
+    async (code) => {
+      const h = await connectReady();
+      FakeWebSocket.last.drop(code);
+      expect(h.client.getState()).toMatchObject({ status: 'reconnecting' });
+      await vi.advanceTimersByTimeAsync(700);
+      FakeWebSocket.last.open();
+      await flush();
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(FakeWebSocket.last.sentJson[0]).toMatchObject({ type: 'hello' });
+    },
+  );
+
+  it('a socket that closes before it ever opens (a refused upgrade) is retried with a new token, not in a tight loop', async () => {
+    net.respond(jsonResponse(200, { token: 'a' }), jsonResponse(200, { token: 'b' }));
+    const h = make();
+    h.client.connect();
+    await flush();
+    FakeWebSocket.last.drop(1006);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(net.calls).toHaveLength(1); // still waiting out the backoff
+    await vi.advanceTimersByTimeAsync(600);
+    expect(net.calls).toHaveLength(2);
+    expect(FakeWebSocket.last.url).toContain('b');
+  });
+});
+
 describe('limits', () => {
   it('shows a friendly busy state with a retry time, then retries on its own', async () => {
     net.respond(

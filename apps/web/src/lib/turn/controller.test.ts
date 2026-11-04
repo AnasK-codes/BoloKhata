@@ -256,3 +256,18 @@ describe('confirm', () => {
     expect(world.sent.at(-1)).toMatchObject({ type: 'speak', turnId: id + 1 });
   });
 });
+
+describe('double confirm', () => {
+  it('two quick taps on Confirm save once and speak once', async () => {
+    controller.press();
+    const id = controller.state.turnId as number;
+    controller.release();
+    await flush();
+    controller.handleServerMessage({ type: 'transcript', turnId: id, text: 'x' });
+    controller.handleServerMessage(draftMessage(id));
+    controller.confirm();
+    controller.confirm();
+    expect(saved).toEqual([`d${id}`]);
+    expect(world.sent.filter((m) => m.type === 'speak')).toHaveLength(1);
+  });
+});

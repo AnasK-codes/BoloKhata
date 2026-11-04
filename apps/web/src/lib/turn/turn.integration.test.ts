@@ -193,6 +193,23 @@ describe('a full turn through the real gateway', () => {
     expect(controller.state.pending?.turnId).toBe(first); // the unconfirmed bill survives the question
   });
 
+  it('a gateway restart mid-session: the client reconnects by itself and the next turn works', async () => {
+    const port = Number(new URL(gateway.baseUrl).port);
+    controller.press();
+    await sleep(150);
+    await gateway.close();
+    await until(() => controller.state.phase === 'error', 'the drop to be noticed');
+    expect(mic.gateOpen).toBe(false);
+    gateway = await startGateway({ GNANI_STT_URL: mock.stt.url, GNANI_TTS_URL: mock.tts.url }, {}, port);
+    await until(() => controller.state.connected, 'the client to reconnect', 15_000);
+    controller.dismissError();
+
+    mock.stt.queueTranscripts('Sharma ji ko do kilo cheeni udhaar likh do');
+    await speakFor(400);
+    await until(() => controller.state.phase === 'reviewing', 'a bill after the restart');
+    expect(controller.state.draft?.intent).toBe('create_bill');
+  }, 30_000);
+
   it('never leaves the gate open when the gateway goes away mid-turn', async () => {
     controller.press();
     await sleep(150);

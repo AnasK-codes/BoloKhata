@@ -131,7 +131,14 @@ export function buildServer(
     return ctx.metrics.snapshot({
       activeSessions: ctx.sessions.size,
       maxSessions: ctx.sessions.maxSessions,
-      credits: ctx.guard.usage(),
+      credits: {
+        ...ctx.guard.usage(),
+        stt_seconds_cap: config.guard.dailySttSecondsCap,
+        tts_chars_cap: config.guard.dailyTtsCharsCap,
+        stt_seconds_remaining: Math.max(0, config.guard.dailySttSecondsCap - ctx.guard.usage().stt_seconds),
+        tts_chars_remaining: Math.max(0, config.guard.dailyTtsCharsCap - ctx.guard.usage().tts_chars),
+        resetAt: ctx.guard.resetAt(),
+      },
       draining: ctx.draining,
     });
   });

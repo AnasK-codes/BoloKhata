@@ -15,7 +15,10 @@
     "test": "pnpm -r --if-present test",
     "build": "pnpm -r --if-present build",
     "spike": "pnpm --filter @bolbill/scripts spike",
-    "warm-phrases": "pnpm --filter @bolbill/scripts warm-phrases"
+    "warm-phrases": "pnpm --filter @bolbill/scripts warm-phrases",
+    "loadtest": "pnpm --filter @bolbill/scripts loadtest",
+    "measure-rtt": "pnpm --filter @bolbill/scripts measure-rtt",
+    "check:bundle": "pnpm --filter @bolbill/scripts check:bundle"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
