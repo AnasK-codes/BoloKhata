@@ -1,4 +1,5 @@
-import type { DraftMessage, ServerMessage } from '@bolbill/shared';
+import type { ClientMessage, DraftMessage, ServerMessage } from '@bolbill/shared';
+import type { CapturePort, ClientPort, PlaybackPort } from './controller';
 import { initialTurnState, reduce } from './reducer';
 import type { Effect, TurnEvent, TurnState } from './types';
 
@@ -82,3 +83,58 @@ export class Sim {
     return this.effects.map((e) => e.type);
   }
 }
+
+/** One shared, ordered log so tests can assert what happened first. */
+export class World {
+  log: string[] = [];
+  sent: ClientMessage[] = [];
+  audio: ArrayBuffer[] = [];
+  gateOpen = false;
+  gateClosing: (() => void) | null = null;
+  holdGateClose = false;
+  connected = true;
+
+  client: ClientPort = {
+    send: (message) => {
+      if (!this.connected) return false;
+      this.sent.push(message);
+      this.log.push(message.type === 'speak' ? 'speak' : message.type);
+      return true;
+    },
+    sendAudio: (frame) => {
+      if (!this.connected) return false;
+      this.audio.push(frame);
+      return true;
+    },
+  };
+
+  capture: CapturePort = {
+    openGate: () => {
+      this.gateOpen = true;
+      this.log.push('gate_open');
+    },
+    closeGate: () => {
+      return new Promise<void>((resolve) => {
+        const finish = () => {
+          this.gateOpen = false;
+          this.log.push('gate_closed');
+          resolve();
+        };
+        if (this.holdGateClose) this.gateClosing = finish;
+        else finish();
+      });
+    },
+  };
+
+  played: string[] = [];
+  playback: PlaybackPort = {
+    beginTurn: (turnId, rate) => this.played.push(`begin:${turnId}:${rate}`),
+    pushPcm: (turnId, pcm) => this.played.push(`pcm:${turnId}:${pcm.byteLength}`),
+    endTurn: (turnId) => this.played.push(`end:${turnId}`),
+    flush: () => {
+      this.played.push('flush');
+      this.log.push('flush');
+    },
+  };
+}
+

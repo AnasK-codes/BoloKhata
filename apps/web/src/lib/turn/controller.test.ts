@@ -1,67 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientMessage } from '@bolbill/shared';
-import {
-  TurnController,
-  type CapturePort,
-  type ClientPort,
-  type ControllerDeps,
-  type PlaybackPort,
-} from './controller';
-import { draftMessage } from './testing';
-
-/** One shared, ordered log so tests can assert what happened first. */
-class World {
-  log: string[] = [];
-  sent: ClientMessage[] = [];
-  audio: ArrayBuffer[] = [];
-  gateOpen = false;
-  gateClosing: (() => void) | null = null;
-  holdGateClose = false;
-  connected = true;
-
-  client: ClientPort = {
-    send: (message) => {
-      if (!this.connected) return false;
-      this.sent.push(message);
-      this.log.push(message.type === 'speak' ? 'speak' : message.type);
-      return true;
-    },
-    sendAudio: (frame) => {
-      if (!this.connected) return false;
-      this.audio.push(frame);
-      return true;
-    },
-  };
-
-  capture: CapturePort = {
-    openGate: () => {
-      this.gateOpen = true;
-      this.log.push('gate_open');
-    },
-    closeGate: () => {
-      return new Promise<void>((resolve) => {
-        const finish = () => {
-          this.gateOpen = false;
-          this.log.push('gate_closed');
-          resolve();
-        };
-        if (this.holdGateClose) this.gateClosing = finish;
-        else finish();
-      });
-    },
-  };
-
-  played: string[] = [];
-  playback: PlaybackPort = {
-    beginTurn: (turnId, rate) => this.played.push(`begin:${turnId}:${rate}`),
-    pushPcm: (turnId, pcm) => this.played.push(`pcm:${turnId}:${pcm.byteLength}`),
-    endTurn: (turnId) => this.played.push(`end:${turnId}`),
-    flush: () => {
-      this.played.push('flush');
-      this.log.push('flush');
-    },
-  };
-}
+import { TurnController, type ControllerDeps } from './controller';
+import { World, draftMessage } from './testing';
 
 let world: World;
 let controller: TurnController;
