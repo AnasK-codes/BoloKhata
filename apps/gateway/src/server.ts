@@ -16,6 +16,7 @@ import { Orchestrator } from './parse/orchestrator';
 import { createLlmAdapter, type LlmAdapter } from './parse/llm';
 import { SessionManager } from './session/sessionManager';
 import { GATEWAY_VERSION } from './version';
+import { verifyAccount } from './guard/account';
 
 export interface BuildServerOptions {
   /** Test hook: capture log output. */
@@ -24,6 +25,8 @@ export interface BuildServerOptions {
   guard?: CreditGuard;
   /** Test hook: replace the language model adapter (tests never call a real model). */
   llm?: LlmAdapter;
+  /** Test hook; production validates the cloud account and profile. */
+  accountFetch?: typeof fetch;
 }
 
 export interface GatewayContext {
@@ -99,6 +102,7 @@ export function buildServer(
   const orchestrator = new Orchestrator({
     llm: options.llm ?? createLlmAdapter(config.llm),
     timeoutMs: config.llm.timeoutMs,
+    mode: config.llm.mode,
   });
 
   const perIp = new RateLimiter(config.guard.sessionRatePerIpPerMin, 60_000);
@@ -175,6 +179,12 @@ export function buildServer(
       return limitReply(reply, 429, 'rate_limited', 'Too many requests. Please wait a moment.', {
         retryAfterSec: Math.max(ip.retryAfterSec, all.retryAfterSec),
       });
+    }
+    if (config.accountAuth) {
+      const account = await verifyAccount(request.headers.authorization, config.accountAuth, options.accountFetch);
+      if (account === 'unauthorized') return reply.code(401).send({ error: 'login_required' });
+      if (account === 'profile_required') return reply.code(403).send({ error: 'business_profile_required' });
+      if (account === 'unavailable') return reply.code(503).send({ error: 'account_service_unavailable' });
     }
     if (ctx.draining || ctx.sessions.isFull) {
       ctx.metrics.sessionsRejected++;

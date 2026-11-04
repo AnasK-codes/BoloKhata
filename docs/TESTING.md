@@ -1,5 +1,7 @@
 # Testing
 
+Account/business tests mock Supabase REST; they send no emails and create no real cloud accounts. They cover login/signup confirmation, HttpOnly cookie rotation, CSRF/body bounds, public-origin handling behind a proxy, profile ownership, gateway enforcement, account-specific local databases and immutable business details on receipts. `/api/account` is excluded from service-worker caching. A headless 360px browser check with explicitly synthetic account responses exercised signup confirmation, rejected login, required profile, profile editing, branded receipt/PDF, logout and a second account's empty bill history. Live email delivery and PostgreSQL RLS execution remain unverified until the Supabase project is configured; see [AUTH.md](AUTH.md).
+
 What is automated, what is measured, and what only a person with a phone can check. Nothing in the automated suites calls the real Gnani API: tests use the mock Gnani servers (`tools/mock-gnani`), the gateway test configuration points at a closed local port, and a test (`apps/gateway/src/demoGuard.test.ts`) fails if a test file names the real host.
 
 ```bash

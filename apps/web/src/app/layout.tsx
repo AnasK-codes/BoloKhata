@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AppProvider } from '@/components/AppProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { PwaRegister } from '@/components/PwaRegister';
+import { AccountGate } from '@/components/AccountGate';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -28,11 +29,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-dvh antialiased">
-        <AppProvider>
+        <AccountGate><AppProvider>
           <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))]">{children}</div>
           <BottomNav />
           <PwaRegister />
-        </AppProvider>
+        </AppProvider></AccountGate>
       </body>
     </html>
   );

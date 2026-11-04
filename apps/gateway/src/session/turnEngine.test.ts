@@ -434,7 +434,7 @@ describe('voice corrections with the browser draft context', () => {
     expect(llm.calls).toHaveLength(0);
     const confirmation = await say(client, 3, 'haan');
     expect(confirmation).toMatchObject({ intent: 'confirm', draftId: first.draftId });
-  });
+  }, 15_000); // Three complete mock audio replies use real timers, including under parallel test load.
 
   it('an explicit null context clears a previously saved bill', async () => {
     gateway = await startGateway(env(), { llm: never().adapter });

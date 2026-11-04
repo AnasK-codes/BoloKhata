@@ -234,3 +234,30 @@ describe('untrusted transcripts', () => {
     expect(r).toMatchObject({ source: 'rules', llm: 'skipped' });
   });
 });
+
+describe('always mode', () => {
+  const always = (adapter: LlmAdapter) => new Orchestrator({ llm: adapter, timeoutMs: 1200, mode: 'always' });
+
+  it('asks the model even when the rules are confident, and uses its answer', async () => {
+    const { adapter, calls } = stub(() => ok(answer({ items: [{ name: 'cheeni', quantity: 3, unit: 'kg' }] })));
+    const out = await parse(always(adapter), 'Sharma ji ko do kilo aata');
+    expect(calls).toHaveLength(1);
+    expect(out.source).toBe('llm');
+    expect(out.resolution.bill?.bill.total).toBe(150);
+  });
+
+  it('keeps confirm and cancel rules-only', async () => {
+    const { adapter, calls } = stub(() => ok(answer({})));
+    const out = await parse(always(adapter), 'haan');
+    expect(calls).toHaveLength(0);
+    expect(out.parsed.intent).toBe('confirm');
+  });
+
+  it('falls back to confident rules without a review flag when the model fails', async () => {
+    const { adapter } = stub(() => fail('timeout'));
+    const out = await parse(always(adapter), 'Sharma ji ko do kilo aata');
+    expect(out.source).toBe('rules');
+    expect(out.needsReview).toBe(false);
+    expect(out.llm).toBe('timeout');
+  });
+});

@@ -6,4 +6,5 @@ export * from './types';
 export * from './pricing';
 export * from './ledger';
 export * from './customerDetails';
+export * from './business';
 export * from './correction';

@@ -7,7 +7,7 @@ phone ──HTTPS/WSS──►  Caddy :443 (TLS)  ──/ws /session /healthz─
                                         └─everything else────────►  web :3000
 ```
 
-Same origin: the app is `https://YOUR.DOMAIN`, the realtime socket is `wss://YOUR.DOMAIN/ws`. There are no cookies and no cross-origin requests, so no CORS configuration is needed. The browser's `Origin` is `https://YOUR.DOMAIN`, and the gateway only accepts that (`ALLOWED_ORIGINS`).
+Same origin: the app is `https://YOUR.DOMAIN`, the realtime socket is `wss://YOUR.DOMAIN/ws`. Account tokens use Secure, HttpOnly cookies on the web server; the browser requests `/api/account/gateway-session` before connecting directly to `/ws`. The gateway still checks `ALLOWED_ORIGINS` and independently verifies the Supabase account/business profile. Complete [AUTH.md](AUTH.md) before deployment and set `ACCOUNT_AUTH_REQUIRED=true`. The web container receives only Supabase settings, while Gnani/LLM keys remain gateway-only.
 
 ## 0. What you need first
 
@@ -80,7 +80,9 @@ Set these (everything else can stay at the defaults):
 |---|---|
 | `DOMAIN` | `YOUR.DOMAIN` (no `https://`) |
 | `ACME_EMAIL` | your email (Let's Encrypt expiry notices) |
-| `GNANI_API_KEY` | your key. **Only the gateway container reads this file** |
+| `GNANI_API_KEY` | your key. Only the gateway receives it; the web container receives only the explicitly listed Supabase settings |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | the same configured project for web and gateway; run the SQL in AUTH.md first; never use a service-role key |
+| `ACCOUNT_AUTH_REQUIRED` | `true` for deployment |
 | `GNANI_STT_URL`, `GNANI_TTS_URL` | leave the real defaults from `.env.example` |
 | `SESSION_TOKEN_SECRET` | a long random string: `openssl rand -hex 32` |
 | `METRICS_TOKEN` | another random string (lets you read `/metrics` from the instance) |

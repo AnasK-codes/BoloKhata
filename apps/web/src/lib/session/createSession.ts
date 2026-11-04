@@ -18,6 +18,7 @@ export interface MicPort {
 
 export interface SessionOptions {
   gatewayUrl: string;
+  sessionUrl?: string;
   getCatalog: () => CatalogSnapshot | Promise<CatalogSnapshot>;
   /** The demo access code, if the gateway asks for one. */
   getAccessCode?: () => string | undefined;
@@ -74,6 +75,7 @@ export function createRealtimeSession(options: SessionOptions): RealtimeSession 
   const client = new RealtimeClient(
     {
       gatewayUrl: options.gatewayUrl,
+      ...(options.sessionUrl ? { sessionUrl: options.sessionUrl } : {}),
       getCatalog: options.getCatalog,
       ...(options.getAccessCode ? { accessCode: options.getAccessCode } : {}),
     },

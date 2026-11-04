@@ -15,6 +15,8 @@ import {
   type LedgerEntry,
   type Product,
   type StatementRow,
+  type ReceiptBusiness,
+  receiptBusinessSchema,
 } from '@bolbill/shared';
 import type { BolDb } from './schema';
 
@@ -52,7 +54,7 @@ type NewId = () => string;
 const defaultId: NewId = () => globalThis.crypto.randomUUID();
 
 /** Everything the screens and the voice flow do with stored data. Pure rules come from `@bolbill/shared`. */
-export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = defaultId) {
+export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = defaultId, business?: () => ReceiptBusiness) {
   const customerKeys = (c: Pick<Customer, 'name' | 'aliases'>) => [c.name, ...c.aliases].map((n) => normalize(n));
 
   async function findCustomerByName(name: string): Promise<Customer | undefined> {
@@ -146,6 +148,7 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
           paid: input.paid,
           udhaar: input.udhaar,
           createdAt: clock(),
+          ...(business ? { business: receiptBusinessSchema.parse(business()) } : {}),
         };
         await db.bills.add(bill);
         await db.ledgerEntries.bulkAdd(applyBill(bill, `udhaar:${bill.id}`));

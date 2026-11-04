@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'apps/web');
 
-const FORBIDDEN_TEXT = ['GNANI_API_KEY', 'x-api-key-id', 'SESSION_TOKEN_SECRET', 'METRICS_TOKEN', 'DEMO_ACCESS_CODE', 'OPENAI_API_KEY', 'AWS_SECRET', 'api.vachana.ai', 'BEDROCK_MODEL_ID'];
-const SECRET_ENV = ['GNANI_API_KEY', 'SESSION_TOKEN_SECRET', 'METRICS_TOKEN', 'DEMO_ACCESS_CODE', 'OPENAI_API_KEY'];
+const FORBIDDEN_TEXT = ['GNANI_API_KEY', 'x-api-key-id', 'SESSION_TOKEN_SECRET', 'METRICS_TOKEN', 'DEMO_ACCESS_CODE', 'OPENAI_API_KEY', 'AWS_SECRET', 'api.vachana.ai', 'BEDROCK_MODEL_ID', 'SUPABASE_ANON_KEY', 'DATABASE_URL'];
+const SECRET_ENV = ['GNANI_API_KEY', 'SESSION_TOKEN_SECRET', 'METRICS_TOKEN', 'DEMO_ACCESS_CODE', 'OPENAI_API_KEY', 'SUPABASE_ANON_KEY', 'DATABASE_URL'];
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
@@ -30,12 +30,13 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 function envValues(): string[] {
-  const file = join(root, '.env');
-  if (!existsSync(file)) return [];
   const values: string[] = [];
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
-    if (m && SECRET_ENV.includes(m[1] ?? '') && (m[2] ?? '').length >= 8) values.push((m[2] ?? '').replace(/^["']|["']$/g, ''));
+  for (const file of [join(root, '.env'), join(web, '.env.local'), join(web, '.env')]) {
+    if (!existsSync(file)) continue;
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
+      if (m && SECRET_ENV.includes(m[1] ?? '') && (m[2] ?? '').length >= 8) values.push((m[2] ?? '').replace(/^["']|["']$/g, ''));
+    }
   }
   return values;
 }

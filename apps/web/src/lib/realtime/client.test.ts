@@ -53,6 +53,13 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('connecting', () => {
+  it('uses the account session broker while keeping audio on the direct gateway socket', async () => {
+    const { client } = make({ sessionUrl: '/api/account/gateway-session' });
+    client.connect(); await flush();
+    expect(net.calls[0]?.url).toBe('/api/account/gateway-session');
+    expect(FakeWebSocket.last.url).toBe('ws://gw.test:8080/ws?token=tok-1');
+    client.close();
+  });
   it('gets a token, opens the socket with it, sends hello with the catalog, and becomes ready', async () => {
     const { client, states } = make();
     client.connect();

@@ -68,6 +68,8 @@ A built-in **latency HUD** shows the real measured timings of each turn, which m
 
 ## 3. Features
 
+**Accounts and business setup:** real Supabase email/password signup/login, email confirmation, refresh and logout; a business profile is required before billing. Settings edits business details and one simple receipt template. New receipts snapshot those details. See [docs/AUTH.md](docs/AUTH.md) for SQL and environment setup. Account/profile data is cloud-backed; bills and khata stay local and separate per account. Connect the Supabase project before login can work; no fake/local-login fallback is provided.
+
 ### MVP (must ship by Nov 9)
 
 - [ ] Hold-to-talk and tap-to-toggle recording, streamed live as 16 kHz mono PCM
@@ -321,7 +323,7 @@ Stored locally in IndexedDB (Dexie). The gateway keeps only a **per-session, in-
 ```ts
 Product      { id, name, aliases: string[], unit, pricePerUnit, category? }
 Customer     { id, name, aliases: string[], createdAt, mobile?, address? }
-Bill         { id, customerId?, items: BillItem[], total, paid, udhaar, createdAt, reversedAt?, reversalReason? }
+Bill         { id, customerId?, items: BillItem[], total, paid, udhaar, createdAt, reversedAt?, reversalReason?, business?: ReceiptBusiness }
 BillItem     { productId, name, quantity, unit, unitPrice, lineTotal }
 LedgerEntry  { id, customerId, type: 'udhaar' | 'payment', amount, billId?, note?, createdAt, reversesEntryId? }
 ```
@@ -396,6 +398,7 @@ bol-bill/
 git clone <your-repo-url> bol-bill && cd bol-bill
 pnpm install
 cp .env.example .env            # fill in keys (gateway) and the gateway URL (web)
+cp apps/web/.env.example apps/web/.env.local  # configure Supabase; follow docs/AUTH.md's SQL setup
 pnpm dev                        # runs web (3000) and gateway (8080) together
 ```
 

@@ -155,6 +155,8 @@ describe('what it never touches', () => {
     ['a gateway on another origin', request('/session', { method: 'POST', origin: 'https://gateway.test' })],
     ['any cross-origin GET', request('/anything', { origin: 'https://cdn.test' })],
     ['a PUT', request('/ledger', { method: 'PUT' })],
+    ['account session', request('/api/account')],
+    ['account mutation', request('/api/account/profile', { method: 'POST' })],
   ])('leaves %s to the network', async (_name, req) => {
     expect(await dispatchFetch(req)).toBeNull();
   });
@@ -224,6 +226,6 @@ describe('updates', () => {
     let waited: Promise<unknown> = Promise.resolve();
     handlers['activate']!({ waitUntil: (p: Promise<unknown>) => (waited = p) });
     await waited;
-    expect([...store.keys()].sort()).toEqual(['bolbill-assets-v2', 'bolbill-shell-v2', 'unrelated-cache']);
+    expect([...store.keys()].sort()).toEqual(['bolbill-assets-v3', 'bolbill-shell-v3', 'unrelated-cache']);
   });
 });

@@ -29,13 +29,15 @@ export class BolDb extends Dexie {
   }
 }
 
-let shared: BolDb | null = null;
+const shared = new Map<string, BolDb>();
 
 /** The app's database. Browser only: IndexedDB does not exist while Next renders on the server. */
-export function getDb(): BolDb {
+export function getDb(ownerId?: string): BolDb {
   if (typeof indexedDB === 'undefined') {
     throw new Error('IndexedDB is not available here (server rendering or a blocked browser).');
   }
-  shared ??= new BolDb();
-  return shared;
+  const name = ownerId ? `bolbill-account-${ownerId}` : 'bolbill';
+  let db = shared.get(name);
+  if (!db) { db = new BolDb(name); shared.set(name, db); }
+  return db;
 }

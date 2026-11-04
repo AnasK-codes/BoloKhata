@@ -114,10 +114,13 @@ afterEach(async () => {
   await mock.close();
 });
 
-async function speakFor(ms: number): Promise<number> {
+async function speakFor(ms: number, minimumFrames = 0): Promise<number> {
+  const framesBefore = client.stats.audioFramesSent;
   controller.press();
   const turnId = controller.state.turnId as number;
   await sleep(ms);
+  // Busy hosts can skip interval callbacks: wait for the frames this test asserts, not just wall time.
+  if (minimumFrames > 0) await until(() => client.stats.audioFramesSent - framesBefore >= minimumFrames, 'microphone frames');
   controller.release();
   return turnId;
 }
@@ -126,7 +129,7 @@ describe('a full turn through the real gateway', () => {
   it('sends exact frames, gets transcript and draft, plays the reply and records timings', async () => {
     mock.stt.queueTranscripts('Sharma ji ko do kilo cheeni udhaar likh do');
 
-    const turnId = await speakFor(400);
+    const turnId = await speakFor(400, 9);
     // The gateway sends `timing` again after the voice ends, with the TTS spans.
     await until(() => controller.state.turns[0]?.gateway.tts_first_chunk !== undefined, 'the final timing message');
     const state = controller.state;

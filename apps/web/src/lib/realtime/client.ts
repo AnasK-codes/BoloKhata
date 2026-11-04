@@ -11,6 +11,8 @@ import type { CatalogSnapshot, ConnectionState, RealtimeEvents, RealtimeIssue } 
 export interface RealtimeConfig {
   /** Gateway origin, for example `http://localhost:8080`. */
   gatewayUrl: string;
+  /** Same-origin authenticated session broker; audio still uses the direct gateway socket. */
+  sessionUrl?: string;
   /** Read at every (re)connect, so a reconnect sends current prices and balances. */
   getCatalog: () => CatalogSnapshot | Promise<CatalogSnapshot>;
   lang?: string;
@@ -209,12 +211,16 @@ export class RealtimeClient {
     | { kind: 'failed' }
   > {
     const accessCode = this.config.accessCode?.();
-    const response = await this.deps.fetch(`${this.config.gatewayUrl}/session`, {
+    const response = await this.deps.fetch(this.config.sessionUrl ?? `${this.config.gatewayUrl}/session`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(accessCode !== undefined ? { accessCode } : {}),
     });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (response.status === 401 && this.config.sessionUrl && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('bolbill-session-expired'));
+      return { kind: 'failed' };
+    }
 
     if (response.ok) {
       const token = (body as SessionResponse | null)?.token;

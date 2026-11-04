@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from 'react';
 import { useSettings } from '@/lib/settings';
 import { useApp } from './AppProvider';
+import { useAccount } from './AccountGate';
+import { BusinessProfileForm } from './BusinessProfileForm';
 
 function Toggle({ label, hint, checked, onChange }: { label: string; hint: string; checked: boolean; onChange(v: boolean): void }) {
   return (
@@ -25,6 +27,8 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
 
 export function SettingsScreen() {
   const { db, toast } = useApp();
+  const { user, profile, saveProfile, logout } = useAccount();
+  const [editingProfile, setEditingProfile] = useState(false);
   const hud = useSettings((s) => s.hud);
   const handsFree = useSettings((s) => s.handsFree);
   const mic = useSettings((s) => s.mic);
@@ -45,9 +49,18 @@ export function SettingsScreen() {
     setConfirming(false);
   };
 
+  if (editingProfile) return <BusinessProfileForm initial={profile} onCancel={() => setEditingProfile(false)} onSave={async (next) => { await saveProfile(next); setEditingProfile(false); toast('Business profile aur bill template save ho gaye.', 'ok'); }} />;
+
   return (
     <main className="mx-auto max-w-md space-y-6 px-4 py-5">
       <h1 className="text-2xl font-extrabold">Settings</h1>
+      <Section title="Account aur business">
+        <div className="space-y-3 p-4"><p className="text-lg font-bold">{profile.businessName}</p><p className="break-words text-dim">{user.email}</p>
+          <p className="text-sm text-muted">Login aur profile cloud mein hain. Bills aur khata is account ke liye sirf is device par hain.</p>
+          <button className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold" onClick={() => setEditingProfile(true)}>Business profile / bill template</button>
+          <button disabled={busy} className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold text-bad" onClick={async () => { setBusy(true); try { await logout(); } catch { toast('Logout nahi hua. Dobara try karo.', 'error'); setBusy(false); } }}>Logout</button>
+        </div>
+      </Section>
 
       <Section title="Dikhao (display)">
         <Toggle label="Latency HUD" hint="Har turn ka measured time voice screen par dikhao." checked={hud} onChange={(v) => set({ hud: v })} />

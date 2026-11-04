@@ -1,6 +1,7 @@
 /** Local data model (README section 10). Money is integer rupees; times are epoch milliseconds. */
 import type { CatalogProduct } from '../protocol/client';
 import type { BillItem } from '../protocol/server';
+import type { ReceiptBusiness } from './business';
 
 export type { BillItem };
 export type Product = CatalogProduct;
@@ -25,6 +26,7 @@ export interface Bill {
   createdAt: number;
   reversedAt?: number;
   reversalReason?: string;
+  business?: ReceiptBusiness;
 }
 
 /** A bill before it is saved: no id or timestamp yet (those come from the caller, keeping this pure). */

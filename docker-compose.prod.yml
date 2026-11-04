@@ -1,7 +1,7 @@
-# Production stack for one small EC2 instance. Three containers, nothing else:
+# Three application containers on one EC2 instance; hosted Supabase supplies accounts/profiles.
 #   caddy (TLS + reverse proxy)  ->  web (Next.js)  and  gateway (realtime WebSocket)
 # Usage:  docker compose -f docker-compose.prod.yml --env-file .env up -d --build
-# Needs a .env next to this file (see docs/DEPLOY.md). Only the gateway reads secrets.
+# Needs .env (see docs/DEPLOY.md and docs/AUTH.md). Gnani/LLM secrets remain gateway-only.
 
 name: bolbill
 
@@ -69,7 +69,12 @@ services:
         NEXT_PUBLIC_GATEWAY_URL: https://${DOMAIN}
     restart: unless-stopped
     init: true
-    # No env_file: the web container never sees the Gnani key or any other secret.
+    # Only account-backend settings go to Next's server. Gnani/LLM keys stay on the gateway.
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set SUPABASE_ANON_KEY in .env}
+      GATEWAY_INTERNAL_URL: http://gateway:8080
+      APP_ORIGIN: https://${DOMAIN}
     expose:
       - "3000"
     healthcheck:

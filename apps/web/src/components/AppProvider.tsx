@@ -10,6 +10,8 @@ import { createRealtimeSession, type RealtimeSession } from '@/lib/session/creat
 import { hydrateSettings, settingsStore } from '@/lib/settings';
 import { attachHandsFree } from '@/lib/voice/handsFree';
 import { saveDraft } from '@/lib/voice/saveDraft';
+import { receiptBusiness } from '@bolbill/shared';
+import { useAccount } from './AccountGate';
 
 export interface Toast {
   id: number;
@@ -36,6 +38,9 @@ export const useApp = () => useContext(Ctx);
  * gateway session (connection, microphone, playback, turn state) and the catalog sync.
  */
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user, profile } = useAccount();
+  const profileRef = useRef(profile);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
   const [parts, setParts] = useState<Pick<AppContext, 'db' | 'repo' | 'session' | 'dataError'>>({
     db: null,
     repo: null,
@@ -60,9 +65,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (async () => {
       let db: BolDb;
       try {
-        db = getDb();
-        // The seed catalog is loaded only on the very first run, so it is not part of every page's JavaScript.
-        if (!(await db.meta.get('seededAt'))) await (await import('@/lib/db/seed')).seedIfFirstRun(db);
+        db = getDb(user.id);
+        // Real accounts start empty. Synthetic demo data is available only through the explicit reset action.
+        if (!(await db.meta.get('seededAt'))) await db.meta.put({ key: 'seededAt', value: Date.now() });
         // Ask the browser not to evict the ledger when storage is tight (iOS Safari is the main risk).
         void navigator.storage?.persist?.().catch(() => undefined);
       } catch {
@@ -70,7 +75,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (disposed) return;
-      const repo = createRepo(db);
+      const repo = createRepo(db, Date.now, () => crypto.randomUUID(), () => receiptBusiness(profileRef.current));
       const holder: { session?: RealtimeSession } = {};
       // Development only: `?tone=1` swaps the microphone for a labelled synthetic tone, for machines with no mic.
       const tone = process.env.NODE_ENV !== 'production' && new URLSearchParams(location.search).get('tone') === '1';
@@ -80,6 +85,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const sync = new ContextSync({ db, send: (m) => holder.session?.client.send(m) ?? false });
       const session = createRealtimeSession({
         gatewayUrl: getGatewayUrl(),
+        sessionUrl: '/api/account/gateway-session',
         getCatalog: () => sync.snapshotForHello(),
         getAccessCode,
         micSettings: settingsStore.getState().mic,
@@ -120,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       disposed = true;
       cleanups.forEach((fn) => fn());
     };
-  }, [toast]);
+  }, [toast, user.id]);
 
   const value = useMemo<AppContext>(() => ({ ...parts, toast }), [parts, toast]);
   return (

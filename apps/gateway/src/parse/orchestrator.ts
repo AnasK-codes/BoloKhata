@@ -38,12 +38,15 @@ export interface ParseRequest {
 export interface OrchestratorOptions {
   llm: LlmAdapter;
   timeoutMs: number;
+  /** 'always': the model sees every utterance first. 'fallback': only when the rules are unsure. */
+  mode?: 'fallback' | 'always';
 }
 
 const isShortAnswer = (p: ParsedUtterance): boolean => p.intent === 'confirm' || p.intent === 'cancel';
 
 /**
- * Rules first, model second.
+ * Rules first, model second (default). With `mode: 'always'` the model is asked on every turn
+ * (except confirm/cancel) and its answer is used; the rules result is the fallback.
  *
  * 1. The shared rule parser runs synchronously (this function reaches its first `await` only
  *    after the rules have finished). A confident result with every item resolved is returned
@@ -65,7 +68,8 @@ export class Orchestrator {
     request.mark?.('rules_done');
 
     if (isShortAnswer(rules)) return outcome(rules, rulesResolution, 'rules', false, 'skipped');
-    if (rules.confidence >= CONFIDENCE_THRESHOLD && itemsResolved(rules, rulesResolution)) {
+    const rulesAreSure = rules.confidence >= CONFIDENCE_THRESHOLD && itemsResolved(rules, rulesResolution);
+    if (rulesAreSure && this.options.mode !== 'always') {
       return outcome(rules, rulesResolution, 'rules', false, 'skipped');
     }
     // Nothing for a model to work on, or text that is trying to instruct it.
@@ -83,11 +87,11 @@ export class Orchestrator {
     request.mark?.('llm_done');
 
     if (!result.ok) {
-      return { ...outcome(rules, rulesResolution, 'rules', true, result.reason), llmMs: result.ms };
+      return { ...outcome(rules, rulesResolution, 'rules', !rulesAreSure, result.reason), llmMs: result.ms };
     }
     // A model may not confirm or cancel anything. Treat that answer as unusable.
     if (isShortAnswer(result.value)) {
-      return { ...outcome(rules, rulesResolution, 'rules', true, 'invalid_output'), llmMs: result.ms };
+      return { ...outcome(rules, rulesResolution, 'rules', !rulesAreSure, 'invalid_output'), llmMs: result.ms };
     }
     const resolution = resolveUtterance(result.value, request.index);
     const review = result.value.confidence < CONFIDENCE_THRESHOLD || (resolution.bill?.needsReview ?? false);
