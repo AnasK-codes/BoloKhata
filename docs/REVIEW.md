@@ -22,6 +22,6 @@ Severity: **blocker** (breaks the demo or leaks something), **major** (wrong beh
 
 ## Summary
 
-Counts by severity (R-01 to R-15): blocker 1 (fixed), major 6 (6 fixed), minor 8 (5 fixed, 2 deferred, 1 documented/not-a-defect... see table). Fixed means a test fails before and passes after, except UI findings (R-12 to R-14), which were verified in screenshots (`docs/screens/`).
+Counts (R-01 to R-15): **blocker 1** (1 fixed); **major 6** (6 fixed); **minor 8** (4 fixed, 2 deferred: R-10 parser edge case, R-11 integration-test flake; 2 reviewed and not defects: R-09 documented, R-15 clean). Fixed means a test fails before and passes after, except the UI findings (R-12 to R-14), which were verified in screenshots (`docs/screens/`).
 
 How the review was done: `thermo-nuclear-code-quality-review` (severity-ranked table, no ad-hoc conditionals, boundary cleanliness) and `ponytail` (smallest change that fully fixes it, a test for each new branch) for code; probes of the rule parser with 30 Hinglish sentences (found R-02, R-03); reading the realtime paths against their existing tests; grep for `any`, `ts-ignore`, `console.*`, secrets and unused dependencies (clean); `impeccable` and `apple-design` references for the UI.
