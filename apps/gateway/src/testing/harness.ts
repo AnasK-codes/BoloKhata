@@ -36,9 +36,11 @@ export interface Harness {
 export async function startGateway(
   env: Record<string, string> = {},
   options: BuildServerOptions = {},
+  /** Listen on this port (to restart a gateway where the old one was). 0 picks a free one. */
+  port = 0,
 ): Promise<Harness> {
   const app = buildServer(testConfig({ LOG_LEVEL: 'silent', ...env }), options);
-  await app.listen({ port: 0, host: '127.0.0.1' });
+  await app.listen({ port, host: '127.0.0.1' });
   const address = app.server.address();
   if (address === null || typeof address === 'string') throw new Error('no port');
   const baseUrl = `http://127.0.0.1:${address.port}`;

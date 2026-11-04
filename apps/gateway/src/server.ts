@@ -68,7 +68,10 @@ export function buildServer(
       },
     },
     bodyLimit: 16 * 1024,
-    trustProxy: config.server.trustProxy,
+    // Only a proxy on a private address (Caddy on the Docker network) is trusted, and the client is the
+    // first PUBLIC address scanning X-Forwarded-For from the right, which is the one the proxy appended and
+    // a client cannot forge. `true` would trust the leftmost entry, which a client controls.
+    trustProxy: config.server.trustProxy ? ['loopback', 'linklocal', 'uniquelocal'] : false,
   });
 
   const guard =
@@ -131,7 +134,14 @@ export function buildServer(
     return ctx.metrics.snapshot({
       activeSessions: ctx.sessions.size,
       maxSessions: ctx.sessions.maxSessions,
-      credits: ctx.guard.usage(),
+      credits: {
+        ...ctx.guard.usage(),
+        stt_seconds_cap: config.guard.dailySttSecondsCap,
+        tts_chars_cap: config.guard.dailyTtsCharsCap,
+        stt_seconds_remaining: Math.max(0, config.guard.dailySttSecondsCap - ctx.guard.usage().stt_seconds),
+        tts_chars_remaining: Math.max(0, config.guard.dailyTtsCharsCap - ctx.guard.usage().tts_chars),
+        resetAt: ctx.guard.resetAt(),
+      },
       draining: ctx.draining,
     });
   });

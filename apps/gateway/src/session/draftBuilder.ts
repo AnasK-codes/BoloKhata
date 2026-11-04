@@ -5,12 +5,14 @@ import {
   billReadback,
   cancelled,
   customerAmbiguous,
+  customerNeeded,
   customerNotFound,
   itemNotFound,
   nothingPending,
   notUnderstood,
   paymentRecorded,
   saved,
+  udhaarNeedsCustomer,
   type CatalogCustomer,
   type CatalogProduct,
   type DraftMessage,
@@ -49,6 +51,7 @@ export interface DraftResult {
   pendingChange: PendingChange;
 }
 
+const MISSING_CUSTOMER_WARNING = 'Udhaar ke liye grahak ka naam chuno.';
 const REVIEW_WARNING = 'Please check this draft before saving.';
 
 /**
@@ -99,12 +102,16 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   }
 
+  // Udhaar with nobody to owe it would be stored with no ledger entry: do not offer to save it.
+  const missingCustomer = udhaarNeedsCustomer(result.bill.udhaar, customer !== undefined && customer !== null);
   let reply: string[];
   let cacheReply = false;
   if (customer?.ambiguous) {
     reply = customerAmbiguous(customer.ambiguous.candidates.map((c) => c.name), variant);
   } else if (result.unresolvedItems.length > 0) {
     reply = itemNotFound(result.unresolvedItems[0]?.spoken, variant);
+  } else if (missingCustomer) {
+    reply = customerNeeded(variant);
   } else {
     reply = billReadback(
       { ...(customer ? { customerName: customer.name } : {}), total: result.bill.total, udhaar: result.bill.udhaar },
@@ -116,7 +123,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     cacheReply = true;
   }
 
-  const confirmable = result.bill.items.length > 0 && unresolved.length === 0;
+  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !missingCustomer;
   const draftId = input.draftId;
   const draft: DraftMessage = {
     ...base,
@@ -127,7 +134,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
       : {}),
     bill: result.bill,
     unresolved: unresolved.slice(0, LIMITS.maxUnresolved),
-    warnings: warningsOf(result.warnings, outcome.needsReview),
+    warnings: warningsOf(missingCustomer ? [...result.warnings, MISSING_CUSTOMER_WARNING] : result.warnings, outcome.needsReview),
     replyText: reply,
   };
   return {

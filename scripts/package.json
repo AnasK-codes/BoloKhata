@@ -7,7 +7,10 @@
     "spike": "tsx spike.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "warm-phrases": "tsx warm-phrases.ts"
+    "warm-phrases": "tsx warm-phrases.ts",
+    "loadtest": "tsx loadtest.ts",
+    "measure-rtt": "tsx measure-rtt.ts",
+    "check:bundle": "tsx check-client-bundle.ts"
   },
   "dependencies": {
     "ws": "^8.22.1",

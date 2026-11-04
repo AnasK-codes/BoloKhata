@@ -112,6 +112,11 @@ export function customerAmbiguous(candidates: readonly string[], variant = 0): s
   return [clip(`${a} ya ${b}?`), pick([`Kaunsa customer hai?`, `Naam chun lijiye.`], variant)];
 }
 
+/** A bill with udhaar but no customer named: ask whose udhaar it is. */
+export function customerNeeded(variant = 0): string[] {
+  return [pick([`Udhaar kiska likhun?`, `Yeh udhaar kiske naam hai?`], variant), `Grahak ka naam batao.`];
+}
+
 /** "haan" or "nahi" with no draft waiting. */
 export function nothingPending(variant = 0): string[] {
   return [pick([`Abhi koi bill pending nahi hai.`, `Save karne ke liye kuch nahi hai.`], variant)];

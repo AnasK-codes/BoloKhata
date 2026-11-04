@@ -14,7 +14,10 @@ function messageOf(fn: () => unknown): string {
 
 describe('loadConfig', () => {
   it('applies documented defaults', () => {
-    const config = testConfig();
+    // The shared test environment points Gnani at a closed local port; the real defaults are
+    // checked by leaving those two variables out.
+    const { GNANI_STT_URL: _stt, GNANI_TTS_URL: _tts, ...withoutUrls } = TEST_ENV;
+    const config = loadConfig(withoutUrls);
     expect(config.gnani.stt.url).toBe('wss://api.vachana.ai/stt/v3/stream');
     expect(config.gnani.tts.url).toBe('wss://api.vachana.ai/api/v1/tts');
     expect(config.gnani.stt.model).toBe('prisma-v3.0');
