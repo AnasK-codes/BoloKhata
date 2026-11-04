@@ -9,6 +9,8 @@ export interface TurnMetrics {
   releaseToTranscript?: number;
   releaseToDraft?: number;
   releaseToFirstAudible?: number;
+  /** Press until the speaker was silent, when the press interrupted a spoken reply. */
+  pressToSilence?: number;
   /** Time the gateway spent waiting for Gnani after `commit`. */
   gatewayStt?: number;
   /** Rules (and LLM, if used) from transcript to draft, on the gateway. */
@@ -39,6 +41,7 @@ export function turnMetrics(record: TurnRecord): TurnMetrics {
   set('releaseToTranscript', between(b.release, b.transcript));
   set('releaseToDraft', between(b.release, b.draft));
   set('releaseToFirstAudible', between(b.release, b.first_audible));
+  set('pressToSilence', record.pressToSilenceMs);
   set('gatewayStt', between(g.commit_sent, g.transcript));
   set('gatewayParse', between(g.transcript, g.draft));
   set('gatewayTtsFirstByte', between(g.tts_request, g.tts_first_chunk));

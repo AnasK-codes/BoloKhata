@@ -13,6 +13,7 @@ export interface MicPort {
   openGate(): void;
   closeGate(): Promise<void>;
   dispose(): void;
+  updateSettings?(settings: MicSettings): Promise<void>;
 }
 
 export interface SessionOptions {
@@ -30,6 +31,8 @@ export interface RealtimeSession {
   client: RealtimeClient;
   playback: PlaybackEngine;
   mic: MicPort;
+  /** Latest microphone level (RMS, 0 to 1), written by the capture worklet's reports. */
+  level: { current: number };
   /** Resume audio, load the worklets and open the microphone. Call from a user gesture. */
   enableAudio(): Promise<void>;
   dispose(): void;
@@ -50,15 +53,20 @@ export function createRealtimeSession(options: SessionOptions): RealtimeSession 
   const playback = new PlaybackEngine(context, {
     onFirstAudible: (event) => wired.controller?.handlePlaybackStarted(event.turnId, event.perfMs),
     onFinished: (turnId) => wired.controller?.handlePlaybackFinished(turnId),
+    onFlushed: (perfMs) => wired.controller?.handleSilenced(perfMs),
     ...(options.onPlaybackStats ? { onStats: options.onPlaybackStats } : {}),
   });
 
+  const level = { current: 0 };
   const onFrame = (frame: ArrayBuffer) => wired.controller?.handleFrame(frame);
   const mic: MicPort =
     options.createMic?.(onFrame) ??
     new MicCapture(context, {
       ...(options.micSettings ? { settings: options.micSettings } : {}),
       onFrame,
+      onLevel: (rms) => {
+        level.current = rms;
+      },
     });
 
   const client = new RealtimeClient(
@@ -108,6 +116,7 @@ export function createRealtimeSession(options: SessionOptions): RealtimeSession 
     client,
     playback,
     mic,
+    level,
     enableAudio,
     dispose() {
       stopWatchingMic();

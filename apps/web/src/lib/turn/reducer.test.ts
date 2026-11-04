@@ -276,10 +276,11 @@ describe('confirm and discard', () => {
     expect(sim.phase).toBe('idle');
   });
 
-  it('replaces the pending bill when a new one is spoken', () => {
+  it('replaces the pending bill only after the user accepts the newer one', () => {
     const sim = new Sim();
     sim.draft();
     const second = sim.draft();
+    sim.send({ type: 'accept_replacement' });
     expect(sim.state.pending?.draftId).toBe(`d${second}`);
   });
 });
@@ -527,5 +528,109 @@ describe('purity', () => {
     expect(frozen.phase).toBe('idle');
     expect(result.state.phase).toBe('listening');
     expect(reduce(frozen, { type: 'press', at: 5 })).toEqual(result);
+  });
+});
+
+describe('heard flag', () => {
+  it('turns on at speech_start and resets on the next press', () => {
+    const sim = new Sim();
+    sim.press();
+    const id = sim.state.turnId as number;
+    expect(sim.state.heard).toBe(false);
+    sim.server({ type: 'speech_start', turnId: id });
+    expect(sim.state.heard).toBe(true);
+    sim.release();
+    sim.press();
+    expect(sim.state.heard).toBe(false);
+  });
+});
+
+describe('a new bill while one is pending', () => {
+  it('asks before replacing: the old bill stays pending, the new one waits', () => {
+    const sim = new Sim();
+    const first = sim.draft();
+    const second = sim.draft();
+    expect(sim.state.pending?.draftId).toBe(`d${first}`);
+    expect(sim.state.replacement?.draftId).toBe(`d${second}`);
+  });
+
+  it('replaces on accept and keeps the old one on keep', () => {
+    const sim = new Sim();
+    sim.draft();
+    const second = sim.draft();
+    sim.send({ type: 'keep_pending' });
+    expect(sim.state.replacement).toBeNull();
+    expect(sim.state.pending?.draftId).not.toBe(`d${second}`);
+
+    const sim2 = new Sim();
+    sim2.draft();
+    const next = sim2.draft();
+    sim2.send({ type: 'accept_replacement' });
+    expect(sim2.state.pending?.draftId).toBe(`d${next}`);
+    expect(sim2.state.replacement).toBeNull();
+  });
+
+  it('treats a spoken "haan" for the waiting bill as accepting and saving it', () => {
+    const sim = new Sim();
+    sim.draft();
+    const second = sim.draft();
+    const yes = sim.speak();
+    sim.effects = [];
+    sim.server(draftMessage(yes, { intent: 'confirm', draftId: `d${second}` }));
+    expect(sim.effects).toEqual([{ type: 'save_draft', draft: expect.objectContaining({ draftId: `d${second}` }) }]);
+    expect(sim.state.pending).toBeNull();
+    expect(sim.state.replacement).toBeNull();
+  });
+
+  it('does not ask when the first bill was incomplete (nothing to lose)', () => {
+    const sim = new Sim();
+    sim.draft({ unresolved: [{ kind: 'item', spoken: 'xyz', candidates: [] }] });
+    expect(sim.state.pending).toBeNull();
+    const second = sim.draft();
+    expect(sim.state.pending?.draftId).toBe(`d${second}`);
+    expect(sim.state.replacement).toBeNull();
+  });
+});
+
+describe('editing the draft', () => {
+  it('makes an incomplete bill confirmable once it is complete, and keeps it out until then', () => {
+    const sim = new Sim();
+    const id = sim.draft({ unresolved: [{ kind: 'item', spoken: 'xyz', candidates: [] }] });
+    expect(sim.state.pending).toBeNull();
+    sim.send({ type: 'edit_draft', draft: draftMessage(id) });
+    expect(sim.state.pending?.draftId).toBe(`d${id}`);
+    expect(sim.phase).toBe('reviewing');
+    sim.send({ type: 'edit_draft', draft: draftMessage(id, { unresolved: [{ kind: 'item', spoken: 'q', candidates: [] }] }) });
+    expect(sim.state.pending).toBeNull();
+    expect(sim.phase).toBe('idle');
+  });
+
+  it('a spoken yes still saves the edited version', () => {
+    const sim = new Sim();
+    const id = sim.draft();
+    const edited = draftMessage(id, { bill: { items: [], total: 0, paid: 0, udhaar: 0 } });
+    sim.send({ type: 'edit_draft', draft: { ...edited, bill: { ...draftMessage(id).bill!, total: 777, udhaar: 777 } } });
+    const yes = sim.speak();
+    sim.effects = [];
+    sim.server(draftMessage(yes, { intent: 'confirm', draftId: `d${id}` }));
+    expect(sim.effects[0]).toMatchObject({ type: 'save_draft', draft: { bill: { total: 777 } } });
+  });
+});
+
+describe('press to silence', () => {
+  it('is recorded only for a press that interrupted speech', () => {
+    const sim = new Sim();
+    const id = sim.draft();
+    sim.server({ type: 'tts_start', turnId: id, sampleRate: 24000, format: 'pcm_s16le' });
+    sim.press();
+    const pressedAt = sim.state.turns.at(-1)!.pressAt;
+    sim.send({ type: 'silenced', at: pressedAt + 7 });
+    sim.send({ type: 'silenced', at: pressedAt + 99 });
+    expect(sim.state.turns.at(-1)).toMatchObject({ bargeIn: true, pressToSilenceMs: 7 });
+
+    const plain = new Sim();
+    plain.press();
+    plain.send({ type: 'silenced', at: plain.tick() });
+    expect(plain.state.turns[0]?.pressToSilenceMs).toBeUndefined();
   });
 });

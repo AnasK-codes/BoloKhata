@@ -1,5 +1,5 @@
-import { VoiceApp } from '@/components/VoiceApp';
+import { VoiceScreen } from '@/components/voice/VoiceScreen';
 
 export default function HomePage() {
-  return <VoiceApp />;
+  return <VoiceScreen />;
 }

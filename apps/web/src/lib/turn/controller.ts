@@ -148,6 +148,23 @@ export class TurnController {
     this.dispatch({ type: 'playback_started', turnId, at: perfMs });
   }
 
+  handleSilenced(perfMs: number): void {
+    this.dispatch({ type: 'silenced', at: perfMs });
+  }
+
+  /** Applies a user edit to the displayed draft. */
+  editDraft(draft: DraftMessage): void {
+    this.dispatch({ type: 'edit_draft', draft });
+  }
+
+  acceptReplacement(): void {
+    this.dispatch({ type: 'accept_replacement' });
+  }
+
+  keepPending(): void {
+    this.dispatch({ type: 'keep_pending' });
+  }
+
   handlePlaybackFinished(turnId: number): void {
     this.dispatch({ type: 'playback_finished', turnId });
   }

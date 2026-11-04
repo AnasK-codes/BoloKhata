@@ -11,6 +11,8 @@ export function initialTurnState(overrides: Partial<TurnState> = {}): TurnState 
     mode: 'held',
     connected: false,
     transcript: null,
+    heard: false,
+    replacement: null,
     draft: null,
     pending: null,
     degraded: [],
@@ -37,6 +39,13 @@ const DISCONNECTED: TurnError = {
 /** Where to rest when nothing is happening: reviewing a pending bill, or idle. */
 function settled(state: TurnState): TurnState['phase'] {
   return state.pending ? 'reviewing' : 'idle';
+}
+
+/** A bill needs items that all resolved; a payment needs a known customer. */
+export function isConfirmable(draft: DraftMessage): boolean {
+  if (draft.intent === 'create_bill') return (draft.bill?.items.length ?? 0) > 0 && draft.unresolved.length === 0;
+  if (draft.intent === 'record_payment') return draft.customer?.id !== undefined && draft.payment !== undefined;
+  return false;
 }
 
 function nextId(id: number): number {
@@ -85,7 +94,14 @@ function press(state: TurnState, at: number): TurnTransition {
   if (!state.connected) return fail(state, OFFLINE, []);
 
   const turnId = state.nextTurnId;
-  const record: TurnRecord = { turnId, pressAt: at, browser: { press: 0 }, gateway: {} };
+  const effectsOld = stopOld(state);
+  const record: TurnRecord = {
+    turnId,
+    pressAt: at,
+    browser: { press: 0 },
+    gateway: {},
+    ...(effectsOld.some((e) => e.type === 'flush_playback') && state.phase === 'speaking' ? { bargeIn: true } : {}),
+  };
   return {
     state: {
       ...state,
@@ -94,12 +110,13 @@ function press(state: TurnState, at: number): TurnTransition {
       nextTurnId: nextId(turnId),
       mode: 'held',
       transcript: null,
+      heard: false,
       draft: null,
       degraded: [],
       error: null,
       turns: [...state.turns, record].slice(-HISTORY_LIMIT),
     },
-    effects: [...stopOld(state), { type: 'start_turn', turnId }],
+    effects: [...effectsOld, { type: 'start_turn', turnId }],
   };
 }
 
@@ -173,8 +190,10 @@ function serverMessage(state: TurnState, message: ServerMessage, at: number): Tu
       return { state, effects: [{ type: 'play_end', turnId: message.turnId }] };
     case 'error':
       return turnError(state, message);
+    case 'speech_start':
+      return { state: { ...state, heard: true }, effects: [] };
     default:
-      return { state, effects: [] }; // speech_start
+      return { state, effects: [] };
   }
 }
 
@@ -205,10 +224,21 @@ function draft(state: TurnState, message: DraftMessage, at: number): TurnTransit
   switch (message.intent) {
     case 'create_bill':
     case 'record_payment': {
-      const next = { ...base, pending: message };
+      // Something is already waiting and this is a different bill: ask before replacing it.
+      if (state.pending && state.pending.draftId !== message.draftId && isConfirmable(message)) {
+        const next = { ...base, replacement: message };
+        return { state: { ...next, phase: rest(next) }, effects: [] };
+      }
+      const next = { ...base, pending: isConfirmable(message) ? message : state.pending };
       return { state: { ...next, phase: rest(next) }, effects: [] };
     }
     case 'confirm': {
+      // A spoken "haan" names the gateway's pending draft, which may be the replacement the
+      // user has not yet answered the dialog for: saying yes accepts it.
+      if (state.replacement?.draftId === message.draftId) {
+        const next = { ...base, pending: null, replacement: null };
+        return { state: { ...next, phase: rest(next) }, effects: [{ type: 'save_draft', draft: state.replacement }] };
+      }
       // The gateway names the pending draft; the browser owns the save. A draftId we do not
       // know about means the bill was already saved or discarded: do nothing.
       if (state.pending?.draftId !== message.draftId) {
@@ -221,6 +251,10 @@ function draft(state: TurnState, message: DraftMessage, at: number): TurnTransit
       };
     }
     case 'cancel': {
+      if (state.replacement?.draftId === message.draftId) {
+        const next = { ...base, replacement: null };
+        return { state: { ...next, phase: rest(next) }, effects: [] };
+      }
       if (state.pending?.draftId !== message.draftId) {
         return { state: { ...base, phase: rest(base) }, effects: [] };
       }
@@ -253,12 +287,24 @@ function connection(state: TurnState, connected: boolean): TurnTransition {
   return fail(down, DISCONNECTED, effects);
 }
 
+/** The user changed the draft on screen. It becomes confirmable (by tap) as soon as it is complete. */
+function editDraft(state: TurnState, edited: DraftMessage): TurnTransition {
+  const ownsPending = state.pending === null || state.pending.draftId === edited.draftId;
+  let pending = state.pending;
+  if (ownsPending) pending = isConfirmable(edited) ? edited : null;
+  const replacement = state.replacement?.draftId === edited.draftId ? edited : state.replacement;
+  const draft = state.draft?.draftId === edited.draftId || state.draft === null ? edited : state.draft;
+  const next = { ...state, draft, pending, replacement };
+  const phase = state.phase === 'idle' || state.phase === 'reviewing' ? settled(next) : state.phase;
+  return { state: { ...next, phase }, effects: [] };
+}
+
 function confirm(state: TurnState): TurnTransition {
   const pending = state.pending;
   if (!pending) return { state, effects: [] };
   const effects: Effect[] = [...stopOld(state), { type: 'save_draft', draft: pending }];
   const turnId = state.nextTurnId;
-  const next = { ...state, pending: null, turnId: null as number | null, mode: 'held' as const };
+  const next = { ...state, pending: null, replacement: null, turnId: null as number | null, mode: 'held' as const };
   if (state.connected) {
     // A short spoken confirmation, on a turn of its own so the readback it replaces is dropped.
     effects.push({ type: 'speak', turnId, text: saved()[0] ?? 'Save ho gaya.' });
@@ -322,6 +368,23 @@ export function reduce(state: TurnState, event: TurnEvent): TurnTransition {
         { code: 'TIMEOUT', message: 'Gateway ne jawab nahi diya. Please try again.', retryable: true },
         stopOld(state),
       );
+    case 'silenced': {
+      const record = state.turns.find((r) => r.turnId === state.turnId);
+      if (!record?.bargeIn || record.pressToSilenceMs !== undefined || state.turnId === null) return { state, effects: [] };
+      const value = Math.max(0, event.at - record.pressAt);
+      return {
+        state: { ...state, turns: state.turns.map((r) => (r.turnId === record.turnId ? { ...r, pressToSilenceMs: value } : r)) },
+        effects: [],
+      };
+    }
+    case 'edit_draft':
+      return editDraft(state, event.draft);
+    case 'accept_replacement': {
+      if (!state.replacement) return { state, effects: [] };
+      return { state: { ...state, pending: state.replacement, replacement: null }, effects: [] };
+    }
+    case 'keep_pending':
+      return { state: { ...state, replacement: null, draft: state.pending ?? state.draft }, effects: [] };
     case 'confirm':
       return confirm(state);
     case 'discard':

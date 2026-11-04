@@ -22,6 +22,8 @@ export interface PlaybackEngineEvents {
   /** All audio for the turn has been played out. */
   onFinished?: (turnId: number) => void;
   onStats?: (stats: PlaybackStats) => void;
+  /** The worklet confirmed it is empty after a flush; `perfMs` is when that reached the page. */
+  onFlushed?: (perfMs: number) => void;
 }
 
 const WORKLET_URL = '/worklets/playback.js';
@@ -34,6 +36,7 @@ const RING_SECONDS = 2;
 export class PlaybackEngine {
   private node: AudioWorkletNode | null = null;
   private feed: PlaybackFeed | null = null;
+  private flushPending = false;
   private stats: PlaybackStats = { bufferedMs: 0, pendingMs: 0, underruns: 0, overflowed: 0, playing: false };
 
   constructor(
@@ -86,6 +89,7 @@ export class PlaybackEngine {
   /** Silence now. Safe to call at any time. */
   flush(): void {
     this.feed?.flush();
+    this.flushPending = true;
     this.stats = { ...this.stats, bufferedMs: 0, pendingMs: 0, playing: false };
     this.events.onStats?.(this.stats);
   }
@@ -112,6 +116,10 @@ export class PlaybackEngine {
         playing: message.playing,
       };
       this.events.onStats?.(this.stats);
+      if (this.flushPending && message.bufferedMs === 0) {
+        this.flushPending = false;
+        this.events.onFlushed?.(performance.now());
+      }
     } else if (message.type === 'started') {
       if (message.turnId === this.activeTurn) this.events.onFirstAudible?.(this.audibleAt(message));
     } else if (message.turnId === this.activeTurn || this.activeTurn === -1) {

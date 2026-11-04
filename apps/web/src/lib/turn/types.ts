@@ -39,6 +39,10 @@ export interface TurnRecord {
   browser: Partial<Record<TimingSpan, number>>;
   gateway: Partial<Record<TimingSpan, number>>;
   parseSource?: 'rules' | 'llm';
+  /** The press interrupted a spoken reply. */
+  bargeIn?: boolean;
+  /** Press until the speaker was confirmed silent, for a barge-in. */
+  pressToSilenceMs?: number;
 }
 
 export interface TurnState {
@@ -50,6 +54,10 @@ export interface TurnState {
   /** Whether the gateway link is usable right now. */
   connected: boolean;
   transcript: string | null;
+  /** Speech was detected in the current turn (the gateway's `speech_start`). */
+  heard: boolean;
+  /** A newer bill that arrived while another was waiting; the user is asked which to keep. */
+  replacement: DraftMessage | null;
   /** The latest draft of the current turn, whatever its intent. */
   draft: DraftMessage | null;
   /** The bill or payment waiting for confirmation; survives other turns until saved or discarded. */
@@ -76,6 +84,12 @@ export type TurnEvent =
   | { type: 'playback_finished'; turnId: number }
   /** The gateway went quiet for too long after release. */
   | { type: 'timeout'; turnId: number }
+  /** The speaker was confirmed silent after a flush (from the playback worklet). */
+  | { type: 'silenced'; at: number }
+  /** The user changed the displayed draft (item, quantity, customer, transcript). */
+  | { type: 'edit_draft'; draft: DraftMessage }
+  | { type: 'accept_replacement' }
+  | { type: 'keep_pending' }
   | { type: 'confirm' }
   | { type: 'discard' }
   | { type: 'dismiss_error' };
