@@ -4,6 +4,7 @@ import type { Repo } from '../db/repo';
 export type SaveOutcome =
   | { kind: 'bill'; created: boolean }
   | { kind: 'payment'; created: boolean; balanceAfter: number }
+  | { kind: 'stock'; created: boolean }
   | { kind: 'error'; message: string };
 
 /**
@@ -20,6 +21,7 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
         total: draft.bill.total,
         paid: draft.bill.paid,
         udhaar: draft.bill.udhaar,
+        ...(draft.bill.adjust ? { adjust: draft.bill.adjust } : {}),
       });
       return { kind: 'bill', created: result.created };
     }
@@ -28,6 +30,10 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
       return result.ok
         ? { kind: 'payment', created: result.created, balanceAfter: result.balanceAfter }
         : { kind: 'error', message: result.error };
+    }
+    if (draft.intent === 'out_of_stock' && draft.stock) {
+      const result = await repo.setStock(draft.stock.productId, 0);
+      return result.ok ? { kind: 'stock', created: true } : { kind: 'error', message: result.error };
     }
     return { kind: 'error', message: 'Nothing to save.' };
   } catch (error) {

@@ -49,6 +49,7 @@ export function isConfirmable(draft: DraftMessage): boolean {
     return !udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && !(bill.udhaar > 0 && draft.customer?.creditReady === false);
   }
   if (draft.intent === 'record_payment') return draft.customer?.id !== undefined && draft.payment !== undefined;
+  if (draft.intent === 'out_of_stock') return draft.stock !== undefined;
   return false;
 }
 
@@ -227,7 +228,8 @@ function draft(state: TurnState, message: DraftMessage, at: number): TurnTransit
 
   switch (message.intent) {
     case 'create_bill':
-    case 'record_payment': {
+    case 'record_payment':
+    case 'out_of_stock': {
       // Something is already waiting and this is a different bill: ask before replacing it.
       if (state.pending && state.pending.draftId !== message.draftId && isConfirmable(message)) {
         const next = { ...base, replacement: message };

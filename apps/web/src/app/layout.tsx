@@ -19,10 +19,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f2f3f6' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f1115' },
-  ],
+  themeColor: '#eeeef0',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -30,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className="min-h-dvh antialiased">
         <AccountGate><AppProvider>
-          <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))]">{children}</div>
+          <div className="app-content">{children}</div>
           <BottomNav />
           <PwaRegister />
         </AppProvider></AccountGate>

@@ -52,6 +52,20 @@ const parse = (o: Orchestrator, transcript: string, extra: { signal?: AbortSigna
 const MESSY = 'Sharma ji ko woh jo lal wala packet hai do dena';
 
 describe('rules path', () => {
+  it('uses explicit spoken prices without a catalog or model call, even in always mode', async () => {
+    const { adapter, calls } = stub(() => ok(answer({})));
+    const r = await new Orchestrator({ llm: adapter, timeoutMs: 1200, mode: 'always' }).parse({
+      transcript: 'Do kilo chawal ₹110 ke, do Maggi ke packets ₹28 ke', index: new CatalogIndex([]), names: { products: [], customers: [] },
+    });
+    expect(r).toMatchObject({ source: 'rules', llm: 'skipped', needsReview: false, resolution: { bill: { bill: { total: 138 } } } });
+    expect(calls).toHaveLength(0);
+  });
+  it('discards model-invented spoken-price metadata', async () => {
+    const { adapter } = stub(() => ok(answer({ items: [{ name: 'aata', quantity: 2, unit: 'kg', spokenPrice: { amount: 1, basis: 'line', unit: 'kg' } }] })));
+    const r = await parse(make(adapter), MESSY);
+    expect(r.resolution.bill?.bill.total).toBe(90);
+    expect(r.resolution.bill?.bill.items[0]?.spokenPrice).toBeUndefined();
+  });
   it('returns a confident, resolved sentence without calling the model', async () => {
     const { adapter, calls } = stub(() => ok(answer({})));
     const marks: string[] = [];

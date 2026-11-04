@@ -104,9 +104,10 @@ export class TurnEngine {
     if (draftContext !== undefined) {
       this.correctionContext = draftContext;
       const eligible = draftContext && (draftContext.intent === 'record_payment' ||
+        (draftContext.intent === 'out_of_stock' && draftContext.stock !== undefined) ||
         (draftContext.intent === 'create_bill' && draftContext.bill && draftContext.bill.items.length > 0 && draftContext.unresolved.length === 0 &&
           (draftContext.bill.udhaar === 0 || (draftContext.customer && draftContext.customer.creditReady !== false))));
-      this.pending = draftContext ? { draftId: draftContext.draftId, intent: draftContext.intent === 'record_payment' ? 'record_payment' : 'create_bill', canConfirm: !!eligible } : null;
+      this.pending = draftContext ? { draftId: draftContext.draftId, intent: draftContext.intent === 'record_payment' || draftContext.intent === 'out_of_stock' ? draftContext.intent : 'create_bill', canConfirm: !!eligible } : null;
     }
     this.tts.interruptAll(); // barge-in: pressing the button silences the shop's assistant
     this.supersedeCurrent();
@@ -234,12 +235,14 @@ export class TurnEngine {
       if (!catalog || !index) return;
       if (this.correctionContext?.bill) {
         const base = this.correctionContext;
-        // Recompute client-supplied prices and totals from the current catalog before editing.
+        // Recompute totals before editing; catalog lines use current rates and quoted lines retain their validated price basis.
         const items = base.bill!.items.map((item) => ({
-          name: catalog.products.find((p) => p.id === item.productId)?.name ?? '',
+          name: item.spokenPrice ? item.name : catalog.products.find((p) => p.id === item.productId)?.name ?? '',
           quantity: item.quantity, unit: item.unit,
+          ...(item.spokenPrice ? { spokenPrice: item.spokenPrice } : {}),
         }));
         const priced = buildBill({ parsedItems: items, products: index, amountPaid: base.bill!.udhaar === 0 ? null : base.bill!.paid,
+          ...(base.bill!.adjust ? { adjust: base.bill!.adjust } : {}),
           ...(base.customer?.id ? { customerId: base.customer.id } : {}) });
         const correction = correctDraft({ ...base, bill: priced.bill,
           unresolved: [...base.unresolved, ...priced.unresolvedItems].slice(0, 10) }, transcript, catalog.products);

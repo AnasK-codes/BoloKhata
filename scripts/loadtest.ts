@@ -33,7 +33,7 @@ const JSON_OUT = arg('json', '');
 
 const HELLO = {
   type: 'hello',
-  v: 1,
+  v: 2,
   clientTime: 0,
   lang: 'hi-IN',
   catalog: {

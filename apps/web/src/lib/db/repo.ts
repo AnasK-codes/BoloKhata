@@ -6,6 +6,8 @@ import {
   normalize,
   statement,
   reverseEntry,
+  stockAfterLine,
+  type BillAdjust,
   creditDetailsSchema,
   hasCreditDetails,
   safeText,
@@ -30,6 +32,7 @@ export interface SaveBillInput {
   total: number;
   paid: number;
   udhaar: number;
+  adjust?: BillAdjust;
 }
 
 export interface SaveBillResult {
@@ -71,6 +74,16 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
     return customer;
   }
 
+  /** Sold lines take stock down; a reversal puts it back. Only tracked products with a convertible unit change. */
+  async function moveStock(bill: Bill, direction: 1 | -1): Promise<void> {
+    for (const item of bill.items) {
+      const product = await db.products.get(item.productId);
+      if (!product) continue;
+      const next = stockAfterLine(product, item, direction);
+      if (next !== undefined) await db.products.update(product.id, { stock: next });
+    }
+  }
+
   return {
     // ---- products -------------------------------------------------------------------------
     listProducts: () => db.products.orderBy('name').toArray(),
@@ -80,6 +93,46 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
       return saved;
     },
     deleteProduct: (id: string) => db.products.delete(id),
+    async setStock(productId: string, stock: number | undefined): Promise<{ ok: true } | { ok: false; error: string }> {
+      if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) return { ok: false, error: 'Stock 0 ya usse zyada ginti hona chahiye.' };
+      const product = await db.products.get(productId);
+      if (!product) return { ok: false, error: 'Samaan nahi mila.' };
+      const { stock: _old, ...rest } = product;
+      await db.products.put(stock === undefined ? rest : { ...rest, stock });
+      return { ok: true };
+    },
+    /**
+     * Learns how this shop says an item: a correction like "chini" -> Sugar becomes an alias, so the
+     * next order matches without help. Skips anything that already names a product (it could make two
+     * products collide) and stops at the alias limit.
+     */
+    async learnProductAlias(productId: string, spoken: string): Promise<boolean> {
+      const alias = spoken.trim().slice(0, LIMITS.maxNameLength);
+      const key = normalize(alias);
+      if (key === '') return false;
+      return db.transaction('rw', db.products, async () => {
+        const all = await db.products.toArray();
+        const target = all.find((p) => p.id === productId);
+        if (!target || target.aliases.length >= LIMITS.maxAliasesPerEntry) return false;
+        if (all.some((p) => [p.name, ...p.aliases].some((n) => normalize(n) === key))) return false;
+        await db.products.update(productId, { aliases: [...target.aliases, alias] });
+        return true;
+      });
+    },
+    /** Same for customers: a spoken name the user resolved to a person. Never takes a name another customer already has. */
+    async learnCustomerAlias(customerId: string, spoken: string): Promise<boolean> {
+      const alias = spoken.trim().slice(0, LIMITS.maxNameLength);
+      const key = normalize(alias);
+      if (key === '') return false;
+      return db.transaction('rw', db.customers, async () => {
+        const all = await db.customers.toArray();
+        const target = all.find((c) => c.id === customerId);
+        if (!target || target.aliases.length >= LIMITS.maxAliasesPerEntry) return false;
+        if (all.some((c) => customerKeys(c).includes(key))) return false;
+        await db.customers.update(customerId, { aliases: [...target.aliases, alias] });
+        return true;
+      });
+    },
 
     // ---- customers ------------------------------------------------------------------------
     listCustomers: () => db.customers.orderBy('name').toArray(),
@@ -129,7 +182,7 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
      * draft id, so a tap and a spoken "haan" for the same bill cannot save it twice.
      */
     saveBillWithLedger(input: SaveBillInput): Promise<SaveBillResult> {
-      return db.transaction('rw', [db.bills, db.customers, db.ledgerEntries], async () => {
+      return db.transaction('rw', [db.bills, db.customers, db.ledgerEntries, db.products], async () => {
         const existing = await db.bills.get(input.draftId);
         if (existing) return { created: false, bill: existing };
 
@@ -147,11 +200,13 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
           total: input.total,
           paid: input.paid,
           udhaar: input.udhaar,
+          ...(input.adjust ? { adjust: input.adjust } : {}),
           createdAt: clock(),
           ...(business ? { business: receiptBusinessSchema.parse(business()) } : {}),
         };
         await db.bills.add(bill);
         await db.ledgerEntries.bulkAdd(applyBill(bill, `udhaar:${bill.id}`));
+        await moveStock(bill, -1);
         return { created: true, bill, ...(customer ? { customer } : {}) };
       });
     },
@@ -179,10 +234,18 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
 
     listBills: () => db.bills.orderBy('createdAt').reverse().toArray(),
 
+    /** A copy of everything on the device, for backup and CSV export. */
+    async exportAll() {
+      const [products, customers, bills, ledgerEntries] = await Promise.all([
+        db.products.toArray(), db.customers.toArray(), db.bills.toArray(), db.ledgerEntries.toArray(),
+      ]);
+      return { products, customers, bills, ledgerEntries };
+    },
+
     async reverseBill(billId: string, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
       const note = reason.trim();
       if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: 'Wajah likho (1–200 letters).' };
-      return db.transaction('rw', [db.bills, db.ledgerEntries], async () => {
+      return db.transaction('rw', [db.bills, db.ledgerEntries, db.products], async () => {
         const bill = await db.bills.get(billId);
         if (!bill) return { ok: false, error: 'Bill nahi mila.' } as const;
         if (bill.reversedAt !== undefined) return { ok: false, error: 'Bill pehle hi reverse ho chuka hai.' } as const;
@@ -196,6 +259,7 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
           await db.ledgerEntries.add(result.entry);
         }
         await db.bills.update(billId, { reversedAt: at, reversalReason: note });
+        await moveStock(bill, 1);
         return { ok: true } as const;
       });
     },

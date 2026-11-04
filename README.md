@@ -6,7 +6,7 @@ Bol-Bill is a mobile-first Progressive Web App (PWA) that lets a kirana (neighbo
 
 > *"Sharma ji ko do kilo aata, ek Maggi, aur teen sau ka udhaar likh do."*
 
-The app streams the shopkeeper's voice to a low-latency Node.js gateway, which streams it to Gnani AI's speech-to-text, understands the order, prices it from the shop's own catalog, and **streams the spoken answer back while the bill is still animating onto the screen**.
+The app streams the shopkeeper's voice to a low-latency Node.js gateway, which streams it to Gnani AI's speech-to-text, understands the order, calculates prices from explicit spoken quotes or the shop's catalog, and **streams the spoken answer back while the bill is still animating onto the screen**.
 
 Built for the **Great Indian AI Internship Challenge** by [Gnani AI](https://www.gnani.ai/internship) on Gnani's Prisma (speech-to-text) and Timbre (text-to-speech) models.
 
@@ -59,7 +59,7 @@ Bol-Bill makes **realtime voice the primary interface**:
 1. Hold the big mic button and speak one order in natural Hinglish.
 2. Audio streams live over a single WebSocket to our Node.js gateway, then on to Gnani's streaming speech-to-text.
 3. The moment you release, the gateway commits the utterance (no waiting for silence), gets the transcript, and parses it, **rules first, language model only when needed**.
-4. Items are matched to the shop's catalog and **priced from the catalog**, never by the language model.
+4. An explicitly spoken item price is used for that bill; otherwise a known item's catalog rate is used. Shared code calculates every total. The language model never chooses a price.
 5. The bill appears on screen and the assistant starts reading it back while audio is still streaming in.
 6. You confirm by tapping or saying "haan"; the udhaar ledger updates instantly.
 7. Ask "Sharma ji ka kitna udhaar hai?" and hear the answer.
@@ -96,11 +96,20 @@ A built-in **latency HUD** shows the real measured timings of each turn, which m
 
 ### Implemented bill workflow additions
 
-- **Voice draft corrections:** while a bill is unsaved, say "Aata teen kilo karo", "Aata do nahi teen kilo karo", "Maggi hata do", or "Ek Maggi aur jodo". One product per correction; ambiguous products, invalid quantities and incompatible units leave the bill unchanged and ask for review. Prices are recomputed from the catalog, with the same draft ID and a new turn ID. Fully paid drafts remain fully paid; credit drafts retain their paid amount, capped at the new total. Corrected bills still require confirmation.
+- **Speak item prices without setting up a catalog:** "Do kilo chawal ₹110 ke, do Maggi ke packets ₹28 ke" creates two lines, ₹110 and ₹28, for a ₹138 total even with an empty catalog. "Do kilo chawal ₹55 per kilo" uses a unit rate and totals ₹110. Hindi/Devanagari number words, rupee symbols/words, and "110 ke" forms are supported. A price without "per/each/prati" or an adjacent rate unit is the total for that line. Explicit prices override catalog rates for this bill only; no product or saved catalog rate is automatically added/changed. Unknown items with no price, invalid whole-rupee amounts and incompatible units still require review. Quantity edits preserve the quoted price basis, using the same half-up whole-rupee rounding rule. Bills still need confirmation.
+- **Protocol v2:** `BillItem.spokenPrice?` records the original amount, basis, quantity and unit. `unitPrice` may be null when a whole-rupee unit rate cannot be derived exactly (3 packets for ₹50 remains exactly ₹50). Web/gateway must be updated together; reload existing browser tabs. Legacy saved bills with numeric rates remain valid. The service-worker shell is version v4.
+
+- **Voice draft corrections:** while a bill is unsaved, say "Aata teen kilo karo", "Aata do nahi teen kilo karo", "Maggi hata do", or "Ek Maggi aur jodo". One product per correction; ambiguous products, invalid quantities and incompatible units leave the bill unchanged and ask for review. Catalog lines use catalog rates and spoken-price lines retain their quoted price basis, with the same draft ID and a new turn ID. Fully paid drafts remain fully paid; credit drafts retain their paid amount, capped at the new total. Corrected bills still require confirmation.
 - **Saved bills:** the Bills tab (`/bills`) lists cash and credit bills, searches customer/date/ID, and opens the saved receipt. Share uses the system share sheet; unsupported or failed sharing falls back to copy/selectable text. Mobile and address are omitted from receipts.
-- **Print:** open a saved bill and choose **Print / PDF**. The browser print dialog supports a configured printer or Save as PDF where available. Only the receipt is printed. Direct Bluetooth/USB thermal-printer integration is not included.
+- **Thermal receipt (58 mm):** a saved bill is shown and printed as a 32-column monospace receipt (`apps/web/src/lib/thermalReceipt.ts`; amounts print as "Rs" because thermal fonts often lack the rupee sign). **Print (58 mm)** opens the browser print dialog, so a printer already paired with the OS works; choose paper size 58 mm there. Share / Copy still sends a plain-text version. Direct Bluetooth/USB (ESC/POS) printing is not included, and the print CSS has not been checked on a real printer yet.
 - **Reversals:** Bills → open bill → reverse with a reason. Khata → customer → reverse an incorrect standalone payment/opening entry with a reason. Original records remain; one linked opposite ledger entry restores the balance. Duplicate reversals and reversing a reversal are rejected. Bill-linked entries must be reversed through the whole bill. Reversing a bill preserves later payments, which can leave a customer advance; cash refunds are manual.
 - **Mandatory credit details:** before saving any new udhaar bill, the customer must have a name, a ten-digit Indian mobile number and an address (5–300 characters). Fill these on the draft or in Khata → customer → Badlo. Contact details stay in IndexedDB; only a `creditReady` boolean is sent with the existing customer snapshot. Existing customers/balances are preserved and missing details must be completed before new credit is saved. Development, fixtures and demos use synthetic details only.
+
+- **Discount, GST and round-off by voice:** "do kilo aata paanch rupaye kam", "10 percent discount", "5 percent GST", "round off", or set them on the bill card. Order: subtotal, minus discount, plus GST on the discounted amount, then round-off to the nearest ₹5 (`packages/shared/src/domain/adjustments.ts`, the only place that does this arithmetic). "GST ke saath" with no rate is not guessed: the draft warns and asks for a rate. Rules-only: a model never supplies these. `bill.total` is the payable amount; `bill.adjust` holds the inputs.
+- **Shop questions:** "aaj kitni bikri hui?" and "kul udhaar kitna baaki hai?" (no customer named) are answered from numbers the device sends in `hello`/`context_update` (`catalog.shop`: today's sales, today's bill count, total udhaar). Reversed bills are excluded.
+- **Stock (optional per product):** set a count in Samaan; saving a bill reduces it, reversing the bill puts it back, and "aata khatam ho gaya" (then "haan") sets it to 0. Low/out badges show in Samaan. Stock stays on the device and is not sent to the gateway.
+- **Learning the shop's words:** picking a product or customer for an unrecognised spoken word saves that word as an alias (never one that already names something else).
+- **Backup / export:** Settings → JSON backup, Bills CSV, Khata CSV. There is no restore button yet. Customer statement: Khata → customer → **Statement print / PDF** (A4, via the print dialog).
 
 These additions use existing dependencies. Optional data fields do not require resetting the local database; the service-worker shell now includes `/bills`.
 
@@ -179,7 +188,7 @@ Defined once in `packages/shared/src/protocol` with Zod schemas, and used by bot
 |---|---|---|
 | `hello` | JSON | `{v, clientTime, lang, catalog:{version, products[], customers[]}}`. Products carry price and unit; customers carry balances. Sent once per session. |
 | `context_update` | JSON | New customer balances or catalog changes after a save or edit. |
-| `ptt_start` | JSON | `{turnId, draftContext?}`. Current unsaved draft (including local edits) enables rules-only corrections; `null` clears obsolete gateway state. Prices/totals are recalculated from the catalog. The gateway readies the STT link. Maximum 33 KiB. |
+| `ptt_start` | JSON | `{turnId, draftContext?}`. Current unsaved draft enables rules-only corrections; `null` clears obsolete state. Shared code recalculates catalog lines and validated spoken-price quotes. The gateway readies the STT link. Maximum 33 KiB. |
 | audio frame | **binary** | Exactly 1,024 bytes: 512 samples of 16-bit little-endian mono PCM at 16 kHz. No header. |
 | `ptt_end` | JSON | `{turnId}`. The gateway drains and sends `commit`. |
 | `interrupt` | JSON | `{turnId}`. Stops TTS, cancels pending work for that turn. |
@@ -285,6 +294,8 @@ Every turn carries timestamps from the browser (press, release, first frame sent
 | `create_bill` | "Sharma ji ko do kilo aata, ek Maggi, teen sau udhaar" | Draft bill, optional udhaar |
 | `record_payment` | "Sharma ji ne do sau de diye" | Draft payment |
 | `query_balance` | "Sharma ji ka kitna udhaar hai?" | Answered immediately, spoken |
+| `query_summary` | "Aaj kitni bikri hui?" | Today's sales and total udhaar, spoken (rules only) |
+| `out_of_stock` | "Aata khatam ho gaya" | Draft; "haan" sets that product's stock to 0 (rules only) |
 | `confirm` | "haan", "theek hai", "kar do" | Saves the pending draft |
 | `cancel` | "nahi", "rehne do", "cancel" | Discards the pending draft |
 | `unknown` | anything else | Friendly retry prompt |
@@ -305,7 +316,7 @@ Every turn carries timestamps from the browser (press, release, first frame sent
 }
 ```
 
-- The parser **never outputs prices**. Pricing happens in `packages/shared/src/domain/pricing.ts` from the catalog snapshot.
+- The LLM schema never accepts prices. The deterministic rule parser may attach literal spoken-price quotes; shared `pricing.ts` computes totals from those or from the catalog. A turn containing an explicit quote stays rules-only, including under `LLM_MODE=always`; invalid quotes are flagged instead of handed to a model.
 - Unresolved or ambiguous items are returned with candidate suggestions and flagged for review instead of being guessed.
 
 ### Rules first, LLM as a timeboxed fallback

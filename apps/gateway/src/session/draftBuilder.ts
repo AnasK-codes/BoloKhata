@@ -10,6 +10,9 @@ import {
   itemNotFound,
   nothingPending,
   notUnderstood,
+  stockOutAsk,
+  summaryReply,
+  type ShopStats,
   paymentRecorded,
   saved,
   udhaarNeedsCustomer,
@@ -25,12 +28,13 @@ export interface Catalog {
   version: number;
   products: CatalogProduct[];
   customers: CatalogCustomer[];
+  shop?: ShopStats;
 }
 
 /** A draft the user can still confirm by voice. Only one exists at a time. */
 export interface PendingDraft {
   draftId: string;
-  intent: 'create_bill' | 'record_payment';
+  intent: 'create_bill' | 'record_payment' | 'out_of_stock';
   canConfirm?: boolean;
 }
 
@@ -80,6 +84,10 @@ export function buildDraft(input: DraftInput): DraftResult {
       return recordPayment(input, base, variant);
     case 'query_balance':
       return queryBalance(input, base, variant);
+    case 'query_summary':
+      return querySummary(input, base, variant);
+    case 'out_of_stock':
+      return outOfStock(input, base, variant);
     case 'confirm':
     case 'cancel':
       return answer(input, base, variant);
@@ -139,7 +147,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
       : {}),
     bill: result.bill,
     unresolved: unresolved.slice(0, LIMITS.maxUnresolved),
-    warnings: warningsOf(missingCustomer ? [...result.warnings, MISSING_CUSTOMER_WARNING] : result.warnings, outcome.needsReview),
+    warnings: warningsOf([...result.warnings, ...(outcome.parsed.adjustWarnings ?? []), ...(missingCustomer ? [MISSING_CUSTOMER_WARNING] : [])], outcome.needsReview || (outcome.parsed.adjustWarnings?.length ?? 0) > 0),
     replyText: reply,
   };
   return {
@@ -218,6 +226,44 @@ function queryBalance(input: DraftInput, base: Base, variant: number): DraftResu
     replyText: balanceReply(known.name, known.balance, variant),
   };
   return { draft, cacheReply: false, pendingChange: { action: 'keep' } };
+}
+
+/** "Aaj kitni bikri hui": shop-wide numbers from the device's snapshot; nothing to confirm. */
+function querySummary(input: DraftInput, base: Base, variant: number): DraftResult {
+  const shop = input.catalog.shop;
+  if (!shop) return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'keep' });
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent: 'query_summary',
+    summary: { todaySales: shop.todaySales, todayBills: shop.todayBills, totalUdhaar: shop.totalUdhaar },
+    unresolved: [],
+    warnings: warningsOf([], false),
+    replyText: summaryReply(shop.todayBills, shop.todaySales, shop.totalUdhaar, variant),
+  };
+  return { draft, cacheReply: false, pendingChange: { action: 'keep' } };
+}
+
+/** "Aata khatam ho gaya": names one product and waits for "haan"; the browser writes the stock. */
+function outOfStock(input: DraftInput, base: Base, variant: number): DraftResult {
+  const spoken = input.outcome.parsed.items[0]?.name ?? '';
+  const match = input.outcome.resolution.stockMatch;
+  const intent = 'out_of_stock' as const;
+  if (!match || match.ambiguous || !match.best) {
+    const candidates = match?.candidates.map((c) => ({ id: c.id, name: c.name, score: c.score })) ?? [];
+    const unresolved: UnresolvedItem[] = spoken ? [{ kind: 'item', spoken: spoken.slice(0, LIMITS.maxNameLength), candidates }] : [];
+    return plain(input, base, intent, itemNotFound(spoken, variant), false, { action: 'clear' }, unresolved);
+  }
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent,
+    stock: { productId: match.best.id, name: match.best.name },
+    unresolved: [],
+    warnings: warningsOf([], input.outcome.needsReview),
+    replyText: stockOutAsk(match.best.name, variant),
+  };
+  return { draft, cacheReply: false, pendingChange: { action: 'set', pending: { draftId: input.draftId, intent } } };
 }
 
 /** "haan" / "nahi": acts on the pending draft. The browser performs the save; this only names it. */

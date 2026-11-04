@@ -8,10 +8,13 @@ import { useApp } from './AppProvider';
 import { CustomerForm } from './CustomerForm';
 import { OfflineBadge, StateView } from './StateView';
 import { ReverseDialog } from './ReverseDialog';
+import { StatementSheet } from './StatementSheet';
+import { useAccount } from './AccountGate';
 import Link from 'next/link';
 
 export function LedgerScreen() {
   const { repo, dataError, toast } = useApp();
+  const { profile } = useAccount();
   const online = useOnline();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
@@ -87,6 +90,8 @@ export function LedgerScreen() {
             <button type="submit" disabled={busy || amount === ''} className="min-h-14 rounded-xl bg-emerald-500 px-5 text-lg font-bold text-stone-950 disabled:opacity-40">Likho</button>
           </div>
         </form>
+        <button type="button" disabled={(rows.data ?? []).length === 0} className="min-h-12 w-full rounded-xl bg-raised px-4 font-semibold disabled:opacity-40" onClick={() => window.print()}>Statement print / PDF</button>
+        <StatementSheet businessName={profile.businessName} customerName={current.customer.name} rows={rows.data ?? []} printedAt={Date.now()} />
         <section aria-label="Statement">
           <h2 className="mb-2 text-lg font-bold">Hisab ki list</h2>
           {rows.error ? <StateView kind="error" title="Hisab nahi khula" hint="Page reload karke try karo." /> : rows.loading ? <StateView kind="loading" title="Khul raha hai" /> : statement.length === 0 ? (
@@ -128,7 +133,7 @@ export function LedgerScreen() {
       <header>
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-extrabold">Khata</h1>
-          <button type="button" className="min-h-12 rounded-xl bg-amber-400 px-5 font-bold text-stone-950" onClick={() => setForm({ name: '', aliases: '' })}>+ Naya grahak</button>
+          <button type="button" className="min-h-12 rounded-xl bg-lime-300 px-5 font-bold text-stone-950" onClick={() => setForm({ name: '', aliases: '' })}>+ Naya grahak</button>
         </div>
         <p className="text-dim">Kul baaki udhaar (total outstanding)</p>
         <p className="num text-5xl font-extrabold text-warn">{list.loading ? '…' : rupees(outstanding)}</p>

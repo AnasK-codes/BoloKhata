@@ -2,9 +2,12 @@ import {
   CatalogIndex,
   billReadback,
   buildBill,
-  lineTotal,
+  computeTotals,
+  isEmptyAdjust,
+  repriceBillItem,
   paymentRecorded,
   parseUtterance,
+  type BillAdjust,
   type BillItem,
   type CatalogCustomer,
   type CatalogProduct,
@@ -18,9 +21,10 @@ import {
  */
 
 function withBill(draft: DraftMessage, items: BillItem[], paid: number): DraftMessage {
-  const total = items.reduce((sum, i) => sum + i.lineTotal, 0);
+  const adjust = draft.bill?.adjust;
+  const total = computeTotals(items.reduce((sum, i) => sum + i.lineTotal, 0), adjust).total;
   const clampedPaid = Math.min(Math.max(0, Math.round(paid)), total);
-  const bill = { items, total, paid: clampedPaid, udhaar: total - clampedPaid };
+  const bill = { items, total, paid: clampedPaid, udhaar: total - clampedPaid, ...(adjust ? { adjust } : {}) };
   return { ...draft, bill, replyText: readback(draft, bill.total, bill.udhaar) };
 }
 
@@ -34,9 +38,22 @@ export function setItemQuantity(draft: DraftMessage, index: number, quantity: nu
   const item = bill?.items[index];
   if (!bill || !item || !Number.isFinite(quantity) || quantity <= 0) return draft;
   const items = bill.items.map((it, i) =>
-    i === index ? { ...it, quantity, lineTotal: lineTotal(Math.round(quantity * 1000), it.unitPrice) } : it,
+    i === index ? repriceBillItem(it, quantity) ?? it : it,
   );
   return withBill(draft, items, bill.paid);
+}
+
+/**
+ * Sets (or clears, with undefined) the discount, GST and round-off. A bill that was fully paid
+ * stays fully paid at the new total; a credit bill keeps the amount already paid.
+ */
+export function setAdjust(draft: DraftMessage, adjust: BillAdjust | undefined): DraftMessage {
+  const bill = draft.bill;
+  if (!bill) return draft;
+  const next = isEmptyAdjust(adjust) ? undefined : adjust;
+  const { adjust: _old, ...rest } = bill;
+  const base: DraftMessage = { ...draft, bill: { ...rest, ...(next ? { adjust: next } : {}) } };
+  return withBill(base, bill.items, bill.udhaar === 0 ? Number.MAX_SAFE_INTEGER : bill.paid);
 }
 
 export function removeItem(draft: DraftMessage, index: number): DraftMessage {
@@ -107,7 +124,7 @@ export function draftFromTranscript(
   }
 
   if (parsed.intent === 'create_bill') {
-    const result = buildBill({ parsedItems: parsed.items, products: index, amountPaid: parsed.amount_paid, udhaarAmount: parsed.udhaar_amount });
+    const result = buildBill({ parsedItems: parsed.items, products: index, amountPaid: parsed.amount_paid, udhaarAmount: parsed.udhaar_amount, ...(parsed.adjust ? { adjust: parsed.adjust } : {}) });
     if (result.bill.items.length === 0 && result.unresolvedItems.length === 0) return null;
     const draft: DraftMessage = {
       ...common,
@@ -115,7 +132,7 @@ export function draftFromTranscript(
       ...(customer ? { customer } : {}),
       bill: result.bill,
       unresolved: [...result.unresolvedItems, ...unresolved].slice(0, 10),
-      warnings: result.warnings.slice(0, 8),
+      warnings: [...result.warnings, ...(parsed.adjustWarnings ?? [])].slice(0, 8),
       replyText: base.replyText,
     };
     return { ...draft, replyText: readback(draft, result.bill.total, result.bill.udhaar) };

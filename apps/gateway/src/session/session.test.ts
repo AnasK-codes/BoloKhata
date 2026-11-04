@@ -110,7 +110,7 @@ describe('GET /ws', () => {
     client.sendJson(HELLO);
     const ready = await client.next('ready');
     expect(ready).toMatchObject({
-      v: 1,
+      v: 2,
       limits: { maxSessionMinutes: 7 },
       audio: { inputSampleRate: 16000, inputFrameBytes: AUDIO_FRAME_BYTES },
     });

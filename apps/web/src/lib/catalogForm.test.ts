@@ -43,3 +43,22 @@ describe('validateCustomerForm', () => {
     expect(validateCustomerForm({ name: 'A', aliases: Array.from({ length: 13 }, (_, i) => `a${i}`).join(',') }).ok).toBe(false);
   });
 });
+
+describe('product stock field', () => {
+  it('is optional and left out when empty', () => {
+    const result = validateProductForm({ ...ok, stock: '  ' });
+    expect(result.ok && 'stock' in result.value).toBe(false);
+  });
+
+  it('accepts a count, including a fraction and zero', () => {
+    expect(validateProductForm({ ...ok, stock: '12.5' })).toMatchObject({ ok: true, value: { stock: 12.5 } });
+    expect(validateProductForm({ ...ok, stock: '0' })).toMatchObject({ ok: true, value: { stock: 0 } });
+  });
+
+  it.each(['-1', 'abc', '2000000'])('rejects the stock %j', (stock) => {
+    const result = validateProductForm({ ...ok, stock });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.stock).toBeDefined();
+  });
+});
+

@@ -14,17 +14,18 @@ const ITEMS = [
 export function BottomNav() {
   const path = usePathname();
   return (
-    <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <ul className="mx-auto flex max-w-md">
+    <nav aria-label="Main" className="app-nav">
+      <Link href="/" className="nav-brand">Bol<span>Bill.</span><small>Aapki dukaan ka voice assistant</small></Link>
+      <ul>
         {ITEMS.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
           return (
-            <li key={item.href} className="flex-1">
+            <li key={item.href}>
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 aria-label={`${item.label} (${item.hint})`}
-                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 text-sm font-semibold ${active ? 'text-accent' : 'text-muted'}`}
+                className={`nav-item ${active ? 'nav-active' : ''}`}
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={item.icon} /></svg>
                 {item.label}
@@ -33,6 +34,7 @@ export function BottomNav() {
           );
         })}
       </ul>
+      <div className="nav-note"><strong>Bolkar kaam aasaan.</strong><p>Bill, khata aur samaan — sab ek jagah.</p></div>
     </nav>
   );
 }

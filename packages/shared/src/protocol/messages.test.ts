@@ -131,7 +131,7 @@ describe('malformed and hostile input', () => {
     const product = { id: 'p', name: 'X', aliases: [], unit: 'kg', pricePerUnit: 1 };
     const msg = enc({
       type: 'hello',
-      v: 1,
+      v: 2,
       clientTime: 0,
       lang: 'hi-en',
       catalog: {
@@ -144,7 +144,7 @@ describe('malformed and hostile input', () => {
   });
 
   it('rejects a wrong protocol version in hello', () => {
-    const hello = { ...(CLIENT_FIXTURES.hello.valid as object), v: 2 };
+    const hello = { ...(CLIENT_FIXTURES.hello.valid as object), v: 1 };
     expect(parseClientMessage(enc(hello))).toMatchObject({ ok: false, reason: 'invalid_shape' });
   });
 

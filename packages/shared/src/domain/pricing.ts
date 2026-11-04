@@ -1,5 +1,5 @@
 /**
- * Billing: parsed items + catalog -> priced bill. Deterministic; the LLM never prices anything.
+ * Billing: rules-extracted spoken quotes or catalog rates -> priced bill. The LLM never prices anything.
  *
  * Rules (one place, so they are explainable):
  * - Rounding: ONE rule, half up, applied per line total. Quantities are held as integer
@@ -21,6 +21,8 @@ import type { unresolvedSchema } from '../protocol/server';
 import type { z } from 'zod';
 import { CatalogIndex, type MatchResult } from './matching';
 import type { BillItem, DraftBill } from './types';
+import { spokenPriceSchema } from '../protocol/server';
+import { computeTotals, isEmptyAdjust, type BillAdjust } from './adjustments';
 
 export type UnresolvedItem = z.infer<typeof unresolvedSchema>;
 
@@ -29,6 +31,8 @@ export interface ParsedItem {
   quantity: number;
   /** null: no unit was spoken; use the catalog unit. */
   unit: Unit | null;
+  /** Rules-extracted only; never accepted from a model. */
+  spokenPrice?: { amount: number; basis: 'line' | 'unit'; unit: Unit | null; quantity?: number };
 }
 
 export interface BuildBillInput {
@@ -38,6 +42,8 @@ export interface BuildBillInput {
   customerId?: string;
   amountPaid?: number | null;
   udhaarAmount?: number | null;
+  /** Rules-extracted only (like a spoken price); the model never supplies it. */
+  adjust?: BillAdjust;
 }
 
 export interface BuildBillResult {
@@ -69,7 +75,25 @@ function conversionFactor(from: Unit, to: Unit): number | null {
 
 /** Half-up rounding of milli-quantity times price, in whole rupees. */
 export function lineTotal(milliQuantity: number, pricePerUnit: number): number {
-  return Math.floor((milliQuantity * pricePerUnit + 500) / 1000);
+  return roundRupeesRatio(milliQuantity * pricePerUnit, 1000);
+}
+
+/** The single half-up rounding rule for whole-rupee totals, including quoted bundles. */
+function roundRupeesRatio(numerator: number, denominator: number): number {
+  return Math.floor((2 * numerator + denominator) / (2 * denominator));
+}
+
+export function repriceBillItem(item: BillItem, quantity: number): BillItem | null {
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000) return null;
+  const price = item.spokenPrice;
+  if (!price) return item.unitPrice === null ? null : { ...item, quantity, lineTotal: lineTotal(Math.round(quantity * 1000), item.unitPrice) };
+  const milli = convertToMilli(quantity, item.unit, price.unit);
+  if (milli === null || milli <= 0) return null;
+  const denominator = Math.round(price.quantity * 1000);
+  if (denominator <= 0) return null;
+  const numerator = milli * price.amount;
+  if (!Number.isSafeInteger(numerator * 2 + denominator)) return null;
+  return { ...item, quantity, lineTotal: roundRupeesRatio(numerator, denominator) };
 }
 
 const asRupees = (n: number | null | undefined): number | null =>
@@ -106,6 +130,24 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
   for (const item of parsed) {
     const match = index.matchProduct(item.name);
     const product = match.best && !match.ambiguous ? index.getProduct(match.best.id) : undefined;
+    if (item.spokenPrice) {
+      const unit = item.unit ?? product?.unit ?? 'piece';
+      const quote = spokenPriceSchema.safeParse({ ...item.spokenPrice,
+        quantity: item.spokenPrice.quantity ?? (item.spokenPrice.basis === 'line' ? item.quantity : 1),
+        unit: item.spokenPrice.unit ?? unit });
+      const rateQuantity = quote.success ? convertToMilli(1, unit, quote.data.unit) : null;
+      const denominator = quote.success ? Math.round(quote.data.quantity * 1000) : 0;
+      const rateNumerator = quote.success && rateQuantity !== null ? rateQuantity * quote.data.amount : 0;
+      const unitPrice = denominator > 0 && rateQuantity !== null && rateNumerator % denominator === 0 ? rateNumerator / denominator : null;
+      const priced = quote.success ? repriceBillItem({
+        productId: product?.id ?? `spoken:${items.length}:${normalizeSpokenId(item.name)}`,
+        name: product?.name ?? item.name, quantity: item.quantity, unit, unitPrice,
+        lineTotal: 0, spokenPrice: quote.data,
+      }, item.quantity) : null;
+      if (priced && item.name.trim()) { items.push(priced); continue; }
+      warnings.push(`"${item.name}" ki boli gayi price ya unit valid nahi hai. Poore rupaye aur sahi unit bolo.`);
+      unresolvedItems.push(unresolved(item, candidatesOf(match))); needsReview = true; continue;
+    }
     if (!product) {
       unresolvedItems.push(unresolved(item, candidatesOf(match)));
       needsReview = true;
@@ -133,18 +175,24 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
     });
   }
 
-  const total = items.reduce((sum, i) => sum + i.lineTotal, 0);
+  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
+  const adjust = isEmptyAdjust(input.adjust) ? undefined : input.adjust;
+  const total = computeTotals(subtotal, adjust).total;
   if (items.length === 0) warnings.push('The bill has no items.');
 
   const reconciled = reconcilePayment(total, input.amountPaid, input.udhaarAmount, input.customerId, warnings);
   if (reconciled.review) needsReview = true;
 
   return {
-    bill: { items, total, paid: reconciled.paid, udhaar: reconciled.udhaar },
+    bill: { items, total, paid: reconciled.paid, udhaar: reconciled.udhaar, ...(adjust ? { adjust } : {}) },
     unresolvedItems,
     warnings,
     needsReview,
   };
+}
+
+function normalizeSpokenId(name: string): string {
+  return name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '').slice(0, 40) || 'item';
 }
 
 function reconcilePayment(

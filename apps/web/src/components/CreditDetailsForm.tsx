@@ -30,6 +30,6 @@ export function CreditDetailsForm({ repo, customer, name, onSaved }: {
     <label className="block">Address<textarea aria-label="Address" maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} className="min-h-20 w-full rounded-xl bg-inset p-3" /></label>
     <p className="text-sm text-muted">Details sirf is device par save hoti hain. Demo mein synthetic details use karo.</p>
     {error && <p role="alert" className="text-bad">{error}</p>}
-    <button disabled={busy || !name} className="min-h-12 rounded-xl bg-amber-400 px-4 font-bold text-stone-950 disabled:opacity-50">{busy ? 'Save ho raha hai…' : 'Details save karo'}</button>
+    <button disabled={busy || !name} className="min-h-12 rounded-xl bg-lime-300 px-4 font-bold text-stone-950 disabled:opacity-50">{busy ? 'Save ho raha hai…' : 'Details save karo'}</button>
   </form>;
 }

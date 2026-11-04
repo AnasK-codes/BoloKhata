@@ -2,6 +2,7 @@
 import type { CatalogProduct } from '../protocol/client';
 import type { BillItem } from '../protocol/server';
 import type { ReceiptBusiness } from './business';
+import type { BillAdjust } from './adjustments';
 
 export type { BillItem };
 export type Product = CatalogProduct;
@@ -23,6 +24,7 @@ export interface Bill {
   total: number;
   paid: number;
   udhaar: number;
+  adjust?: BillAdjust;
   createdAt: number;
   reversedAt?: number;
   reversalReason?: string;
@@ -35,6 +37,7 @@ export interface DraftBill {
   total: number;
   paid: number;
   udhaar: number;
+  adjust?: BillAdjust;
 }
 
 export type LedgerEntryType = 'udhaar' | 'payment';

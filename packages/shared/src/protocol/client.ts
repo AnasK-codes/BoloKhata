@@ -21,6 +21,8 @@ export const catalogProductSchema = z.object({
   unit: unitSchema,
   pricePerUnit: rupeesSchema,
   category: nameSchema.optional(),
+  /** Optional on-hand count in `unit`s. Kept on the device; the snapshot sent to the gateway leaves it out. */
+  stock: z.number().min(0).max(1_000_000).optional(),
 });
 export type CatalogProduct = z.infer<typeof catalogProductSchema>;
 
@@ -34,6 +36,14 @@ export const catalogCustomerSchema = z.object({
 });
 export type CatalogCustomer = z.infer<typeof catalogCustomerSchema>;
 
+/** Shop-wide numbers for "aaj kitni bikri hui". Derived on the device from bills and the ledger. */
+export const shopStatsSchema = z.object({
+  todaySales: rupeesSchema,
+  todayBills: z.number().int().min(0),
+  totalUdhaar: rupeesSchema,
+});
+export type ShopStats = z.infer<typeof shopStatsSchema>;
+
 const productsSchema = z.array(catalogProductSchema).max(LIMITS.maxProducts);
 const customersSchema = z.array(catalogCustomerSchema).max(LIMITS.maxCustomers);
 
@@ -46,6 +56,7 @@ export const helloSchema = z.object({
     version: z.number().int().min(0),
     products: productsSchema,
     customers: customersSchema,
+    shop: shopStatsSchema.optional(),
   }),
 });
 
@@ -55,6 +66,7 @@ export const contextUpdateSchema = z.object({
     version: z.number().int().min(0),
     products: productsSchema.optional(),
     customers: customersSchema.optional(),
+    shop: shopStatsSchema.optional(),
   }),
 });
 

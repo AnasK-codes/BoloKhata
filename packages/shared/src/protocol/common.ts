@@ -17,6 +17,8 @@ export const INTENTS = [
   'create_bill',
   'record_payment',
   'query_balance',
+  'query_summary',
+  'out_of_stock',
   'confirm',
   'cancel',
   'unknown',

@@ -2,7 +2,7 @@
 
 The rule parser handles the common sentences. The LLM is only asked when the rules are not confident (or an item does not resolve), under a hard timeout (`LLM_TIMEOUT_MS`, default 1200 ms). If it is slow, wrong or absent, the turn ships the rules result with a review flag. **Rules-only (`LLM_PROVIDER=none`) is the default and must always work.**
 
-The model never sets a price, total or balance. It only extracts intent, names, quantities and amounts that were spoken; prices come from the catalog in `packages/shared`.
+The model never sets a price, total or balance. Its Zod schema accepts only intent, names, quantities and payment/credit amounts. Rules may extract explicit spoken item prices, and shared code computes their totals; otherwise catalog prices apply. A turn with a spoken item-price quote always stays rules-only (also under `LLM_MODE=always`), so the model cannot rewrite or invent that price. Model output is revalidated to strip any injected quote metadata. Invalid spoken prices require review.
 
 ## Providers
 

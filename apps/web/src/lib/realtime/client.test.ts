@@ -74,7 +74,7 @@ describe('connecting', () => {
     await flush();
     expect(FakeWebSocket.last.sentJson[0]).toMatchObject({
       type: 'hello',
-      v: 1,
+      v: 2,
       lang: 'hi-IN',
       catalog: CATALOG,
     });

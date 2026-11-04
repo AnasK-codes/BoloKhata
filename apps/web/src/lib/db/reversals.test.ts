@@ -19,6 +19,13 @@ const bill = (id: string, udhaar = 90) => ({ draftId: id, customerId: 'c', items
 ], total: 90, paid: 90 - udhaar, udhaar });
 
 describe('bill history and reversals', () => {
+  it('saves spoken prices without creating or updating a catalog product', async () => {
+    const quoted = { productId: 'spoken:0:biscuit', name: 'Biscuit', unit: 'packet' as const, quantity: 3, unitPrice: null, lineTotal: 50,
+      spokenPrice: { amount: 50, basis: 'line' as const, quantity: 3, unit: 'packet' as const } };
+    await repo.saveBillWithLedger({ draftId: 'quote', items: [quoted], total: 50, paid: 50, udhaar: 0 });
+    expect((await repo.listBills())[0]?.items[0]).toEqual(quoted);
+    expect(await repo.listProducts()).toEqual([]);
+  });
   it('reverses a bill once atomically; subsequent payments stay in the ledger', async () => {
     await repo.saveBillWithLedger(bill('b'));
     await repo.addPayment('c', 30);

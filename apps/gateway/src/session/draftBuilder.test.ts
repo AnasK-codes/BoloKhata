@@ -202,3 +202,56 @@ describe('confirm, cancel, unknown', () => {
     expect(r.pendingChange).toEqual({ action: 'keep' });
   });
 });
+
+describe('discount, GST and round-off', () => {
+  it('prices the bill after the adjustment and keeps it on the draft', () => {
+    // 2 kg aata at 45 = 90; 10 off -> 80.
+    const r = bill({ adjust: { discountAmount: 10 } });
+    expect(r.draft.bill?.total).toBe(80);
+    expect(r.draft.bill?.adjust).toEqual({ discountAmount: 10 });
+    expect(r.draft.bill?.paid).toBe(80);
+  });
+
+  it('warns and asks for a review when GST was asked for without a rate', () => {
+    const r = bill({ adjustWarnings: ['GST kitna percent? Bolo: "5 percent GST".'] });
+    expect(r.draft.warnings.join(' ')).toMatch(/GST/);
+  });
+});
+
+describe('query_summary', () => {
+  const shopCatalog: Catalog = { ...catalog, shop: { todaySales: 1250, todayBills: 4, totalUdhaar: 90 } };
+  const run = (c: Catalog) => {
+    const utterance = parsed({ intent: 'query_summary' });
+    const outcome: ParseOutcome = { parsed: utterance, resolution: resolveUtterance(utterance, index), source: 'rules', needsReview: false, llm: 'skipped' };
+    const result = buildDraft({ turnId: 7, outcome, catalog: c, pending: null, draftId: 'new-id' });
+    expect(draftSchema.safeParse(result.draft).success).toBe(true);
+    return result;
+  };
+
+  it('answers from the device snapshot and leaves any pending draft alone', () => {
+    const r = run(shopCatalog);
+    expect(r.draft.summary).toEqual({ todaySales: 1250, todayBills: 4, totalUdhaar: 90 });
+    expect(r.pendingChange).toEqual({ action: 'keep' });
+    expect(r.draft.replyText.join(' ')).toMatch(/bill/i);
+  });
+
+  it('says it did not understand when the device sent no shop numbers', () => {
+    const r = run(catalog);
+    expect(r.draft.summary).toBeUndefined();
+    expect(r.draft.intent).toBe('unknown');
+  });
+});
+
+describe('out_of_stock', () => {
+  it('names the product and waits for a spoken yes', () => {
+    const r = build({ intent: 'out_of_stock', items: [{ name: 'aata', quantity: 1, unit: null }] });
+    expect(r.draft.stock).toEqual({ productId: 'p1', name: 'Aata' });
+    expect(r.pendingChange).toEqual({ action: 'set', pending: { draftId: 'new-id', intent: 'out_of_stock' } });
+  });
+
+  it('does not guess when the product is unknown', () => {
+    const r = build({ intent: 'out_of_stock', items: [{ name: 'xyzzy', quantity: 1, unit: null }] });
+    expect(r.draft.stock).toBeUndefined();
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+  });
+});

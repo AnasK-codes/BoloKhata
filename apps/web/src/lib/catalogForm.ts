@@ -6,6 +6,8 @@ export interface ProductFormInput {
   unit: string;
   /** Comma-separated. */
   aliases: string;
+  /** Optional on-hand count. Empty means the product's stock is not tracked. */
+  stock?: string;
 }
 
 export interface ProductFormValue {
@@ -13,6 +15,8 @@ export interface ProductFormValue {
   pricePerUnit: number;
   unit: Unit;
   aliases: string[];
+  /** Absent when not tracked. */
+  stock?: number;
 }
 
 export type ProductFormResult =
@@ -48,8 +52,12 @@ export function validateProductForm(input: ProductFormInput): ProductFormResult 
   const aliases = parseAliases(input.aliases);
   if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = `Zyada se zyada ${LIMITS.maxAliasesPerEntry} doosre naam.`;
 
+  const stockText = input.stock?.trim() ?? '';
+  const stock = stockText === '' ? undefined : Number(stockText);
+  if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) errors.stock = 'Stock 0 ya usse zyada ginti ho, ya khali chhodo.';
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: { name, pricePerUnit: price, unit: input.unit as Unit, aliases } };
+  return { ok: true, value: { name, pricePerUnit: price, unit: input.unit as Unit, aliases, ...(stock !== undefined ? { stock } : {}) } };
 }
 
 export interface CustomerFormInput {

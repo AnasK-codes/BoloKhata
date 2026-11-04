@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_TURN_ID } from '@bolbill/shared';
-import { HISTORY_LIMIT, initialTurnState, reduce } from './reducer';
+import { HISTORY_LIMIT, initialTurnState, isConfirmable, reduce } from './reducer';
 import { Sim, draftMessage } from './testing';
 
 describe('a normal turn', () => {
@@ -665,3 +665,17 @@ describe('udhaar without a customer', () => {
     expect(sim.state.pending).not.toBeNull();
   });
 });
+
+describe('stock-out and summary drafts', () => {
+  const stockDraft = (extra = {}) => draftMessage(1, { intent: 'out_of_stock', bill: undefined, customer: undefined, stock: { productId: 'p1', name: 'Aata' }, ...extra });
+
+  it('can be confirmed only when a product is named', () => {
+    expect(isConfirmable(stockDraft())).toBe(true);
+    expect(isConfirmable(stockDraft({ stock: undefined }))).toBe(false);
+  });
+
+  it('never makes a summary answer confirmable', () => {
+    expect(isConfirmable(draftMessage(1, { intent: 'query_summary', bill: undefined, summary: { todaySales: 100, todayBills: 1, totalUdhaar: 0 } }))).toBe(false);
+  });
+});
+

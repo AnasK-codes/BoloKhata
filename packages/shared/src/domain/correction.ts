@@ -4,7 +4,8 @@ import type { CatalogProduct } from '../protocol/client';
 import { billReadback } from '../voice/responses';
 import { CatalogIndex, devanagariToLatin } from './matching';
 import { extractQuantityAndUnit, tokenizeSpeech } from './numberWords';
-import { convertToMilli, lineTotal } from './pricing';
+import { computeTotals } from './adjustments';
+import { convertToMilli, lineTotal, repriceBillItem } from './pricing';
 
 export type CorrectionResult = { draft: DraftMessage; applied: boolean };
 
@@ -48,10 +49,14 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
     name = tokens.filter((_, i) => !quantity || i < quantityStart || i >= quantityStart + quantity.consumed).join(' ').replace(commandWords, ' ');
   }
   name = name.replace(/\s+/g, ' ').trim();
-  const index = new CatalogIndex(products);
+  const matchingProducts = [...products];
+  for (const item of base.bill.items) {
+    if (!matchingProducts.some((p) => p.id === item.productId)) matchingProducts.push({ id: item.productId, name: item.name, aliases: [], unit: item.unit, pricePerUnit: item.unitPrice ?? 0 });
+  }
+  const index = new CatalogIndex(matchingProducts);
   const match = index.matchProduct(name);
   if (!match.best || match.ambiguous) return fail();
-  const product = products.find((p) => p.id === match.best?.id);
+  const product = matchingProducts.find((p) => p.id === match.best?.id);
   if (!product) return fail();
   const items = base.bill.items.map((i) => ({ ...i }));
   const positions = items.flatMap((i, pos) => i.productId === product.id ? [pos] : []);
@@ -62,22 +67,24 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
     items.splice(position, 1);
   } else {
     if (!quantity) return fail();
-    const milli = convertToMilli(quantity.quantity, quantity.unit ?? product.unit, product.unit);
+    const existing = position === undefined ? undefined : items[position];
+    const targetUnit = existing?.unit ?? product.unit;
+    const milli = convertToMilli(quantity.quantity, quantity.unit ?? targetUnit, targetUnit);
     if (milli === null || milli <= 0 || milli > 1_000_000_000) return fail();
     if (!add && position === undefined) return fail();
-    const existing = position === undefined ? undefined : items[position];
     const nextMilli = add && existing ? Math.round(existing.quantity * 1000) + milli : milli;
-    const item = { productId: product.id, name: product.name, unit: product.unit,
+    const item = existing ? repriceBillItem(existing, nextMilli / 1000) : { productId: product.id, name: product.name, unit: product.unit,
       quantity: nextMilli / 1000, unitPrice: product.pricePerUnit, lineTotal: lineTotal(nextMilli, product.pricePerUnit) };
+    if (!item) return fail();
     if (position === undefined) {
       if (items.length >= LIMITS.maxBillItems) return fail();
       items.push(item);
     } else items[position] = item;
   }
-  const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const total = computeTotals(items.reduce((sum, item) => sum + item.lineTotal, 0), base.bill.adjust).total;
   // A fully paid draft stays fully paid; a credit draft keeps the paid amount, capped at total.
   const paid = base.bill.udhaar === 0 ? total : Math.min(base.bill.paid, total);
-  const bill = { items, total, paid, udhaar: total - paid };
+  const bill = { items, total, paid, udhaar: total - paid, ...(base.bill.adjust ? { adjust: base.bill.adjust } : {}) };
   const replyText = items.length === 0 ? ['Bill mein koi item nahi bacha. Naya item jodo.'] : billReadback({
     ...(base.customer ? { customerName: base.customer.name } : {}), total, udhaar: bill.udhaar,
   });

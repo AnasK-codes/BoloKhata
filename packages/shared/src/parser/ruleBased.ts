@@ -13,18 +13,18 @@
  * Keywords are compared after the same spelling folding the matcher uses, so udhaar /
  * udhar / uddhar and haan / han / haa are one word each. The transcript is untrusted: it is
  * length-limited, never executed, and instruction-like text yields `unknown` with zero
- * confidence. The parser never outputs prices.
+ * confidence. Only this rules path may attach a literal spoken-price quote.
  */
 import { LIMITS } from '../protocol/constants';
-import { normalize, type CatalogMatcher } from '../domain/matching';
+import type { CatalogMatcher } from '../domain/matching';
 import { extractQuantityAndUnit, normalizeUnit, parseNumber, tokenizeSpeech } from '../domain/numberWords';
 import type { ParsedUtterance, ParsedItemOutput } from './schema';
+import { pricedItems, hasMoneyTail } from './pricedItems';
+import { extractAdjust, fold, foldSet, parseStockOut, parseSummaryQuery } from './extras';
 
 /** Rules results at or above this are used directly; below it the LLM may be tried. */
 export const CONFIDENCE_THRESHOLD = 0.7;
 
-const fold = (s: string): string => normalize(s, { stripHonorifics: false });
-const foldSet = (words: readonly string[]): ReadonlySet<string> => new Set(words.map(fold));
 
 const NEGATIVE = foldSet(['hata', 'nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'mat', 'cancel', 'rehne', 'rahne', 'hatao', 'ruko', 'galat', 'नहीं', 'नही', 'रहने']);
 const CANCEL_VOCAB = foldSet([
@@ -267,6 +267,12 @@ function startsQuantity(pieces: readonly Piece[], at: number): boolean {
 }
 
 function itemsInSegment(w: Working, pieces: readonly Piece[], matcher: CatalogMatcher | undefined, out: ParsedItemOutput[]): void {
+  const priced = pricedItems(pieces);
+  if (priced.consumed > 0) {
+    out.push(...priced.items);
+    for (const piece of pieces.slice(0, priced.consumed)) w.used[piece.index] = true;
+    pieces = pieces.slice(priced.consumed);
+  }
   let pending: Piece[] = [];
   let i = 0;
   while (i < pieces.length) {
@@ -317,6 +323,8 @@ function findItems(w: Working, matcher: CatalogMatcher | undefined): ParsedItemO
     } else if (SEPARATORS.has(t)) {
       w.used[i] = true;
       flush();
+    } else if (['ke', 'ka', 'ki', 'के', 'का', 'की'].includes(w.raw[i] ?? '') && parseNumber(w.raw[i - 1] ?? '') !== null && !hasMoneyTail(segment)) {
+      segment.push({ raw: 'rupaye', index: i });
     } else if (NOISE.has(t)) {
       w.used[i] = true;
     } else {
@@ -333,6 +341,7 @@ function itemFactor(items: readonly ParsedItemOutput[], matcher: CatalogMatcher 
   if (!matcher) return 0.85;
   let sum = 0;
   for (const item of items) {
+    if (item.spokenPrice) { sum += Number.isInteger(item.spokenPrice.amount) && item.spokenPrice.amount >= 0 ? 1 : 0.2; continue; }
     const m = matcher.matchProduct(item.name);
     if (m.best) sum += m.ambiguous ? Math.min(0.5, m.best.score) : m.best.score;
     else sum += (m.candidates[0]?.score ?? 0.3) * 0.6;
@@ -354,15 +363,21 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
   const text = transcript.slice(0, LIMITS.maxTranscriptLength);
   if (isInstructionLike(text)) return { ...EMPTY };
 
-  const raw = tokenizeSpeech(text);
+  const raw = tokenizeSpeech(text.replace(/[−-](?=\s*[\d०-९₹])/g, ' minus ').replace(/₹/g, ' rupaye ').replace(/%/g, ' percent '));
   if (raw.length === 0) return { ...EMPTY };
   const f = raw.map(fold);
 
   const answer = answerIntent(f);
   if (answer) return { ...EMPTY, intent: answer, confidence: 0.95 };
 
+  const stockOut = parseStockOut({ raw, f, used: [] }, matcher);
+  if (stockOut) {
+    return { ...EMPTY, intent: 'out_of_stock', items: [{ name: stockOut.name, quantity: 1, unit: null }], confidence: stockOut.confidence };
+  }
+
   const w: Working = { raw, f, used: new Array<boolean>(raw.length).fill(false) };
   const customer = findCustomer(w, matcher);
+  const { adjust, warnings: adjustWarnings } = extractAdjust(w);
   const amounts = findAmounts(w);
   const items = findItems(w, matcher);
 
@@ -387,6 +402,9 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
     amount_paid: amounts.paid,
   };
 
+  if (adjust) result.adjust = adjust;
+  if (adjustWarnings.length > 0) result.adjustWarnings = adjustWarnings;
+
   if (items.length > 0) {
     result.intent = 'create_bill';
     const noCustomerWithCredit = customer === null && amounts.udhaar !== null && amounts.udhaar > 0;
@@ -404,6 +422,10 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
     result.amount_paid = null;
     result.confidence = clamp01(base * customerFactor(customer, matcher, 0.4));
     return result;
+  }
+  const summary = customer === null && amounts.paid === null && amounts.udhaar === null ? parseSummaryQuery({ raw, f, used: [] }) : null;
+  if (summary) {
+    return { ...EMPTY, intent: 'query_summary', confidence: summary.confidence };
   }
   if (customer !== null && amounts.udhaar !== null && amounts.udhaar > 0) {
     result.intent = 'create_bill';

@@ -10,7 +10,7 @@ export const CLIENT_FIXTURES: Record<ClientMessage['type'], { valid: unknown; in
   hello: {
     valid: {
       type: 'hello',
-      v: 1,
+      v: 2,
       clientTime: 1_700_000_000_000,
       lang: 'hi-en',
       catalog: {
@@ -31,7 +31,7 @@ export const CLIENT_FIXTURES: Record<ClientMessage['type'], { valid: unknown; in
     },
     invalid: {
       type: 'hello',
-      v: 1,
+      v: 2,
       clientTime: 1,
       lang: 'hi-en',
       catalog: {
@@ -78,7 +78,7 @@ export const SERVER_FIXTURES: Record<ServerMessage['type'], { valid: unknown; in
   ready: {
     valid: {
       type: 'ready',
-      v: 1,
+      v: 2,
       sessionId: 's-abc123',
       limits: { maxSessionMinutes: 10, maxUtteranceSeconds: 20 },
       audio: { inputSampleRate: 16000, inputFrameBytes: 1024 },

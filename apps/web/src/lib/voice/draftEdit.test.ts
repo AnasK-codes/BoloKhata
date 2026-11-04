@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogCustomer, CatalogProduct } from '@bolbill/shared';
 import { draftMessage } from '../turn/testing';
-import { draftFromTranscript, removeItem, resolveItem, setCustomer, setItemQuantity, setPaid } from './draftEdit';
+import { draftFromTranscript, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
 
 const products: CatalogProduct[] = [
   { id: 'p1', name: 'Aata', aliases: ['atta'], unit: 'kg', pricePerUnit: 45 },
@@ -11,6 +11,17 @@ const products: CatalogProduct[] = [
 const customers: CatalogCustomer[] = [{ id: 'c1', name: 'Sharma ji', aliases: [], balance: 0 }];
 
 describe('quantity, removal and payment edits', () => {
+  it('rebuilds the spoken-price example without any saved products', () => {
+    const draft = draftFromTranscript(draftMessage(1), 'Do kilo chawal ₹110 ke, do Maggi ke packets ₹28 ke', [], []);
+    expect(draft?.bill).toMatchObject({ total: 138, items: [{ lineTotal: 110 }, { lineTotal: 28 }] });
+    expect(draft?.unresolved).toEqual([]);
+  });
+  it('keeps a fractional inferred unit rate exact when the quantity stepper is used', () => {
+    const original = draftFromTranscript(draftMessage(1), 'Teen packet biscuit ₹50 ke', [], [])!;
+    expect(original.bill?.items[0]?.unitPrice).toBeNull();
+    expect(setItemQuantity(original, 0, 6).bill?.total).toBe(100);
+    expect(original.bill?.total).toBe(50);
+  });
   it('reprices a line and the total with the shared rounding', () => {
     const edited = setItemQuantity(draftMessage(1), 0, 3);
     expect(edited.bill).toMatchObject({ total: 135, udhaar: 135 });
@@ -112,3 +123,42 @@ describe('draftFromTranscript', () => {
     expect(draftFromTranscript(draftMessage(4), '', products, customers)).toBeNull();
   });
 });
+
+describe('discount, GST and round-off edits', () => {
+  it('applies a discount to the total and keeps a fully paid bill fully paid', () => {
+    const base = setPaid(draftMessage(1), 90);
+    expect(base.bill).toMatchObject({ total: 90, paid: 90, udhaar: 0 });
+    const discounted = setAdjust(base, { discountAmount: 10 });
+    expect(discounted.bill).toMatchObject({ total: 80, paid: 80, udhaar: 0, adjust: { discountAmount: 10 } });
+  });
+
+  it('keeps the amount already paid on a credit bill', () => {
+    const credit = setPaid(draftMessage(1), 30);
+    const discounted = setAdjust(credit, { discountAmount: 10 });
+    expect(discounted.bill).toMatchObject({ total: 80, paid: 30, udhaar: 50 });
+  });
+
+  it('removes the adjustment when it is cleared and puts the total back', () => {
+    const discounted = setAdjust(draftMessage(1), { discountAmount: 10 });
+    const cleared = setAdjust(discounted, { roundOff: false });
+    expect(cleared.bill?.adjust).toBeUndefined();
+    expect(cleared.bill?.total).toBe(90);
+  });
+
+  it('keeps the adjustment through later quantity edits', () => {
+    const discounted = setAdjust(draftMessage(1), { gstPercent: 5 });
+    expect(setItemQuantity(discounted, 0, 4).bill).toMatchObject({ total: 189, adjust: { gstPercent: 5 } }); // 180 + 9
+  });
+
+  it('does nothing without a bill', () => {
+    const noBill = { ...draftMessage(1) };
+    delete noBill.bill;
+    expect(setAdjust(noBill, { roundOff: true })).toBe(noBill);
+  });
+
+  it('reads a spoken adjustment when the transcript is corrected', () => {
+    const draft = draftFromTranscript(draftMessage(1), 'do kilo aata paanch rupaye kam', products, customers);
+    expect(draft?.bill).toMatchObject({ total: 85, adjust: { discountAmount: 5 } });
+  });
+});
+

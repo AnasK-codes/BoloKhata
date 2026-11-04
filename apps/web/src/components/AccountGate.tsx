@@ -44,7 +44,7 @@ function AuthForm({ onSubmit }: { onSubmit(action: 'login' | 'signup', input: { 
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Login nahi hua. Internet check karo.'); }
     finally { setBusy(false); }
   };
-  return <main className="mx-auto max-w-md space-y-6 px-5 py-10">
+  return <main className="auth-card mx-auto max-w-md space-y-6 px-5 py-10">
     <header><p className="text-3xl font-extrabold">Bol-<span className="text-accent">Bill</span></p>
       <h1 className="mt-6 text-2xl font-bold">{signup ? 'Apna account banao' : 'Apni dukaan mein login karo'}</h1>
       <p className="mt-2 text-dim">{signup ? 'Account → business profile → bolkar billing.' : 'Email aur password se sign in karo.'}</p></header>
@@ -53,7 +53,7 @@ function AuthForm({ onSubmit }: { onSubmit(action: 'login' | 'signup', input: { 
       <label className="block font-semibold">Password<input required type="password" minLength={signup ? 8 : 1} maxLength={128} autoComplete={signup ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl bg-inset px-4 text-base" /></label>
       {signup && <label className="block font-semibold">Password dobara<input required type="password" autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl bg-inset px-4 text-base" /></label>}
       {error && <p role="alert" className="text-bad">{error}</p>}
-      <button disabled={busy} className="min-h-14 w-full rounded-xl bg-amber-400 px-4 text-lg font-bold text-stone-950 disabled:opacity-50">{busy ? 'Ruko…' : signup ? 'Sign up' : 'Login'}</button>
+      <button disabled={busy} className="min-h-14 w-full rounded-xl bg-lime-300 px-4 text-lg font-bold text-stone-950 disabled:opacity-50">{busy ? 'Ruko…' : signup ? 'Sign up' : 'Login'}</button>
       <button type="button" disabled={busy} onClick={() => { setSignup(!signup); setError(''); setPassword(''); setConfirmation(''); }} className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold">{signup ? 'Account hai? Login karo' : 'Naye ho? Sign up karo'}</button>
     </form>
   </main>;

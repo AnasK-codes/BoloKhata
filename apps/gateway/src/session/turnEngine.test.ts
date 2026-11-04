@@ -11,7 +11,7 @@ import { captureLogs, startGateway, type Harness } from '../testing/harness';
  */
 const HELLO = {
   type: 'hello',
-  v: 1,
+  v: 2,
   clientTime: 0,
   lang: 'hi-IN',
   catalog: {
@@ -417,6 +417,25 @@ describe('privacy', () => {
 });
 
 describe('voice corrections with the browser draft context', () => {
+  it('creates an uncatalogued quoted-price bill and preserves its rate during correction', async () => {
+    const llm = never();
+    gateway = await startGateway(env(), { llm: llm.adapter });
+    const client = await gateway.ready({ ...HELLO, catalog: { version: 1, products: [], customers: [] } });
+    const first = draftSchema.parse(await say(client, 1, 'Do kilo chawal ₹110 ke, do Maggi ke packets ₹28 ke'));
+    expect(first.bill).toMatchObject({ total: 138, paid: 138, udhaar: 0 });
+    expect(first.bill?.items).toHaveLength(2);
+    mock!.stt.queueTranscripts('Chawal teen kilo karo');
+    client.sendJson({ type: 'ptt_start', turnId: 2, draftContext: first });
+    for (let i = 0; i < 8; i++) client.sendBinary(speechFrame());
+    client.sendJson({ type: 'ptt_end', turnId: 2 });
+    const corrected = draftSchema.parse(await client.next('draft'));
+    await client.next('tts_end');
+    expect(corrected.draftId).toBe(first.draftId);
+    expect(corrected.bill).toMatchObject({ total: 193, paid: 193, udhaar: 0 });
+    expect(corrected.bill?.items[0]).toMatchObject({ quantity: 3, lineTotal: 165 });
+    expect(llm.calls).toHaveLength(0);
+    expect((await say(client, 3, 'haan'))).toMatchObject({ intent: 'confirm', draftId: first.draftId });
+  }, 15_000);
   it('updates the same draft, reprices from the catalog, then confirms its id', async () => {
     const llm = never();
     gateway = await startGateway(env(), { llm: llm.adapter });

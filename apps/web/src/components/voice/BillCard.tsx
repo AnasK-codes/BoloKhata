@@ -1,12 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { udhaarNeedsCustomer, hasCreditDetails, type Customer, type CatalogProduct, type DraftMessage } from '@bolbill/shared';
+import { computeTotals, udhaarNeedsCustomer, hasCreditDetails, type Customer, type CatalogProduct, type DraftMessage } from '@bolbill/shared';
 import type { Repo } from '@/lib/db/repo';
 import { CreditDetailsForm } from '../CreditDetailsForm';
+import { useApp } from '../AppProvider';
+import { AdjustPanel } from './AdjustPanel';
 import { Icon } from '../Icon';
 import { formatQuantity, rupees } from '@/lib/format';
-import { removeItem, resolveCustomer, resolveItem, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
+import { removeItem, resolveCustomer, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
 
 interface Props {
   draft: DraftMessage;
@@ -47,7 +49,7 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((p) => (
-          <button key={p.id} type="button" className="min-h-12 rounded-xl bg-amber-400 px-4 font-semibold text-stone-950" onClick={() => onPick(p)}>
+          <button key={p.id} type="button" className="min-h-12 rounded-xl bg-lime-300 px-4 font-semibold text-stone-950" onClick={() => onPick(p)}>
             {p.name} · {rupees(p.pricePerUnit)}/{p.unit}
           </button>
         ))}
@@ -66,6 +68,8 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
 
 export function BillCard({ draft, products, customers, repo, onChange }: Props) {
   const bill = draft.bill;
+  const { toast } = useApp();
+  const totals = bill ? computeTotals(bill.items.reduce((sum, i) => sum + i.lineTotal, 0), bill.adjust) : null;
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerText, setCustomerText] = useState('');
 
@@ -92,7 +96,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               className="min-h-12 flex-1 rounded-xl bg-inset px-3 text-base"
             />
             <datalist id="customer-options">{customers.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-            <button type="submit" className="min-h-12 rounded-xl bg-amber-400 px-4 font-semibold text-stone-950">OK</button>
+            <button type="submit" className="min-h-12 rounded-xl bg-lime-300 px-4 font-semibold text-stone-950">OK</button>
           </form>
         ) : (
           <button
@@ -103,7 +107,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
           >
             <Icon name="user" size={20} />
             {draft.customer ? draft.customer.name : 'Grahak chuno'}
-            {draft.customer?.isNew && <span className="rounded bg-amber-400 px-1.5 text-xs font-bold text-stone-950">NAYA</span>}
+            {draft.customer?.isNew && <span className="rounded bg-lime-300 px-1.5 text-xs font-bold text-stone-950">NAYA</span>}
           </button>
         )}
       </div>
@@ -117,7 +121,9 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
                 <p className="num text-xl font-bold">{rupees(item.lineTotal)}</p>
               </div>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="num text-sm text-dim">{rupees(item.unitPrice)} / {item.unit}</p>
+                <p className="num text-sm text-dim">{item.spokenPrice
+                  ? `Bola: ${rupees(item.spokenPrice.amount)} / ${formatQuantity(item.spokenPrice.quantity)} ${item.spokenPrice.unit}${item.spokenPrice.basis === 'line' ? ' (total)' : ' (rate)'}`
+                  : item.unitPrice !== null ? `${rupees(item.unitPrice)} / ${item.unit}` : 'Line price'}</p>
                 <div className="flex items-center gap-2">
                   <Stepper value={item.quantity} step={stepFor(item.unit)} label={`${item.name} quantity`} onChange={(q) => onChange(setItemQuantity(draft, i, q))} />
                   <button type="button" aria-label={`${item.name} hatao (remove)`} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-control" onClick={() => onChange(removeItem(draft, i))}>
@@ -133,14 +139,14 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
       {draft.unresolved.map((u, i) =>
         u.kind === 'item' ? (
           <div key={`u${i}${u.spoken}`} className="mt-3">
-            <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => onChange(resolveItem(draft, i, p))} />
+            <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${p.name}`, 'ok'); }); }} />
           </div>
         ) : (
           <div key={`u${i}${u.spoken}`} className="mt-3 rounded-xl border border-amber-500/60 bg-amber-500/10 p-3">
             <p className="font-semibold">&ldquo;{u.spoken}&rdquo; kaun sa grahak hai?</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {u.candidates.map((c) => (
-                <button key={c.id} type="button" className="min-h-12 rounded-xl bg-amber-400 px-4 font-semibold text-stone-950" onClick={() => onChange(resolveCustomer(draft, i, c))}>{c.name}</button>
+                <button key={c.id} type="button" className="min-h-12 rounded-xl bg-lime-300 px-4 font-semibold text-stone-950" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${c.name}`, 'ok'); }); }}>{c.name}</button>
               ))}
             </div>
           </div>
@@ -149,6 +155,14 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
 
       {bill && (
         <dl className="num mt-3 space-y-1 border-t border-line pt-3 text-lg">
+          {totals && bill.adjust && (
+            <>
+              <div className="flex justify-between text-dim"><dt>Subtotal</dt><dd>{rupees(totals.subtotal)}</dd></div>
+              {totals.discount > 0 && <div className="flex justify-between text-good"><dt>Chhoot</dt><dd>−{rupees(totals.discount)}</dd></div>}
+              {totals.gst > 0 && <div className="flex justify-between text-dim"><dt>GST {bill.adjust.gstPercent}%</dt><dd>+{rupees(totals.gst)}</dd></div>}
+              {totals.roundOff !== 0 && <div className="flex justify-between text-dim"><dt>Round-off</dt><dd>{totals.roundOff > 0 ? '+' : '−'}{rupees(Math.abs(totals.roundOff))}</dd></div>}
+            </>
+          )}
           <div className="flex justify-between text-2xl font-extrabold"><dt>Total</dt><dd>{rupees(bill.total)}</dd></div>
           <div className="flex items-center justify-between">
             <dt>Abhi diye (paid)</dt>
@@ -167,8 +181,10 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
         </dl>
       )}
 
+      {bill && bill.items.length > 0 && <AdjustPanel adjust={bill.adjust} onChange={(next) => onChange(setAdjust(draft, next))} />}
+
       {bill && udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && (
-        <p role="status" className="mt-3 rounded-xl bg-amber-400/15 px-3 py-2 font-semibold text-warn">
+        <p role="status" className="mt-3 rounded-xl bg-lime-300/15 px-3 py-2 font-semibold text-warn">
           Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
         </p>
       )}

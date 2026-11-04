@@ -62,7 +62,7 @@ exports[`client message hello > matches its snapshot 1`] = `
     "clientTime": 1700000000000,
     "lang": "hi-en",
     "type": "hello",
-    "v": 1,
+    "v": 2,
   },
 }
 `;
@@ -241,7 +241,7 @@ exports[`server message ready > matches its snapshot 1`] = `
     },
     "sessionId": "s-abc123",
     "type": "ready",
-    "v": 1,
+    "v": 2,
   },
 }
 `;

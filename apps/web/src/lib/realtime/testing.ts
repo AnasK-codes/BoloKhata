@@ -59,7 +59,7 @@ export class FakeWebSocket {
 
 export const READY = {
   type: 'ready',
-  v: 1,
+  v: 2,
   sessionId: 's1',
   limits: { maxSessionMinutes: 10, maxUtteranceSeconds: 20 },
   audio: { inputSampleRate: 16000, inputFrameBytes: 1024 },

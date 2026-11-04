@@ -43,6 +43,8 @@ export interface OrchestratorOptions {
 }
 
 const isShortAnswer = (p: ParsedUtterance): boolean => p.intent === 'confirm' || p.intent === 'cancel';
+/** Intents that change stock or read shop-wide numbers: rules only, never from a model. */
+const isRulesOnly = (p: ParsedUtterance): boolean => p.intent === 'out_of_stock' || p.intent === 'query_summary';
 
 /**
  * Rules first, model second (default). With `mode: 'always'` the model is asked on every turn
@@ -67,8 +69,11 @@ export class Orchestrator {
     const rulesResolution = resolveUtterance(rules, request.index);
     request.mark?.('rules_done');
 
-    if (isShortAnswer(rules)) return outcome(rules, rulesResolution, 'rules', false, 'skipped');
+    if (isShortAnswer(rules) || (isRulesOnly(rules) && rules.confidence >= CONFIDENCE_THRESHOLD)) return outcome(rules, rulesResolution, 'rules', false, 'skipped');
     const rulesAreSure = rules.confidence >= CONFIDENCE_THRESHOLD && itemsResolved(rules, rulesResolution);
+    // Explicit shopkeeper prices are rules-only, including invalid quotes needing review.
+    // A model may help with unpriced catalog orders, but may never rewrite a spoken amount.
+    if (rules.items.some((item) => item.spokenPrice !== undefined)) return outcome(rules, rulesResolution, 'rules', !rulesAreSure, 'skipped');
     if (rulesAreSure && this.options.mode !== 'always') {
       return outcome(rules, rulesResolution, 'rules', false, 'skipped');
     }
@@ -89,13 +94,14 @@ export class Orchestrator {
     if (!result.ok) {
       return { ...outcome(rules, rulesResolution, 'rules', !rulesAreSure, result.reason), llmMs: result.ms };
     }
-    // A model may not confirm or cancel anything. Treat that answer as unusable.
-    if (isShortAnswer(result.value)) {
+    // Revalidate here too: adapters/test hooks cannot smuggle rules-only price metadata.
+    const validated = parsedUtteranceSchema.safeParse(result.value);
+    if (!validated.success || isShortAnswer(validated.data) || isRulesOnly(validated.data)) {
       return { ...outcome(rules, rulesResolution, 'rules', !rulesAreSure, 'invalid_output'), llmMs: result.ms };
     }
-    const resolution = resolveUtterance(result.value, request.index);
-    const review = result.value.confidence < CONFIDENCE_THRESHOLD || (resolution.bill?.needsReview ?? false);
-    return { ...outcome(result.value, resolution, 'llm', review, 'ok'), llmMs: result.ms };
+    const resolution = resolveUtterance(validated.data, request.index);
+    const review = validated.data.confidence < CONFIDENCE_THRESHOLD || (resolution.bill?.needsReview ?? false);
+    return { ...outcome(validated.data, resolution, 'llm', review, 'ok'), llmMs: result.ms };
   }
 }
 

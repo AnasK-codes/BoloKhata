@@ -48,7 +48,7 @@ export function MicButton({ listening, busy, speaking, disabled, label, level, b
       <div
         ref={ring}
         aria-hidden="true"
-        className={`absolute h-28 w-28 rounded-full will-change-transform transition-colors ${listening ? 'bg-red-500/35' : 'bg-amber-400/10'}`}
+        className={`absolute h-28 w-28 rounded-full will-change-transform transition-colors ${listening ? 'bg-red-500/35' : 'bg-zinc-200/60'}`}
       />
       <button
         type="button"
@@ -56,14 +56,14 @@ export function MicButton({ listening, busy, speaking, disabled, label, level, b
         {...buttonProps}
         aria-label={label}
         aria-pressed={listening}
-        className={`relative flex h-28 w-28 items-center justify-center rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.5)] outline-offset-4 transition-colors disabled:opacity-40 ${
-          listening ? 'bg-red-500 text-white' : busy ? 'bg-control text-ink' : speaking ? 'bg-card text-accent ring-4 ring-amber-400' : 'bg-amber-400 text-stone-950'
+        className={`relative flex h-28 w-28 items-center justify-center rounded-full shadow-[0_8px_30px_rgba(24,24,27,0.16)] outline-offset-4 transition-colors disabled:opacity-40 ${
+          listening ? 'bg-red-500 text-white' : busy ? 'bg-control text-ink' : speaking ? 'bg-card text-accent ring-4 ring-zinc-300' : 'bg-zinc-900 text-white'
         }`}
       >
         <Icon name={speaking ? 'speaker' : 'mic'} size={46} />
       </button>
       {busy && (
-        <span aria-hidden="true" className="spin absolute h-32 w-32 rounded-full border-4 border-transparent border-t-amber-400" />
+        <span aria-hidden="true" className="spin absolute h-32 w-32 rounded-full border-4 border-transparent border-t-zinc-800" />
       )}
       {listening && (
         <span className="absolute -bottom-1 flex items-center whitespace-nowrap gap-1.5 rounded-full bg-red-600 px-3 py-1 text-sm font-bold text-white">

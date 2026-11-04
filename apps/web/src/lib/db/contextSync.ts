@@ -53,7 +53,7 @@ export class ContextSync {
     if (print === this.lastSent) return;
     const sent = this.options.send({
       type: 'context_update',
-      catalog: { version: ++this.version, products: snapshot.products, customers: snapshot.customers },
+      catalog: { version: ++this.version, products: snapshot.products, customers: snapshot.customers, ...(snapshot.shop ? { shop: snapshot.shop } : {}) },
     });
     // If the socket was down, keep the difference pending: the next hello will carry it.
     if (sent) this.lastSent = print;
@@ -61,5 +61,5 @@ export class ContextSync {
 }
 
 function fingerprint(snapshot: CatalogSnapshot): string {
-  return JSON.stringify([snapshot.products, snapshot.customers]);
+  return JSON.stringify([snapshot.products, snapshot.customers, snapshot.shop]);
 }

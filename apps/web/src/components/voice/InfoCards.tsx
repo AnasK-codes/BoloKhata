@@ -51,3 +51,42 @@ export function PaymentCard({ draft, repo, saved }: { draft: DraftMessage; repo:
     </article>
   );
 }
+
+/** "Aaj kitni bikri hui?" The numbers come from the device's own bills and ledger, sent in the snapshot. */
+export function SummaryCard({ draft }: { draft: DraftMessage }) {
+  const s = draft.summary;
+  if (!s) return null;
+  return (
+    <article className="pop rounded-2xl bg-card p-4" aria-label="Aaj ka hisab">
+      <p className="mb-3 font-semibold text-dim">Aaj ka hisab</p>
+      <div className="stat-grid num">
+        <div className="stat stat-wide">
+          <small>Aaj ki bikri</small>
+          <strong className="text-good">{rupees(s.todaySales)}</strong>
+        </div>
+        <div className="stat">
+          <small>Bill bane</small>
+          <strong>{s.todayBills}</strong>
+        </div>
+        <div className="stat">
+          <small>Kul udhaar baaki</small>
+          <strong className={s.totalUdhaar > 0 ? 'text-warn' : 'text-good'}>{rupees(s.totalUdhaar)}</strong>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** "Aata khatam ho gaya": waits for a tap or a spoken "haan" before the stock is written. */
+export function StockCard({ draft, saved }: { draft: DraftMessage; saved: boolean }) {
+  if (!draft.stock) return null;
+  return (
+    <article className="pop rounded-2xl bg-card p-4" aria-label="Stock">
+      <p className="text-dim">
+        {saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />Likh liya</span> : <span className="badge badge-warn">Confirm karo</span>}
+      </p>
+      <p className="mt-2 text-3xl font-extrabold tracking-tight">{draft.stock.name}</p>
+      <p className="mt-1 text-dim">{saved ? 'Stock 0 ho gaya. Samaan mein "Khatam" dikhega.' : 'Khatam likhun? Confirm dabao ya bolo "haan".'}</p>
+    </article>
+  );
+}

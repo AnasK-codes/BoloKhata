@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { hasCreditDetails, type DraftMessage } from '@bolbill/shared';
 import { setAccessCode } from '@/lib/accessCode';
 import { rupees } from '@/lib/format';
@@ -15,14 +16,15 @@ import { draftFromTranscript } from '@/lib/voice/draftEdit';
 import { connectionNotice, friendlyError, micErrorText } from '@/lib/voice/errorText';
 import { statusText } from '@/lib/voice/statusText';
 import { useApp } from '../AppProvider';
+import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
 import { BillCard } from './BillCard';
-import { BalanceCard, PaymentCard } from './InfoCards';
+import { BalanceCard, PaymentCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
 import { MicButton } from './MicButton';
 import { ReplaceDialog } from './ReplaceDialog';
 
-const EXAMPLES = ['Sharma ji ko do kilo aata aur ek Maggi, udhaar likh do', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye'];
+const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye', 'Aaj kitni bikri hui?'];
 
 function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: string; tone?: 'warn' | 'error'; action?: { label: string; run(): void } }) {
   return (
@@ -45,7 +47,7 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
       <p className="text-ink">Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
       <div className="mt-2 flex gap-2">
         <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-12 min-w-0 flex-1 rounded-xl bg-inset px-3 text-lg" />
-        <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-amber-400 px-5 font-bold text-stone-950 disabled:opacity-40">Shuru</button>
+        <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-lime-300 px-5 font-bold text-stone-950 disabled:opacity-40">Shuru</button>
       </div>
     </form>
   );
@@ -66,6 +68,7 @@ export function VoiceScreen() {
 
 function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useApp>['session']>; repo: NonNullable<ReturnType<typeof useApp>['repo']> }) {
   const { toast } = useApp();
+  const { profile } = useAccount();
   const controller = session.controller;
   const store = controller.store;
   const phase = useTurnStore(store, (s) => s.phase);
@@ -164,19 +167,22 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   const showCard = (d: DraftMessage) => {
     if (d.intent === 'query_balance') return <BalanceCard draft={d} repo={repo} />;
     if (d.intent === 'record_payment') return <PaymentCard draft={d} repo={repo} saved={pending?.draftId !== d.draftId} />;
+    if (d.intent === 'query_summary') return <SummaryCard draft={d} />;
+    if (d.intent === 'out_of_stock') return <StockCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} repo={repo} onChange={change} />;
     return null;
   };
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-5.5rem)] max-w-md flex-col gap-3 px-4 pb-4 pt-5">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold tracking-tight">Bol-<span className="text-accent">Bill</span></h1>
+    <main className="voice-page">
+      <header className="voice-header">
+        <Link href="/settings" className="shop-profile"><span className="shop-avatar"><Icon name="user" size={22} /></span><span><small>Namaste, welcome back</small><strong>{profile.businessName}</strong></span></Link>
         <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${connection.status === 'ready' ? 'bg-emerald-500/15 text-good' : 'bg-control text-ink'}`}>
           <span className={`h-2 w-2 rounded-full ${connection.status === 'ready' ? 'bg-emerald-400' : 'bg-stone-400'}`} aria-hidden="true" />
           {!online ? 'Offline' : connection.status === 'ready' ? 'Online' : connection.status === 'limited' ? 'Busy' : 'Jud raha hai…'}
         </span>
       </header>
+      <div className="voice-heading"><p className="eyebrow">YOUR EVERYDAY BILLING ASSISTANT</p><h1>Aaj kya bill<br className="sm:hidden" /> banana hai?</h1><p>Bas bolo. Samaan, quantity aur price hum likh lenge.</p></div>
       {pending?.bill && <p className="text-sm text-muted">Badalna hai? Bolo: “Aata teen kilo karo”, “Maggi hata do”, “Ek Maggi aur jodo”.</p>}
 
       {!online && <Notice title="Internet nahi hai" hint="Bolne ke liye internet chahiye. Khata aur samaan ab bhi khul sakte hain." />}
@@ -196,7 +202,10 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
         />
       )}
 
-      <section className="flex flex-1 flex-col gap-3" aria-live="polite">
+      <div className="voice-workspace">
+      <div className="voice-main">
+      <div className="workspace-caption"><strong>Naya bill / New bill</strong><span>VOICE WORKSPACE</span></div>
+      <section className="voice-results" aria-live="polite">
         {transcript && !editing && (
           <div className="flex items-start justify-between gap-2 rounded-xl bg-inset px-4 py-3">
             <p className="text-lg text-ink">&ldquo;{transcript}&rdquo;</p>
@@ -212,7 +221,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             <label className="text-sm text-dim" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
             <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl bg-raised px-3 text-lg" />
             <div className="mt-2 flex gap-2">
-              <button type="submit" className="min-h-12 flex-1 rounded-xl bg-amber-400 font-bold text-stone-950">Bill dobara banao</button>
+              <button type="submit" className="min-h-12 flex-1 rounded-xl bg-lime-300 font-bold text-stone-950">Bill dobara banao</button>
               <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => setEditing(false)}>Raho</button>
             </div>
           </form>
@@ -228,16 +237,17 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
         )}
 
         {!draft && !transcript && !busy && !listening && !error && (
-          <div className="rounded-2xl border border-dashed border-line p-5 text-center">
-            <p className="text-lg font-semibold">Mic dabake aise bolo:</p>
-            <ul className="mt-3 space-y-2 text-dim">
-              {EXAMPLES.map((e) => <li key={e}>&ldquo;{e}&rdquo;</li>)}
-            </ul>
+          <div className="voice-welcome">
+            <span className="assistant-emblem"><Icon name="mic" size={34} /></span>
+            <p className="eyebrow">BOL-BILL, AAPKE SAATH</p>
+            <h2>Aap bolo,<br />bill taiyaar.</h2>
+            <p>Item ki price bhi bol sakte ho.<br />Save karne se pehle bill check kar lena.</p>
+            <div className="welcome-tags"><span>Voice billing</span><span>Khata</span><span>Print & share</span></div>
           </div>
         )}
       </section>
 
-      <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col items-center gap-1 bg-canvas px-4 pb-1 pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:h-6 before:bg-gradient-to-t before:from-canvas before:to-transparent">
+      <div className={`voice-controls ${draft ? 'has-draft' : ''}`}>
         {confirmable && draft?.bill && (
           <p className="num flex w-full items-baseline justify-between text-2xl font-extrabold">
             <span>Total</span>
@@ -274,11 +284,22 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             </div>
           </div>
         ) : (
-          <button type="button" disabled={audioStarting} onClick={() => void enable()} className="min-h-16 rounded-2xl bg-amber-400 px-8 text-xl font-extrabold text-stone-950 disabled:opacity-60">
+          <button type="button" disabled={audioStarting} onClick={() => void enable()} className="voice-start">
             <span className="flex items-center gap-2"><Icon name="mic" size={24} />{audioStarting ? 'Mic khul raha hai…' : 'Mic chalu karo'}</span>
           </button>
         )}
         {!draft && !listening && !busy && <p className="text-center text-sm text-muted">Dabake bolo, chhodo to bhej dega · ya ek tap se shuru, doosre tap se band</p>}
+      </div>
+      </div>
+      <aside className="voice-sidebar">
+        <div className="quick-card"><div className="section-heading"><h2>Dukaan ke shortcuts</h2><span>↗</span></div><div className="quick-links">
+          <Link href="/bills"><span className="shortcut-icon lavender">▤</span><strong>Saved bills</strong><small>Dekho, print aur share karo</small></Link>
+          <Link href="/ledger"><span className="shortcut-icon peach"><Icon name="user" /></span><strong>Customer khata</strong><small>Udhaar aur payments dekho</small></Link>
+          <Link href="/catalog"><span className="shortcut-icon mint">▦</span><strong>Apna samaan</strong><small>Items aur rates manage karo</small></Link>
+        </div></div>
+        <div className="example-card"><p className="eyebrow">BOLKAR DEKHO</p><h2>Ek sentence. Kaam done.</h2><ul>{EXAMPLES.map((example, index) => <li key={example}><span>0{index + 1}</span><p>&ldquo;{example}&rdquo;</p></li>)}</ul></div>
+        <Link href="/settings" className="profile-banner"><Icon name="check" size={26} /><span><strong>Aapki dukaan, aapka bill.</strong><small>Business profile aur receipt details</small></span><span aria-hidden="true">↗</span></Link>
+      </aside>
       </div>
 
       {hud && <LatencyHud turns={turns} connection={connection} />}

@@ -8,6 +8,7 @@ import { useLive } from '@/lib/db/live';
 import { useOnline } from '@/lib/useOnline';
 import { formatDate, rupees } from '@/lib/format';
 import { receiptText } from '@/lib/receipt';
+import { thermalReceipt } from '@/lib/thermalReceipt';
 
 export function BillsScreen() {
   const { repo, dataError, toast } = useApp();
@@ -21,7 +22,9 @@ export function BillsScreen() {
   const names = useMemo(() => new Map((customers.data ?? []).map((c) => [c.id, c.name])), [customers.data]);
   const filtered = (bills.data ?? []).filter((b) => `${b.id} ${names.get(b.customerId ?? '') ?? 'Cash'} ${formatDate(b.createdAt)}`.toLowerCase().includes(query.toLowerCase()));
   const bill = bills.data?.find((b) => b.id === selected);
-  const text = bill ? receiptText(bill, names.get(bill.customerId ?? '')) : '';
+  const customerName = bill ? names.get(bill.customerId ?? '') : undefined;
+  const text = bill ? receiptText(bill, customerName) : '';
+  const thermal = bill ? thermalReceipt(bill, customerName) : '';
   const share = async () => {
     try {
       if (navigator.share) { await navigator.share({ title: 'Bol-Bill receipt', text }); return; }
@@ -40,14 +43,18 @@ export function BillsScreen() {
     <h1 className="text-2xl font-extrabold">Saved bills</h1>
     {bill ? <>
       <button className="min-h-12 rounded-xl bg-control px-4" onClick={() => { setSelected(null); setReversing(false); setCopyText(null); }}>← Wapas</button>
-      <article className="bill-print-root rounded-xl bg-card p-4">
-        <pre className="whitespace-pre-wrap break-words font-sans text-base">{text}</pre>
-      </article>
-      <div className="flex gap-2">
-        <button className="min-h-12 flex-1 rounded-xl bg-amber-400 px-4 font-bold text-stone-950" onClick={() => void share()}>Share / Copy</button>
-        <button className="min-h-12 flex-1 rounded-xl bg-control px-4 font-bold" onClick={() => window.print()}>Print / PDF</button>
+      <div className="receipt-stage">
+        <div className="receipt-shadow">
+          <article className="thermal-print-root receipt-paper" aria-label="Thermal receipt (58 mm)">
+            <pre className="thermal-paper m-0 text-black">{thermal}</pre>
+          </article>
+        </div>
       </div>
-      <p className="text-sm text-muted">Print dialog mein connected printer ya Save as PDF chuno.</p>
+      <div className="flex gap-2">
+        <button className="min-h-12 flex-1 rounded-xl bg-lime-300 px-4 font-bold text-stone-950" onClick={() => void share()}>Share / Copy</button>
+        <button className="min-h-12 flex-1 rounded-xl bg-control px-4 font-bold" onClick={() => window.print()}>Print (58 mm)</button>
+      </div>
+      <p className="text-sm text-muted">Print dialog mein apna 58 mm thermal printer chuno (paper size 58 mm). Share / Copy mein simple text jaata hai.</p>
       {copyText && <label className="block">Copy karke share karo<textarea readOnly value={copyText} onFocus={(e) => e.target.select()} className="min-h-48 w-full rounded-xl bg-inset p-3" /></label>}
       {bill.reversedAt === undefined && (reversing ? <ReverseDialog onCancel={() => setReversing(false)} onReverse={async (reason) => {
         const result = await repo.reverseBill(bill.id, reason);

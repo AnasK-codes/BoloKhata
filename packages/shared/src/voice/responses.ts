@@ -74,6 +74,25 @@ export function balanceReply(customerName: string | null | undefined, balance: n
   return [clip(`${who} ne ${rupees(-balance)} zyada diye hain, wo aapko wapas dene hain.`)];
 }
 
+/** Shop-wide answer: today's sales and the total udhaar outstanding. */
+export function summaryReply(todayBills: number, todaySales: number, totalUdhaar: number, variant = 0): string[] {
+  const first =
+    todayBills === 0
+      ? pick([`Aaj abhi koi bill nahi bana.`, `Aaj ki bikri abhi shuru nahi hui.`], variant)
+      : pick([`Aaj ${todayBills} bill bane, ${rupees(todaySales)} ki bikri hui.`, `Aaj ki bikri ${rupees(todaySales)}, ${todayBills} bill.`], variant);
+  const second =
+    totalUdhaar > 0
+      ? pick([`Kul ${rupees(totalUdhaar)} udhaar baaki hai.`, `Udhaar mein ${rupees(totalUdhaar)} baaki hain.`], variant)
+      : `Koi udhaar baaki nahi hai.`;
+  return [clip(first), clip(second)];
+}
+
+/** Asks before marking a product as out of stock. */
+export function stockOutAsk(productName: string | null | undefined, variant = 0): string[] {
+  const item = name(productName);
+  return [clip(item ? pick([`${item} khatam, likh dun?`, `${item} khatam ho gaya, theek hai?`], variant) : `Kya khatam hua?`)];
+}
+
 export function saved(variant = 0): string[] {
   return [pick([`Ho gaya, save kar diya.`, `Save ho gaya.`, `Theek hai, likh liya.`], variant)];
 }

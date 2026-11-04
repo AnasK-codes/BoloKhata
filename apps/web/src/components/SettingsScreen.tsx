@@ -5,6 +5,7 @@ import { useSettings } from '@/lib/settings';
 import { useApp } from './AppProvider';
 import { useAccount } from './AccountGate';
 import { BusinessProfileForm } from './BusinessProfileForm';
+import { backupJson, billsCsv, downloadText, ledgerCsv } from '@/lib/exportData';
 
 function Toggle({ label, hint, checked, onChange }: { label: string; hint: string; checked: boolean; onChange(v: boolean): void }) {
   return (
@@ -13,7 +14,7 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
         <span className="block text-lg font-semibold">{label}</span>
         <span className="block text-sm text-muted">{hint}</span>
       </span>
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-7 w-7 shrink-0 accent-amber-400" />
+      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-7 w-7 shrink-0 accent-lime-600" />
     </label>
   );
 }
@@ -26,7 +27,7 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
 );
 
 export function SettingsScreen() {
-  const { db, toast } = useApp();
+  const { db, repo, toast } = useApp();
   const { user, profile, saveProfile, logout } = useAccount();
   const [editingProfile, setEditingProfile] = useState(false);
   const hud = useSettings((s) => s.hud);
@@ -35,6 +36,22 @@ export function SettingsScreen() {
   const set = useSettings((s) => s.set);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const exportFile = async (kind: 'backup' | 'bills' | 'ledger') => {
+    if (!repo) return;
+    setBusy(true);
+    try {
+      const data = await repo.exportAll();
+      const stamp = new Date().toISOString().slice(0, 10);
+      if (kind === 'backup') downloadText(`bol-bill-backup-${stamp}.json`, backupJson(data, Date.now()), 'application/json');
+      else if (kind === 'bills') downloadText(`bol-bill-bills-${stamp}.csv`, billsCsv(data), 'text/csv');
+      else downloadText(`bol-bill-khata-${stamp}.csv`, ledgerCsv(data), 'text/csv');
+      toast('File download ho gayi', 'ok');
+    } catch {
+      toast('Export nahi hua. Dobara try karo.', 'error');
+    }
+    setBusy(false);
+  };
 
   const reset = async () => {
     if (!db) return;
@@ -74,6 +91,19 @@ export function SettingsScreen() {
         <Toggle label="Echo cancellation" hint="Speaker ki awaaz mic mein wapas aane se rokta hai." checked={mic.echoCancellation} onChange={(v) => set({ mic: { ...mic, echoCancellation: v } })} />
         <Toggle label="Noise suppression" hint="Shor kam karta hai. Kabhi awaaz bhi dabata hai: phone par test karo." checked={mic.noiseSuppression} onChange={(v) => set({ mic: { ...mic, noiseSuppression: v } })} />
         <Toggle label="Auto gain" hint="Awaaz apne aap tez/dheemi karta hai." checked={mic.autoGainControl} onChange={(v) => set({ mic: { ...mic, autoGainControl: v } })} />
+      </Section>
+
+      <Section title="Backup / export">
+        <button type="button" disabled={busy || !repo} className="action-row" onClick={() => void exportFile('backup')}>
+          <span><strong>Poora backup</strong><small>Sab data ek JSON file mein</small></span>
+        </button>
+        <button type="button" disabled={busy || !repo} className="action-row" onClick={() => void exportFile('bills')}>
+          <span><strong>Bills</strong><small>CSV, Excel mein khulta hai</small></span>
+        </button>
+        <button type="button" disabled={busy || !repo} className="action-row" onClick={() => void exportFile('ledger')}>
+          <span><strong>Khata</strong><small>Udhaar aur payments, CSV</small></span>
+        </button>
+        <p className="px-4 py-3 text-sm text-muted">Data sirf is phone mein hai, isliye kabhi kabhi backup rakho. Backup se wapas laane ka button abhi nahi hai.</p>
       </Section>
 
       <Section title="Demo data">

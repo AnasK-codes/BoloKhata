@@ -1,5 +1,5 @@
 /** Protocol version carried in `hello` and `ready`. Bump on any breaking change. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** Client microphone frames: 512 samples of 16-bit little-endian mono PCM at 16 kHz. */
 export const AUDIO_SAMPLE_RATE = 16_000;

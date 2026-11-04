@@ -3,6 +3,7 @@ import {
   buildBill,
   type BuildBillResult,
   type CatalogIndex,
+  type MatchResult,
   type ParsedUtterance,
   type UnresolvedItem,
 } from '@bolbill/shared';
@@ -19,14 +20,16 @@ export interface ResolvedCustomer {
 
 export interface Resolution {
   customer: ResolvedCustomer | null;
-  /** Priced from the catalog by shared code. Only for create_bill. */
+  /** Priced from catalog rates or rules-extracted quotes by shared code. Only for create_bill. */
   bill: BuildBillResult | null;
+  /** For out_of_stock: which product the speaker named. */
+  stockMatch?: MatchResult | null;
 }
 
 /**
  * Turns a parsed utterance (from rules OR from the LLM) into catalog facts: which customer, which
  * products, what they cost. This is the only place prices appear, and it is plain code: whatever a
- * model said, the numbers come from the catalog snapshot.
+ * model said, prices come from the catalog snapshot or a literal rules-extracted quote.
  */
 export function resolveUtterance(parsed: ParsedUtterance, index: CatalogIndex): Resolution {
   const customer = resolveCustomer(parsed.customer, index);
@@ -38,9 +41,11 @@ export function resolveUtterance(parsed: ParsedUtterance, index: CatalogIndex): 
           ...(customer?.id ? { customerId: customer.id } : {}),
           amountPaid: parsed.amount_paid,
           udhaarAmount: parsed.udhaar_amount,
+          ...(parsed.adjust ? { adjust: parsed.adjust } : {}),
         })
       : null;
-  return { customer, bill };
+  const stockName = parsed.intent === 'out_of_stock' ? parsed.items[0]?.name : undefined;
+  return { customer, bill, ...(stockName ? { stockMatch: index.matchProduct(stockName) } : {}) };
 }
 
 function resolveCustomer(spoken: string | null, index: CatalogIndex): ResolvedCustomer | null {

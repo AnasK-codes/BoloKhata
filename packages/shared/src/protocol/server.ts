@@ -11,6 +11,7 @@ import {
   unitSchema,
 } from './common';
 import { TIMING_SPANS } from './timing';
+import { billAdjustSchema } from '../domain/adjustments';
 
 /** Gateway → browser JSON messages. TTS audio is binary (see binary.ts). */
 
@@ -41,14 +42,24 @@ export const transcriptSchema = z.object({
   sttMs: z.number().min(0).optional(),
 });
 
+export const spokenPriceSchema = z.object({
+  amount: rupeesSchema.max(1_000_000_000),
+  basis: z.enum(['line', 'unit']),
+  quantity: z.number().positive().max(1_000_000),
+  unit: unitSchema,
+});
+export type SpokenPrice = z.infer<typeof spokenPriceSchema>;
+
 export const billItemSchema = z.object({
   productId: idSchema,
   name: nameSchema,
   quantity: z.number().positive(),
   unit: unitSchema,
-  unitPrice: rupeesSchema,
+  /** Null when an exact whole-rupee rate cannot be derived from a spoken line total. */
+  unitPrice: rupeesSchema.nullable(),
   lineTotal: rupeesSchema,
-});
+  spokenPrice: spokenPriceSchema.optional(),
+}).refine((item) => item.unitPrice !== null || item.spokenPrice !== undefined, 'A line without an exact unit rate requires its spoken-price quote.');
 export type BillItem = z.infer<typeof billItemSchema>;
 
 export const draftBillSchema = z.object({
@@ -56,6 +67,8 @@ export const draftBillSchema = z.object({
   total: rupeesSchema,
   paid: rupeesSchema,
   udhaar: rupeesSchema,
+  /** Discount, GST and round-off behind `total` (the payable amount). Absent when none applies. */
+  adjust: billAdjustSchema.optional(),
 });
 
 export const draftCustomerSchema = z.object({
@@ -68,6 +81,9 @@ export const draftCustomerSchema = z.object({
 
 export const draftPaymentSchema = z.object({ amount: rupeesSchema.min(1) });
 export const draftBalanceSchema = z.object({ balance: signedRupeesSchema });
+export const draftSummarySchema = z.object({ todaySales: rupeesSchema, todayBills: z.number().int().min(0), totalUdhaar: rupeesSchema });
+/** "Aata khatam ho gaya": the product to mark as out of stock once the user confirms. */
+export const draftStockSchema = z.object({ productId: idSchema, name: nameSchema });
 
 export const candidateSchema = z.object({
   id: idSchema,
@@ -97,6 +113,8 @@ export const draftSchema = z.object({
   bill: draftBillSchema.optional(),
   payment: draftPaymentSchema.optional(),
   balance: draftBalanceSchema.optional(),
+  summary: draftSummarySchema.optional(),
+  stock: draftStockSchema.optional(),
   unresolved: z.array(unresolvedSchema).max(LIMITS.maxUnresolved),
   warnings: z.array(safeText(LIMITS.maxWarningLength)).max(LIMITS.maxWarnings),
   /** At most two short sentences so TTS can start on the first. */

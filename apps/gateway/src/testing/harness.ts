@@ -8,7 +8,7 @@ export const TEST_ORIGIN = 'http://localhost:3000';
 
 export const HELLO = {
   type: 'hello',
-  v: 1,
+  v: 2,
   clientTime: 0,
   lang: 'hi-IN',
   catalog: {

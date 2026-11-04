@@ -230,6 +230,7 @@ export class Session {
       version: message.catalog.version,
       products: message.catalog.products,
       customers: message.catalog.customers,
+      ...(message.catalog.shop ? { shop: message.catalog.shop } : {}),
     };
     this.onCatalogReady();
     const ready: ServerMessage = {
@@ -284,6 +285,7 @@ export class Session {
       version: message.catalog.version,
       products: message.catalog.products ?? current.products,
       customers: message.catalog.customers ?? current.customers,
+      ...((message.catalog.shop ?? current.shop) ? { shop: message.catalog.shop ?? current.shop } : {}),
     };
     this.engine?.setCatalog(this.catalog);
     this.stt?.setKeyterms(extractKeyterms(this.catalog.products, this.catalog.customers));
