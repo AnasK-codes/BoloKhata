@@ -389,6 +389,8 @@ pnpm dev                        # runs web (3000) and gateway (8080) together
 
 `pnpm dev` and `pnpm build` in `apps/web` first compile the audio worklets (`src/lib/audio/worklets/*.worklet.ts`) into `public/worklets/` with esbuild; `pnpm --filter @bolbill/web worklets` does it by hand. Dev-only pages `/dev/audio` (audio layer) and `/dev/turn` (a whole turn against the gateway; its test-tone microphone is labelled as synthetic) are not served in production builds.
 
+**PWA:** `public/manifest.webmanifest`, `public/sw.js` (versioned cache; never touches the gateway: no POST, no WebSocket, no `/session`, no cross-origin) and `public/offline.html`. It registers in production builds only. The placeholder icons in `public/icons/` come from `node apps/web/scripts/make-icons.mjs`; to use your own artwork, replace `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (keep the subject inside the centre 80%) and `apple-touch-icon.png` (180 px) with the same names. Bump `VERSION` in `sw.js` when the shell changes in a way network-first fetching would not pick up. Local data (products, customers, bills, ledger) lives in IndexedDB through Dexie (`apps/web/src/lib/db`); the dev query `?tone=1` (development builds only) swaps the microphone for a labelled synthetic tone.
+
 Microphone access needs HTTPS except on `localhost`. To test on a phone, deploy a preview or use a TLS tunnel, and use `wss://` for the gateway.
 
 | Script | Purpose |

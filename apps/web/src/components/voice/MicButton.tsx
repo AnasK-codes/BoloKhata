@@ -4,7 +4,6 @@ import { useEffect, useRef, type HTMLAttributes } from 'react';
 
 interface Props {
   listening: boolean;
-  latched: boolean;
   busy: boolean;
   disabled: boolean;
   label: string;
@@ -18,7 +17,7 @@ interface Props {
  * transform updated from requestAnimationFrame, nothing that triggers layout. With reduced
  * motion the ring stays still and only the red recording state shows.
  */
-export function MicButton({ listening, latched, busy, disabled, label, level, buttonProps }: Props) {
+export function MicButton({ listening, busy, disabled, label, level, buttonProps }: Props) {
   const ring = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,7 +41,7 @@ export function MicButton({ listening, latched, busy, disabled, label, level, bu
   }, [listening, level]);
 
   return (
-    <div className="relative flex h-44 w-44 items-center justify-center">
+    <div className="relative flex h-36 w-36 items-center justify-center">
       <div
         ref={ring}
         aria-hidden="true"
@@ -63,9 +62,9 @@ export function MicButton({ listening, latched, busy, disabled, label, level, bu
         </svg>
       </button>
       {listening && (
-        <span className="absolute -bottom-1 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-sm font-bold text-white">
+        <span className="absolute -bottom-1 flex items-center whitespace-nowrap gap-1.5 rounded-full bg-red-600 px-3 py-1 text-sm font-bold text-white">
           <span className="rec-dot h-2.5 w-2.5 rounded-full bg-white" aria-hidden="true" />
-          {latched ? 'REC · tap to stop' : 'REC'}
+          REC
         </span>
       )}
     </div>

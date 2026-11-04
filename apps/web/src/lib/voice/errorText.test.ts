@@ -28,6 +28,6 @@ describe('copy', () => {
     expect(statusText({ ...base, phase: 'listening', heard: true })).toBe('Sun raha hoon…');
     expect(statusText({ ...base, phase: 'transcribing' })).toBe('Samajh raha hoon…');
     expect(statusText({ ...base, phase: 'speaking' })).toBe('Bol raha hoon…');
-    expect(statusText({ ...base, phase: 'idle', micLive: false })).toBe('Mic chalu karo');
+    expect(statusText({ ...base, phase: 'idle', micLive: false })).toBe('Pehle mic chalu karo');
   });
 });

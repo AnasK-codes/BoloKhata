@@ -138,7 +138,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
 
   const showCard = (d: DraftMessage) => {
     if (d.intent === 'query_balance') return <BalanceCard draft={d} repo={repo} />;
-    if (d.intent === 'record_payment') return <PaymentCard draft={d} repo={repo} />;
+    if (d.intent === 'record_payment') return <PaymentCard draft={d} repo={repo} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} onChange={change} />;
     return null;
   };
@@ -207,31 +207,32 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
         )}
       </section>
 
+      <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-10 -mx-4 flex flex-col gap-2 bg-gradient-to-t from-[#0f1115] via-[#0f1115] to-transparent px-4 pb-2 pt-6">
       {confirmable && pending && (pending.intent === 'create_bill' || pending.intent === 'record_payment') && (
-        <div className="flex gap-2">
-          <button type="button" className="min-h-16 flex-1 rounded-2xl bg-emerald-500 text-xl font-extrabold text-stone-950 active:bg-emerald-400" onClick={() => controller.confirm()}>✓ Confirm</button>
-          <button type="button" className="min-h-16 rounded-2xl bg-stone-700 px-6 text-xl font-bold active:bg-stone-600" onClick={() => controller.discard()}>Cancel</button>
-        </div>
-      )}
-
-      <div className="flex flex-col items-center gap-1">
-        <p className="text-lg font-semibold" role="status">{status}</p>
-        {micLive ? (
-          <MicButton
-            listening={listening}
-            latched={mode === 'latched'}
-            busy={busy}
-            disabled={!canTalk}
-            label="Microphone: dabake bolo, ya tap karke shuru karo"
-            level={session.level}
-            buttonProps={buttonProps}
-          />
-        ) : (
-          <button type="button" disabled={audioStarting} onClick={() => void enable()} className="min-h-16 rounded-2xl bg-amber-400 px-8 text-xl font-extrabold text-stone-950 disabled:opacity-60">
-            {audioStarting ? 'Mic khul raha hai…' : '🎤 Mic chalu karo'}
-          </button>
+          <div className="flex gap-2">
+            <button type="button" className="min-h-16 flex-1 rounded-2xl bg-emerald-500 text-xl font-extrabold text-stone-950 active:bg-emerald-400" onClick={() => controller.confirm()}>✓ Confirm</button>
+            <button type="button" className="min-h-16 rounded-2xl bg-stone-700 px-6 text-xl font-bold active:bg-stone-600" onClick={() => controller.discard()}>Cancel</button>
+          </div>
         )}
-        <p className="text-sm text-stone-400">Dabake bolo, chhodo to bhej dega · ya ek tap se shuru, doosre tap se band</p>
+
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-lg font-semibold" role="status">{status}</p>
+          {micLive ? (
+            <MicButton
+              listening={listening}
+              busy={busy}
+              disabled={!canTalk}
+              label="Microphone: dabake bolo, ya tap karke shuru karo"
+              level={session.level}
+              buttonProps={buttonProps}
+            />
+          ) : (
+            <button type="button" disabled={audioStarting} onClick={() => void enable()} className="min-h-16 rounded-2xl bg-amber-400 px-8 text-xl font-extrabold text-stone-950 disabled:opacity-60">
+              {audioStarting ? 'Mic khul raha hai…' : '🎤 Mic chalu karo'}
+            </button>
+          )}
+          {!draft && <p className="text-center text-sm text-stone-400">Dabake bolo, chhodo to bhej dega · ya ek tap se shuru, doosre tap se band</p>}
+        </div>
       </div>
 
       {hud && <LatencyHud turns={turns} connection={connection} />}

@@ -31,16 +31,21 @@ export function BalanceCard({ draft, repo }: { draft: DraftMessage; repo: Repo |
   );
 }
 
-export function PaymentCard({ draft, repo }: { draft: DraftMessage; repo: Repo | null }) {
+/** `saved` is true once the payment is in the ledger: the balance then already includes it. */
+export function PaymentCard({ draft, repo, saved }: { draft: DraftMessage; repo: Repo | null; saved: boolean }) {
   const id = draft.customer?.id;
   const rows = useLive(repo && id ? () => repo.getCustomerStatement(id) : null, [repo, id]);
   const amount = draft.payment?.amount ?? 0;
   const current = rows.data?.at(-1)?.balance;
   return (
     <article className="pop rounded-2xl bg-[#1d2128] p-4" aria-label="Payment">
-      <p className="text-stone-300">Payment mila · {draft.customer?.name ?? 'grahak?'}</p>
+      <p className="text-stone-300">{saved ? '✓ Likh liya' : 'Payment mila'} · {draft.customer?.name ?? 'grahak?'}</p>
       <p className="num text-5xl font-extrabold text-emerald-300">{rupees(amount)}</p>
-      {current !== undefined && <p className="num text-stone-300">Baaki udhaar: {rupees(current)} → <strong className="text-white">{rupees(current - amount)}</strong></p>}
+      {current !== undefined && (saved ? (
+        <p className="num text-stone-300">Ab baaki udhaar: <strong className="text-white">{rupees(current)}</strong></p>
+      ) : (
+        <p className="num text-stone-300">Baaki udhaar: {rupees(current)} → <strong className="text-white">{rupees(current - amount)}</strong></p>
+      ))}
       {draft.warnings.map((w) => <p key={w} className="mt-2 text-sm text-amber-200">⚠ {w}</p>)}
     </article>
   );
