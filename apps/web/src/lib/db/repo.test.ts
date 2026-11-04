@@ -84,6 +84,40 @@ describe('products and customers', () => {
   });
 });
 
+describe('customers: add, edit, delete', () => {
+  it('adds a custom customer with a Devanagari alias, who can then be found by either name', async () => {
+    await seedIfFirstRun(db);
+    const result = await repo.saveCustomer({ name: 'Mohan Lal', aliases: ['मोहन'] });
+    expect(result.ok).toBe(true);
+    expect((await repo.findCustomerByName('मोहन'))?.name).toBe('Mohan Lal');
+    expect((await repo.findCustomerByName('mohan lal'))?.id).toBe(result.ok ? result.customer.id : '');
+  });
+
+  it('edits a customer in place, keeping id and history', async () => {
+    await seedIfFirstRun(db);
+    const edited = await repo.saveCustomer({ id: 'c_ramesh_sharma', name: 'Ramesh Sharma', aliases: ['Sharma ji', 'शर्मा जी', 'Rameshji'] });
+    expect(edited.ok && edited.customer.id).toBe('c_ramesh_sharma');
+    expect((await repo.getBalances()).get('c_ramesh_sharma')).toBe(120);
+  });
+
+  it('refuses a name or alias that already belongs to someone else', async () => {
+    await seedIfFirstRun(db);
+    expect((await repo.saveCustomer({ name: 'Sharma ji', aliases: [] })).ok).toBe(false); // an alias of Ramesh Sharma
+    expect((await repo.saveCustomer({ name: 'Naya', aliases: ['Verma ji'] })).ok).toBe(false);
+    expect((await repo.saveCustomer({ id: 'nobody', name: 'X', aliases: [] })).ok).toBe(false);
+    expect(await db.customers.count()).toBe(8);
+  });
+
+  it('deletes only a customer with no history', async () => {
+    await seedIfFirstRun(db);
+    const added = await repo.saveCustomer({ name: 'Mohan Lal', aliases: [] });
+    if (!added.ok) throw new Error('setup');
+    expect((await repo.deleteCustomer(added.customer.id)).ok).toBe(true);
+    expect((await repo.deleteCustomer('c_ramesh_sharma')).ok).toBe(false); // has opening udhaar
+    expect(await db.customers.get('c_ramesh_sharma')).toBeDefined();
+  });
+});
+
 describe('saveBillWithLedger', () => {
   it('stores the bill and its udhaar entry together', async () => {
     await seedIfFirstRun(db);

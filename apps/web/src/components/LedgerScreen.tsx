@@ -5,6 +5,7 @@ import { formatDate, rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
 import { useOnline } from '@/lib/useOnline';
 import { useApp } from './AppProvider';
+import { CustomerForm } from './CustomerForm';
 import { OfflineBadge, StateView } from './StateView';
 
 export function LedgerScreen() {
@@ -14,6 +15,7 @@ export function LedgerScreen() {
   const [selected, setSelected] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState<{ id?: string; name: string; aliases: string } | null>(null);
 
   const list = useLive(repo ? () => repo.listCustomersWithBalance() : null, [repo]);
   const rows = useLive(repo && selected ? () => repo.getCustomerStatement(selected) : null, [repo, selected]);
@@ -29,6 +31,21 @@ export function LedgerScreen() {
   if (dataError) return <main className="mx-auto max-w-md px-4 py-6"><StateView kind="error" title="Data nahi khul paya" hint={dataError} /></main>;
 
   const current = (list.data ?? []).find((x) => x.customer.id === selected);
+
+  if (form && repo) {
+    return (
+      <CustomerForm
+        repo={repo}
+        {...(form.id ? { customerId: form.id } : {})}
+        initial={{ name: form.name, aliases: form.aliases }}
+        onToast={toast}
+        onDone={(saved) => {
+          setForm(null);
+          if (saved && form.id && !(list.data ?? []).some((x) => x.customer.id === form.id)) setSelected(null);
+        }}
+      />
+    );
+  }
 
   const pay = async () => {
     if (!repo || !selected) return;
@@ -53,7 +70,10 @@ export function LedgerScreen() {
       <main className="mx-auto max-w-md space-y-4 px-4 py-5">
         <button type="button" onClick={() => setSelected(null)} className="min-h-12 rounded-xl bg-raised px-4 font-semibold">← Wapas (back)</button>
         <header>
-          <h1 className="text-2xl font-extrabold">{current.customer.name}</h1>
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="text-2xl font-extrabold">{current.customer.name}</h1>
+            <button type="button" className="min-h-12 shrink-0 rounded-xl bg-raised px-4 font-semibold" onClick={() => setForm({ id: current.customer.id, name: current.customer.name, aliases: current.customer.aliases.join(', ') })}>Badlo</button>
+          </div>
           <p className={`num text-5xl font-extrabold ${current.balance > 0 ? 'text-warn' : 'text-good'}`}>{rupees(Math.abs(current.balance))}</p>
           <p className="text-dim">{current.balance > 0 ? 'udhaar baaki' : current.balance < 0 ? 'advance (zyada diya)' : 'koi udhaar nahi'}</p>
         </header>
@@ -93,7 +113,10 @@ export function LedgerScreen() {
     <main className="mx-auto max-w-md space-y-4 px-4 py-5">
       <OfflineBadge online={online} />
       <header>
-        <h1 className="text-2xl font-extrabold">Khata</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-extrabold">Khata</h1>
+          <button type="button" className="min-h-12 rounded-xl bg-amber-400 px-5 font-bold text-stone-950" onClick={() => setForm({ name: '', aliases: '' })}>+ Naya grahak</button>
+        </div>
         <p className="text-dim">Kul baaki udhaar (total outstanding)</p>
         <p className="num text-5xl font-extrabold text-warn">{list.loading ? '…' : rupees(outstanding)}</p>
       </header>

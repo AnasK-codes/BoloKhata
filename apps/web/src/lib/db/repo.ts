@@ -78,6 +78,35 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
     // ---- customers ------------------------------------------------------------------------
     listCustomers: () => db.customers.orderBy('name').toArray(),
     findCustomerByName,
+    /**
+     * Adds or edits a customer. The name and aliases must not already belong to ANOTHER customer,
+     * or a spoken name could match two people (the voice flow would then ask which one).
+     */
+    async saveCustomer(input: { id?: string; name: string; aliases: string[] }): Promise<{ ok: true; customer: Customer } | { ok: false; error: string }> {
+      return db.transaction('rw', db.customers, async () => {
+        const mine = input.id ? await db.customers.get(input.id) : undefined;
+        if (input.id && !mine) return { ok: false, error: 'Customer not found.' } as const;
+        const wanted = [input.name, ...input.aliases].map((n) => normalize(n));
+        for (const other of await db.customers.toArray()) {
+          if (other.id === input.id) continue;
+          if (customerKeys(other).some((k) => wanted.includes(k))) {
+            return { ok: false, error: `"${other.name}" ke saath naam takra raha hai (already used).` } as const;
+          }
+        }
+        const customer: Customer = { id: mine?.id ?? newId(), name: input.name.trim(), aliases: input.aliases, createdAt: mine?.createdAt ?? clock() };
+        await db.customers.put(customer);
+        return { ok: true, customer } as const;
+      });
+    },
+    /** Only a customer with no ledger history can be deleted; otherwise their debts would lose their owner. */
+    async deleteCustomer(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+      return db.transaction('rw', [db.customers, db.ledgerEntries, db.bills], async () => {
+        const used = (await db.ledgerEntries.where('customerId').equals(id).count()) + (await db.bills.where('customerId').equals(id).count());
+        if (used > 0) return { ok: false, error: 'Is grahak ka hisab hai, isliye hata nahi sakte. (Has history; cannot delete.)' } as const;
+        await db.customers.delete(id);
+        return { ok: true } as const;
+      });
+    },
     findOrCreateCustomer(name: string): Promise<Customer> {
       return db.transaction('rw', db.customers, () => findOrCreateInTx(name));
     },
