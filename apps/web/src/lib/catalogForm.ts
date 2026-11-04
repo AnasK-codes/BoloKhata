@@ -51,3 +51,24 @@ export function validateProductForm(input: ProductFormInput): ProductFormResult 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, value: { name, pricePerUnit: price, unit: input.unit as Unit, aliases } };
 }
+
+export interface CustomerFormInput {
+  name: string;
+  /** Comma-separated: other ways the name is said, for example "Sharma uncle, शर्मा जी". */
+  aliases: string;
+}
+
+export type CustomerFormResult =
+  | { ok: true; value: { name: string; aliases: string[] } }
+  | { ok: false; errors: Partial<Record<keyof CustomerFormInput, string>> };
+
+export function validateCustomerForm(input: CustomerFormInput): CustomerFormResult {
+  const errors: Partial<Record<keyof CustomerFormInput, string>> = {};
+  const name = input.name.trim();
+  if (name === '') errors.name = 'Naam likho (name is required).';
+  else if (name.length > LIMITS.maxNameLength) errors.name = `Naam ${LIMITS.maxNameLength} akshar se chhota rakho.`;
+  const aliases = parseAliases(input.aliases);
+  if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = `Zyada se zyada ${LIMITS.maxAliasesPerEntry} doosre naam.`;
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, value: { name, aliases } };
+}
