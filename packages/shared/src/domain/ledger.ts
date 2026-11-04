@@ -14,6 +14,14 @@ export function getBalance(customerId: string, entries: readonly LedgerEntry[]):
   return balance;
 }
 
+/**
+ * Udhaar is a debt owed BY someone: a bill with udhaar and no customer would be stored with no
+ * ledger entry, so the debt would silently vanish. Callers must not offer to save such a bill.
+ */
+export function udhaarNeedsCustomer(udhaar: number, hasCustomer: boolean): boolean {
+  return udhaar > 0 && !hasCustomer;
+}
+
 /** Entries to append when a bill is saved: one udhaar entry if any part is on credit. */
 export function applyBill(bill: Bill, entryId: string): LedgerEntry[] {
   if (!bill.customerId || bill.udhaar <= 0) return [];

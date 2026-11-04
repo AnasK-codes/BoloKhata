@@ -8,6 +8,7 @@ import {
   customerNotFound,
   itemNotFound,
   nothingPending,
+  customerNeeded,
   notUnderstood,
   paymentRecorded,
   saved,
@@ -33,6 +34,7 @@ const allReplies = (): string[][] =>
     customerAmbiguous(['Ramesh Sharma', 'Ramesh Gupta'], v),
     customerAmbiguous([], v),
     nothingPending(v),
+    customerNeeded(v),
   ]);
 
 describe('limits that apply to every reply', () => {

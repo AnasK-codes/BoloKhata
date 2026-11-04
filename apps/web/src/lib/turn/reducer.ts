@@ -1,4 +1,4 @@
-import { MAX_TURN_ID, saved, type DraftMessage, type ServerMessage, type TimingSpan } from '@bolbill/shared';
+import { MAX_TURN_ID, saved, udhaarNeedsCustomer, type DraftMessage, type ServerMessage, type TimingSpan } from '@bolbill/shared';
 import type { Degradation, Effect, TurnError, TurnEvent, TurnRecord, TurnState, TurnTransition } from './types';
 
 export const HISTORY_LIMIT = 20;
@@ -43,7 +43,11 @@ function settled(state: TurnState): TurnState['phase'] {
 
 /** A bill needs items that all resolved; a payment needs a known customer. */
 export function isConfirmable(draft: DraftMessage): boolean {
-  if (draft.intent === 'create_bill') return (draft.bill?.items.length ?? 0) > 0 && draft.unresolved.length === 0;
+  if (draft.intent === 'create_bill') {
+    const bill = draft.bill;
+    if (!bill || bill.items.length === 0 || draft.unresolved.length > 0) return false;
+    return !udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined);
+  }
   if (draft.intent === 'record_payment') return draft.customer?.id !== undefined && draft.payment !== undefined;
   return false;
 }

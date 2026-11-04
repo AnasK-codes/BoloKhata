@@ -51,6 +51,31 @@ const bill = (extra: Partial<ParsedUtterance> = {}) =>
     ...extra,
   });
 
+describe('udhaar without a customer', () => {
+  const noCustomer = (extra: Partial<ParsedUtterance> = {}) =>
+    bill({ customer: null, udhaar_amount: 40, ...extra });
+
+  it('is not offered for confirmation, asks whose udhaar it is, and carries a warning', () => {
+    const r = noCustomer();
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+    expect(r.draft.replyText.join(' ')).toMatch(/kiska|kiske|naam/i);
+    expect(r.draft.warnings.join(' ')).toMatch(/grahak/i);
+    expect(r.draft.bill?.udhaar).toBe(40);
+  });
+
+  it('is fine when fully paid with nobody named (a cash sale)', () => {
+    const r = bill({ customer: null });
+    expect(r.draft.bill?.udhaar).toBe(0);
+    expect(r.pendingChange.action).toBe('set');
+  });
+
+  it('is fine for a brand-new customer who is named', () => {
+    const r = bill({ customer: 'Naya Grahak', udhaar_amount: 40 });
+    expect(r.draft.customer?.isNew).toBe(true);
+    expect(r.pendingChange.action).toBe('set');
+  });
+});
+
 describe('create_bill', () => {
   it('prices from the catalog, reads the bill back and becomes confirmable', () => {
     const r = bill();

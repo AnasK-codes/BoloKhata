@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { CatalogProduct, DraftMessage } from '@bolbill/shared';
+import { udhaarNeedsCustomer, type CatalogProduct, type DraftMessage } from '@bolbill/shared';
 import { formatQuantity, rupees } from '@/lib/format';
 import { removeItem, resolveCustomer, resolveItem, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
 
@@ -161,6 +161,12 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
           </div>
           <div className={`flex justify-between font-bold ${bill.udhaar > 0 ? 'text-amber-300' : 'text-emerald-300'}`}><dt>Udhaar</dt><dd>{rupees(bill.udhaar)}</dd></div>
         </dl>
+      )}
+
+      {bill && udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && (
+        <p role="status" className="mt-3 rounded-xl bg-amber-400/15 px-3 py-2 font-semibold text-amber-200">
+          Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
+        </p>
       )}
 
       {draft.warnings.length > 0 && (

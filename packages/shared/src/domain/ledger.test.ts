@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyBill, applyPayment, getBalance, statement } from './ledger';
+import { applyBill, applyPayment, getBalance, statement, udhaarNeedsCustomer } from './ledger';
 import type { Bill, LedgerEntry } from './types';
 
 const entry = (
@@ -130,5 +130,13 @@ describe('statement', () => {
     const entries = [entry('2', 'c1', 'udhaar', 1, 2), entry('1', 'c1', 'udhaar', 1, 1)];
     statement('c1', entries);
     expect(entries.map((e) => e.id)).toEqual(['2', '1']);
+  });
+});
+
+describe('udhaarNeedsCustomer', () => {
+  it('is true only for udhaar with nobody to owe it', () => {
+    expect(udhaarNeedsCustomer(100, false)).toBe(true);
+    expect(udhaarNeedsCustomer(100, true)).toBe(false);
+    expect(udhaarNeedsCustomer(0, false)).toBe(false);
   });
 });

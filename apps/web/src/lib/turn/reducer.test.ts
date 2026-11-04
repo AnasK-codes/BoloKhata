@@ -634,3 +634,19 @@ describe('press to silence', () => {
     expect(plain.state.turns[0]?.pressToSilenceMs).toBeUndefined();
   });
 });
+
+describe('udhaar without a customer', () => {
+  it('is shown but not confirmable until a customer is chosen', () => {
+    const sim = new Sim();
+    const id = sim.draft({ customer: undefined });
+    expect(sim.state.pending).toBeNull();
+    sim.send({ type: 'edit_draft', draft: draftMessage(id, { customer: { name: 'Naya Grahak', isNew: true } }) });
+    expect(sim.state.pending?.draftId).toBe(`d${id}`);
+  });
+
+  it('a fully paid bill with nobody named is still confirmable', () => {
+    const sim = new Sim();
+    sim.draft({ customer: undefined, bill: { items: draftMessage(1).bill!.items, total: 90, paid: 90, udhaar: 0 } });
+    expect(sim.state.pending).not.toBeNull();
+  });
+});
