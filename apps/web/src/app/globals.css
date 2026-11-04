@@ -2,13 +2,43 @@
 
 :root {
   --background: #0f1115;
+  --surface: #181b21;
   --foreground: #f5f5f4;
-  --accent: #f59e0b;
+  --accent: #f5a524;
 }
 
 html,
 body {
   background: var(--background);
   color: var(--foreground);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+  font-size: 17px;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Motion is transform and opacity only, so it stays on the compositor even on low-end phones. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes beat {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+.rise { animation: rise 220ms ease-out both; animation-delay: calc(var(--i, 0) * 90ms); }
+.pop { animation: pop 160ms ease-out both; }
+.rec-dot { animation: beat 1s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .pop, .rec-dot { animation: none; }
+  * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
