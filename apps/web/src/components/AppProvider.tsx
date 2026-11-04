@@ -6,6 +6,7 @@ import { createRepo, type Repo } from '@/lib/db/repo';
 import { getDb, type BolDb } from '@/lib/db/schema';
 import { seedIfFirstRun } from '@/lib/db/seed';
 import { getGatewayUrl } from '@/lib/env';
+import { ToneMic } from '@/lib/dev/toneMic';
 import { createRealtimeSession, type RealtimeSession } from '@/lib/session/createSession';
 import { hydrateSettings, settingsStore } from '@/lib/settings';
 import { attachHandsFree } from '@/lib/voice/handsFree';
@@ -42,6 +43,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     session: null,
     dataError: null,
   });
+  const [synthetic, setSynthetic] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextToast = useRef(1);
 
@@ -68,11 +70,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (disposed) return;
       const repo = createRepo(db);
       const holder: { session?: RealtimeSession } = {};
+      // Development only: `?tone=1` swaps the microphone for a labelled synthetic tone, for machines with no mic.
+      const tone = process.env.NODE_ENV !== 'production' && new URLSearchParams(location.search).get('tone') === '1';
+      setSynthetic(tone);
       const sync = new ContextSync({ db, send: (m) => holder.session?.client.send(m) ?? false });
       const session = createRealtimeSession({
         gatewayUrl: getGatewayUrl(),
         getCatalog: () => sync.snapshotForHello(),
         micSettings: settingsStore.getState().mic,
+        ...(tone ? { createMic: (onFrame: (frame: ArrayBuffer) => void) => new ToneMic(onFrame) } : {}),
         handlers: {
           saveDraft: (draft) => {
             void saveDraft(repo, draft).then((outcome) => {
@@ -110,6 +116,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppContext>(() => ({ ...parts, toast }), [parts, toast]);
   return (
     <Ctx.Provider value={value}>
+      {synthetic && (
+        <p className="fixed inset-x-0 top-0 z-50 bg-amber-400 px-3 py-1 text-center text-sm font-bold text-stone-950">
+          SYNTHETIC TEST TONE (dev only): not a real voice
+        </p>
+      )}
       {children}
       <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4" aria-live="polite">
         {toasts.map((t) => (
