@@ -106,6 +106,7 @@ beforeEach(() => {
   routes = new Map<string, () => Response>([
     ['/', () => html('/_next/static/chunks/a.js', '/_next/static/chunks/a.css')],
     ['/ledger', () => html('/_next/static/chunks/b.js')],
+    ['/bills', () => html('/_next/static/chunks/bills.js')],
     ['/catalog', () => html('/_next/static/chunks/c.js')],
     ['/settings', () => html('/_next/static/chunks/a.js')],
     ['/offline.html', () => new Response('offline page')],
@@ -130,7 +131,7 @@ describe('install', () => {
   it('saves the pages, the worklets, the icons and the hashed files each page uses', async () => {
     await install();
     const cached = allCachedPaths();
-    for (const path of ['/', '/ledger', '/catalog', '/settings', '/offline.html', '/worklets/capture.js', '/worklets/playback.js', '/manifest.webmanifest', '/_next/static/chunks/a.js', '/_next/static/chunks/b.js', '/_next/static/chunks/a.css']) {
+    for (const path of ['/', '/ledger', '/bills', '/catalog', '/settings', '/offline.html', '/worklets/capture.js', '/worklets/playback.js', '/manifest.webmanifest', '/_next/static/chunks/a.js', '/_next/static/chunks/b.js', '/_next/static/chunks/a.css']) {
       expect(cached).toContain(path);
     }
   });
@@ -223,6 +224,6 @@ describe('updates', () => {
     let waited: Promise<unknown> = Promise.resolve();
     handlers['activate']!({ waitUntil: (p: Promise<unknown>) => (waited = p) });
     await waited;
-    expect([...store.keys()].sort()).toEqual(['bolbill-assets-v1', 'bolbill-shell-v1', 'unrelated-cache']);
+    expect([...store.keys()].sort()).toEqual(['bolbill-assets-v2', 'bolbill-shell-v2', 'unrelated-cache']);
   });
 });

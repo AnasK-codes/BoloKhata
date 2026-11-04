@@ -593,6 +593,21 @@ describe('a new bill while one is pending', () => {
 });
 
 describe('editing the draft', () => {
+  it('clears the old pending bill when voice correction removes the final item', () => {
+    const sim = new Sim();
+    const first = sim.draft();
+    const second = sim.speak();
+    sim.server(draftMessage(second, { draftId: `d${first}`, bill: { items: [], total: 0, paid: 0, udhaar: 0 } }));
+    expect(sim.state.pending).toBeNull();
+    expect(sim.send({ type: 'confirm' })).toEqual([]);
+  });
+  it('keeps credit unconfirmable until mandatory customer details are complete', () => {
+    const sim = new Sim();
+    const id = sim.draft({ customer: { id: 'c1', name: 'Synthetic Customer', isNew: false, creditReady: false } });
+    expect(sim.state.pending).toBeNull();
+    sim.send({ type: 'edit_draft', draft: draftMessage(id, { customer: { id: 'c1', name: 'Synthetic Customer', isNew: false, creditReady: true } }) });
+    expect(sim.state.pending?.draftId).toBe(`d${id}`);
+  });
   it('makes an incomplete bill confirmable once it is complete, and keeps it out until then', () => {
     const sim = new Sim();
     const id = sim.draft({ unresolved: [{ kind: 'item', spoken: 'xyz', candidates: [] }] });

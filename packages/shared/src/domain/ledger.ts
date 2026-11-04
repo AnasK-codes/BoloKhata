@@ -22,6 +22,24 @@ export function udhaarNeedsCustomer(udhaar: number, hasCustomer: boolean): boole
   return udhaar > 0 && !hasCustomer;
 }
 
+/** Append an opposite entry; never erase the original financial history. */
+export function reverseEntry(entry: LedgerEntry, entries: readonly LedgerEntry[], meta: PaymentMeta): PaymentResult {
+  if (!entry.id || !entry.customerId || !Number.isSafeInteger(entry.amount) || entry.amount <= 0) {
+    return { ok: false, error: 'Entry ki rakam valid nahi hai.' };
+  }
+  if (entry.reversesEntryId || entries.some((e) => e.reversesEntryId === entry.id)) {
+    return { ok: false, error: 'Yeh entry pehle hi reverse ho chuki hai.' };
+  }
+  const reversed: LedgerEntry = {
+    id: meta.id, customerId: entry.customerId,
+    type: entry.type === 'udhaar' ? 'payment' : 'udhaar',
+    amount: entry.amount, createdAt: meta.createdAt, reversesEntryId: entry.id,
+    ...(entry.billId ? { billId: entry.billId } : {}),
+    ...(meta.note ? { note: meta.note } : {}),
+  };
+  return { ok: true, entry: reversed, warnings: [], balanceAfter: getBalance(entry.customerId, [...entries, reversed]) };
+}
+
 /** Entries to append when a bill is saved: one udhaar entry if any part is on credit. */
 export function applyBill(bill: Bill, entryId: string): LedgerEntry[] {
   if (!bill.customerId || bill.udhaar <= 0) return [];

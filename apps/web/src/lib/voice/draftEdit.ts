@@ -74,8 +74,8 @@ export function resolveCustomer(draft: DraftMessage, unresolvedIndex: number, cu
   return draft.bill ? { ...next, replyText: readback(next, draft.bill.total, draft.bill.udhaar) } : next;
 }
 
-export function setCustomer(draft: DraftMessage, customer: { id?: string; name: string; isNew: boolean }): DraftMessage {
-  const next: DraftMessage = { ...draft, customer: { ...(customer.id ? { id: customer.id } : {}), name: customer.name, isNew: customer.isNew } };
+export function setCustomer(draft: DraftMessage, customer: { id?: string; name: string; isNew: boolean; creditReady?: boolean }): DraftMessage {
+  const next: DraftMessage = { ...draft, customer: { ...(customer.id ? { id: customer.id } : {}), name: customer.name, isNew: customer.isNew, ...(customer.creditReady !== undefined ? { creditReady: customer.creditReady } : {}) } };
   return draft.bill ? { ...next, replyText: readback(next, draft.bill.total, draft.bill.udhaar) } : next;
 }
 

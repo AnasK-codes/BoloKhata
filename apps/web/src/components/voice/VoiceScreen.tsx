@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { DraftMessage } from '@bolbill/shared';
+import { hasCreditDetails, type DraftMessage } from '@bolbill/shared';
 import { setAccessCode } from '@/lib/accessCode';
 import { rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
@@ -99,6 +99,11 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
 
   const products = useLive(() => repo.listProducts(), [repo]);
   const customers = useLive(() => repo.listCustomersWithBalance(), [repo]);
+  useEffect(() => {
+    if (!draft?.bill || draft.bill.udhaar <= 0 || !draft.customer || !customers.data) return;
+    const ready = hasCreditDetails(customers.data.find((c) => c.customer.id === draft.customer?.id)?.customer);
+    if (draft.customer.creditReady !== ready) controller.editDraft({ ...draft, customer: { ...draft.customer, creditReady: ready } });
+  }, [draft, customers.data, controller]);
 
   const buzz = (ms: number) => {
     try {
@@ -159,7 +164,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   const showCard = (d: DraftMessage) => {
     if (d.intent === 'query_balance') return <BalanceCard draft={d} repo={repo} />;
     if (d.intent === 'record_payment') return <PaymentCard draft={d} repo={repo} saved={pending?.draftId !== d.draftId} />;
-    if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} onChange={change} />;
+    if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} repo={repo} onChange={change} />;
     return null;
   };
 
@@ -172,6 +177,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
           {!online ? 'Offline' : connection.status === 'ready' ? 'Online' : connection.status === 'limited' ? 'Busy' : 'Jud raha hai…'}
         </span>
       </header>
+      {pending?.bill && <p className="text-sm text-muted">Badalna hai? Bolo: “Aata teen kilo karo”, “Maggi hata do”, “Ek Maggi aur jodo”.</p>}
 
       {!online && <Notice title="Internet nahi hai" hint="Bolne ke liye internet chahiye. Khata aur samaan ab bhi khul sakte hain." />}
       {online && connection.status === 'blocked' && connection.reason === 'access_code_required' ? (

@@ -9,6 +9,16 @@ pnpm loadtest --clients 20 --turns 120        # the soak (about 4 minutes)
 pnpm --filter @bolbill/web build && pnpm check:bundle   # no secrets in the browser bundle
 ```
 
+On Windows, if parallel Vitest workspaces collide in `node_modules/.vitest-cache` with `EPERM`, run `pnpm -r --workspace-concurrency=1 --if-present test`. This runs all the same suites sequentially; report the parallel-run failure separately.
+
+### Bill workflow additions
+
+Automated coverage: shared correction tests exercise Hinglish/Devanagari quantities, add/remove, units, payment preservation, negated/invalid/multi-item edits and cancel pass-through. Gateway mock tests exercise draft context, catalog repricing, unchanged draft ID, voice confirmation and clearing an obsolete context. Repository tests cover credit-detail enforcement, transactional reversals, duplicate/racing reversal rejection, preservation of later payments, cash bills and contact information excluded from gateway snapshots. Receipt and service-worker tests cover reversal labels and the offline `/bills` shell.
+
+Manual/browser checks: at 360px, open Bills, search/select a saved synthetic bill, share/copy and Print / PDF; reverse it with a reason and check the derived customer balance. In Khata, reverse a standalone payment, and verify both original and reversal remain visible. For a credit draft, complete the synthetic customer's name/mobile/address, correct one item by voice, then confirm. Confirm that invalid or missing details block saving and that cash bills do not require contact details. Physical printers and native mobile share sheets still require device checks.
+
+The integration fake speaker now mirrors `PlaybackEngine` by dropping PCM/end events for a turn invalidated by `flush()`. This corrects the former interruption-test double; the production audio path is unchanged.
+
 ## 1. Load and soak test (mock Gnani, real gateway process)
 
 `scripts/loadtest.ts` starts the mock Gnani servers and the **real gateway as a separate process** (clean environment, so nothing from your shell or `.env` can reach it; it refuses to run if the Gnani URLs are not local). It then runs N simulated browsers, each doing M turns with real-time 32 ms frame cadence, random 30 to 60 frame utterances, interrupts during the spoken reply (about 10% of turns) and abrupt disconnects followed by a new session (about 4%). The gateway reports its own CPU, memory and event-loop delay through `/metrics` (operator token), sampled every 2 s.

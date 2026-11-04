@@ -87,7 +87,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         handlers: {
           saveDraft: (draft) => {
             void saveDraft(repo, draft).then((outcome) => {
-              if (outcome.kind === 'error') toast(outcome.message, 'error');
+              if (outcome.kind === 'error') {
+                // Keep a failed save reviewable so the user can fill details and retry.
+                session.controller.editDraft(draft);
+                toast(outcome.message, 'error');
+              }
               else if (outcome.created) toast(outcome.kind === 'bill' ? 'Bill save ho gaya' : 'Payment likh liya', 'ok');
             });
           },

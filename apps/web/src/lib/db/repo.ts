@@ -5,6 +5,10 @@ import {
   getBalance,
   normalize,
   statement,
+  reverseEntry,
+  creditDetailsSchema,
+  hasCreditDetails,
+  safeText,
   type Bill,
   type BillItem,
   type Customer,
@@ -82,7 +86,7 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
      * Adds or edits a customer. The name and aliases must not already belong to ANOTHER customer,
      * or a spoken name could match two people (the voice flow would then ask which one).
      */
-    async saveCustomer(input: { id?: string; name: string; aliases: string[] }): Promise<{ ok: true; customer: Customer } | { ok: false; error: string }> {
+    async saveCustomer(input: { id?: string; name: string; aliases: string[]; mobile?: string; address?: string }): Promise<{ ok: true; customer: Customer } | { ok: false; error: string }> {
       return db.transaction('rw', db.customers, async () => {
         const mine = input.id ? await db.customers.get(input.id) : undefined;
         if (input.id && !mine) return { ok: false, error: 'Customer not found.' } as const;
@@ -93,7 +97,13 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
             return { ok: false, error: `"${other.name}" ke saath naam takra raha hai (already used).` } as const;
           }
         }
-        const customer: Customer = { id: mine?.id ?? newId(), name: input.name.trim(), aliases: input.aliases, createdAt: mine?.createdAt ?? clock() };
+        const mobile = input.mobile?.trim() ?? mine?.mobile;
+        const address = input.address?.trim() ?? mine?.address;
+        if ((mobile || address) && !creditDetailsSchema.safeParse({ name: input.name, mobile, address }).success) {
+          return { ok: false, error: 'Naam, 10 digit mobile aur poora address likho.' } as const;
+        }
+        const customer: Customer = { id: mine?.id ?? newId(), name: input.name.trim(), aliases: input.aliases, createdAt: mine?.createdAt ?? clock(),
+          ...(mobile ? { mobile } : {}), ...(address ? { address } : {}) };
         await db.customers.put(customer);
         return { ok: true, customer } as const;
       });
@@ -124,6 +134,9 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
         let customer: Customer | undefined;
         if (input.customerId) customer = await db.customers.get(input.customerId);
         if (!customer && input.customerName) customer = await findOrCreateInTx(input.customerName);
+        if (input.udhaar > 0 && !hasCreditDetails(customer)) {
+          throw new Error('CREDIT_DETAILS_REQUIRED');
+        }
 
         const bill: Bill = {
           id: input.draftId,
@@ -158,6 +171,44 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
         if (!result.ok) return result;
         await db.ledgerEntries.add(result.entry);
         return { ok: true, created: true, entry: result.entry, balanceAfter: result.balanceAfter, warnings: result.warnings } as const;
+      });
+    },
+
+    listBills: () => db.bills.orderBy('createdAt').reverse().toArray(),
+
+    async reverseBill(billId: string, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
+      const note = reason.trim();
+      if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: 'Wajah likho (1–200 letters).' };
+      return db.transaction('rw', [db.bills, db.ledgerEntries], async () => {
+        const bill = await db.bills.get(billId);
+        if (!bill) return { ok: false, error: 'Bill nahi mila.' } as const;
+        if (bill.reversedAt !== undefined) return { ok: false, error: 'Bill pehle hi reverse ho chuka hai.' } as const;
+        const entries = await db.ledgerEntries.toArray();
+        const originals = entries.filter((e) => e.billId === billId && !e.reversesEntryId);
+        const at = clock();
+        for (const entry of originals) {
+          if (entries.some((e) => e.reversesEntryId === entry.id)) continue;
+          const result = reverseEntry(entry, entries, { id: `reversal:${entry.id}`, createdAt: at, note });
+          if (!result.ok) throw new Error('REVERSAL_FAILED');
+          await db.ledgerEntries.add(result.entry);
+        }
+        await db.bills.update(billId, { reversedAt: at, reversalReason: note });
+        return { ok: true } as const;
+      });
+    },
+
+    async reverseLedgerEntry(entryId: string, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
+      const note = reason.trim();
+      if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: 'Wajah likho (1–200 letters).' };
+      return db.transaction('rw', [db.bills, db.ledgerEntries], async () => {
+        const original = await db.ledgerEntries.get(entryId);
+        if (!original) return { ok: false, error: 'Entry nahi mili.' } as const;
+        if (original.billId && !original.reversesEntryId) return { ok: false, error: 'Bills mein jaakar poora bill reverse karo.' } as const;
+        const entries = await db.ledgerEntries.where('customerId').equals(original.customerId).toArray();
+        const result = reverseEntry(original, entries, { id: `reversal:${entryId}`, createdAt: clock(), note });
+        if (!result.ok) return result;
+        await db.ledgerEntries.add(result.entry);
+        return { ok: true } as const;
       });
     },
 

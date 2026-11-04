@@ -30,7 +30,10 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
         : { kind: 'error', message: result.error };
     }
     return { kind: 'error', message: 'Nothing to save.' };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'CREDIT_DETAILS_REQUIRED') {
+      return { kind: 'error', message: 'Udhaar save karne se pehle grahak ka naam, mobile aur address bharo.' };
+    }
     return { kind: 'error', message: 'Save nahi ho paya. Please try again.' };
   }
 }

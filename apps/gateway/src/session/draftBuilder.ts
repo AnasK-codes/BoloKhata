@@ -31,6 +31,7 @@ export interface Catalog {
 export interface PendingDraft {
   draftId: string;
   intent: 'create_bill' | 'record_payment';
+  canConfirm?: boolean;
 }
 
 export type PendingChange = { action: 'set'; pending: PendingDraft } | { action: 'clear' } | { action: 'keep' };
@@ -104,6 +105,8 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
 
   // Udhaar with nobody to owe it would be stored with no ledger entry: do not offer to save it.
   const missingCustomer = udhaarNeedsCustomer(result.bill.udhaar, customer !== undefined && customer !== null);
+  const creditReady = customer?.id ? input.catalog.customers.find((c) => c.id === customer.id)?.creditReady : false;
+  const missingDetails = result.bill.udhaar > 0 && creditReady === false;
   let reply: string[];
   let cacheReply = false;
   if (customer?.ambiguous) {
@@ -112,6 +115,8 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     reply = itemNotFound(result.unresolvedItems[0]?.spoken, variant);
   } else if (missingCustomer) {
     reply = customerNeeded(variant);
+  } else if (missingDetails) {
+    reply = ['Udhaar ke liye grahak ka naam, mobile aur address bharo.'];
   } else {
     reply = billReadback(
       { ...(customer ? { customerName: customer.name } : {}), total: result.bill.total, udhaar: result.bill.udhaar },
@@ -123,14 +128,14 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     cacheReply = true;
   }
 
-  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !missingCustomer;
+  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !missingCustomer && !missingDetails;
   const draftId = input.draftId;
   const draft: DraftMessage = {
     ...base,
     draftId,
     intent: 'create_bill',
     ...(customer
-      ? { customer: { ...(customer.id ? { id: customer.id } : {}), name: customer.name, isNew: customer.isNew } }
+      ? { customer: { ...(customer.id ? { id: customer.id } : {}), name: customer.name, isNew: customer.isNew, ...(creditReady !== undefined ? { creditReady } : {}) } }
       : {}),
     bill: result.bill,
     unresolved: unresolved.slice(0, LIMITS.maxUnresolved),
@@ -220,6 +225,9 @@ function answer(input: DraftInput, base: Base, variant: number): DraftResult {
   const { pending, outcome } = input;
   const intent = outcome.parsed.intent === 'confirm' ? 'confirm' : 'cancel';
   if (!pending) return plain(input, base, 'unknown', nothingPending(variant), true, { action: 'keep' });
+  if (intent === 'confirm' && pending.canConfirm === false) {
+    return plain(input, base, 'unknown', ['Bill aur grahak ki details pehle poori karo.'], true, { action: 'keep' });
+  }
   const draft: DraftMessage = {
     ...base,
     draftId: pending.draftId,

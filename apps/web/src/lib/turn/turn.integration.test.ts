@@ -35,19 +35,25 @@ class FakeMic implements CapturePort {
 class FakeSpeaker implements PlaybackPort {
   events: string[] = [];
   bytes = 0;
+  private activeTurn = -1;
   constructor(private readonly onEnded: (turnId: number) => void) {}
   beginTurn(turnId: number, rate: number) {
+    this.activeTurn = turnId;
     this.events.push(`begin:${turnId}:${rate}`);
   }
   pushPcm(turnId: number, pcm: Uint8Array) {
+    // Match PlaybackEngine: flush invalidates the turn, including packets already in transit.
+    if (turnId !== this.activeTurn) return;
     this.bytes += pcm.byteLength;
     if (this.events.at(-1) !== `pcm:${turnId}`) this.events.push(`pcm:${turnId}`);
   }
   endTurn(turnId: number) {
+    if (turnId !== this.activeTurn) return;
     this.events.push(`end:${turnId}`);
     queueMicrotask(() => this.onEnded(turnId)); // pretend it played out instantly
   }
   flush() {
+    this.activeTurn = -1;
     this.events.push('flush');
   }
 }

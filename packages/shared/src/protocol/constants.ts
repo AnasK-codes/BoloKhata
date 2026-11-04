@@ -42,7 +42,7 @@ export const LIMITS = {
 export const MAX_MESSAGE_BYTES = {
   hello: 256 * 1024,
   context_update: 256 * 1024,
-  ptt_start: 256,
+  ptt_start: 33 * 1024,
   ptt_end: 256,
   interrupt: 256,
   speak: 2 * 1024,

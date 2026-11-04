@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { LIMITS, PROTOCOL_VERSION } from './constants';
+import { draftSchema } from './server';
 import {
   aliasesSchema,
   idSchema,
@@ -29,6 +30,7 @@ export const catalogCustomerSchema = z.object({
   aliases: aliasesSchema,
   /** Derived on the device from ledger entries; sent so the gateway can answer "kitna udhaar hai". */
   balance: signedRupeesSchema,
+  creditReady: z.boolean().optional(),
 });
 export type CatalogCustomer = z.infer<typeof catalogCustomerSchema>;
 
@@ -56,7 +58,11 @@ export const contextUpdateSchema = z.object({
   }),
 });
 
-export const pttStartSchema = z.object({ type: z.literal('ptt_start'), turnId: turnIdSchema });
+export const pttStartSchema = z.object({
+  type: z.literal('ptt_start'), turnId: turnIdSchema,
+  /** Current unsaved draft, including local edits. Null clears obsolete gateway state. */
+  draftContext: draftSchema.nullable().optional(),
+});
 export const pttEndSchema = z.object({ type: z.literal('ptt_end'), turnId: turnIdSchema });
 export const interruptSchema = z.object({ type: z.literal('interrupt'), turnId: turnIdSchema });
 

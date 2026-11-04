@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { udhaarNeedsCustomer, type CatalogProduct, type DraftMessage } from '@bolbill/shared';
+import { udhaarNeedsCustomer, hasCreditDetails, type Customer, type CatalogProduct, type DraftMessage } from '@bolbill/shared';
+import type { Repo } from '@/lib/db/repo';
+import { CreditDetailsForm } from '../CreditDetailsForm';
 import { Icon } from '../Icon';
 import { formatQuantity, rupees } from '@/lib/format';
 import { removeItem, resolveCustomer, resolveItem, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
@@ -9,7 +11,8 @@ import { removeItem, resolveCustomer, resolveItem, setCustomer, setItemQuantity,
 interface Props {
   draft: DraftMessage;
   products: readonly CatalogProduct[];
-  customers: readonly { id: string; name: string }[];
+  customers: readonly Customer[];
+  repo: Repo;
   onChange(draft: DraftMessage): void;
 }
 
@@ -61,7 +64,7 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
   );
 }
 
-export function BillCard({ draft, products, customers, onChange }: Props) {
+export function BillCard({ draft, products, customers, repo, onChange }: Props) {
   const bill = draft.bill;
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [customerText, setCustomerText] = useState('');
@@ -71,7 +74,7 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
     setEditingCustomer(false);
     if (!name) return;
     const known = customers.find((c) => c.name.toLowerCase() === name.toLowerCase());
-    onChange(setCustomer(draft, known ? { id: known.id, name: known.name, isNew: false } : { name, isNew: true }));
+    onChange(setCustomer(draft, known ? { id: known.id, name: known.name, isNew: false, creditReady: hasCreditDetails(known) } : { name, isNew: true, creditReady: false }));
   };
 
   return (
@@ -168,6 +171,11 @@ export function BillCard({ draft, products, customers, onChange }: Props) {
         <p role="status" className="mt-3 rounded-xl bg-amber-400/15 px-3 py-2 font-semibold text-warn">
           Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
         </p>
+      )}
+      {bill && bill.udhaar > 0 && !hasCreditDetails(customers.find((c) => c.id === draft.customer?.id)) && (
+        <CreditDetailsForm key={draft.customer?.id ?? draft.customer?.name ?? 'new'} repo={repo}
+          customer={customers.find((c) => c.id === draft.customer?.id)} name={draft.customer?.name ?? ''}
+          onSaved={(c) => onChange(setCustomer(draft, { id: c.id, name: c.name, isNew: false, creditReady: true }))} />
       )}
 
       {draft.warnings.length > 0 && (

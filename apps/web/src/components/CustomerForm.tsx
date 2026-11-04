@@ -55,6 +55,15 @@ export function CustomerForm({ repo, customerId, initial, onDone, onToast }: Pro
           <p id="c-alias-hint" className="mt-1 text-sm text-muted">Hindi (देवनागरी) ya Hinglish, jis tarah bolte ya likhte ho. Yeh naam awaaz pehchanne mein madad karte hain.</p>
           {errors.aliases && <p className="mt-1 text-bad">{errors.aliases}</p>}
         </div>
+        <div>
+          <p className="text-sm text-muted">Udhaar ke liye mobile aur address dono zaroori hain. Demo mein synthetic details use karo.</p>
+          <label className="block font-semibold" htmlFor="c-mobile">Mobile number</label>
+          <input id="c-mobile" type="tel" inputMode="numeric" maxLength={10} className={input} value={form.mobile ?? ''} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+          {errors.mobile && <p className="text-bad">{errors.mobile}</p>}
+          <label className="block font-semibold" htmlFor="c-address">Address</label>
+          <textarea id="c-address" maxLength={300} className={input} value={form.address ?? ''} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+          {errors.address && <p className="text-bad">{errors.address}</p>}
+        </div>
         <div className="flex gap-2">
           <button type="submit" className="min-h-14 flex-1 rounded-xl bg-amber-400 text-lg font-bold text-stone-950">Save</button>
           <button type="button" className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold" onClick={() => onDone(false)}>Raho</button>

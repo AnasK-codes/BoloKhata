@@ -207,7 +207,7 @@ export class Session {
         this.onContextUpdate(message);
         return;
       case 'ptt_start':
-        this.engine?.onPttStart(message.turnId);
+        this.engine?.onPttStart(message.turnId, message.draftContext);
         return;
       case 'ptt_end':
         this.engine?.onPttEnd(message.turnId);

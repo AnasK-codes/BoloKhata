@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { speechFrame, startMockGnani, type MockGnani } from '@bolbill/mock-gnani';
-import type { ParsedUtterance } from '@bolbill/shared';
+import { draftSchema, type ParsedUtterance } from '@bolbill/shared';
 import type { LlmAdapter, LlmResult, StructuredRequest } from '../parse/llm/types';
 import { WsTestClient, sleep, type Msg } from '../testing/client';
 import { captureLogs, startGateway, type Harness } from '../testing/harness';
@@ -414,4 +414,37 @@ describe('privacy', () => {
     expect(text).not.toContain('Sharma');
     expect(text).not.toContain('udhaar');
   }, 20_000);
+});
+
+describe('voice corrections with the browser draft context', () => {
+  it('updates the same draft, reprices from the catalog, then confirms its id', async () => {
+    const llm = never();
+    gateway = await startGateway(env(), { llm: llm.adapter });
+    const client = await gateway.ready(HELLO);
+    const first = draftSchema.parse(await say(client, 1, 'Sharma ji ko do kilo aata'));
+    const context = { ...first, bill: { ...first.bill!, items: first.bill!.items.map((i) => ({ ...i, unitPrice: 1, lineTotal: 1 })), total: 1 } };
+    mock!.stt.queueTranscripts('Aata do nahi teen kilo karo');
+    client.sendJson({ type: 'ptt_start', turnId: 2, draftContext: context });
+    for (let i = 0; i < 8; i++) client.sendBinary(speechFrame());
+    client.sendJson({ type: 'ptt_end', turnId: 2 });
+    const corrected = draftSchema.parse(await client.next('draft'));
+    await client.next('tts_end');
+    expect(corrected).toMatchObject({ draftId: first.draftId, turnId: 2, source: 'rules', bill: { total: 135, paid: 135, udhaar: 0 } });
+    expect(corrected.bill?.items[0]).toMatchObject({ quantity: 3, unitPrice: 45, lineTotal: 135 });
+    expect(llm.calls).toHaveLength(0);
+    const confirmation = await say(client, 3, 'haan');
+    expect(confirmation).toMatchObject({ intent: 'confirm', draftId: first.draftId });
+  });
+
+  it('an explicit null context clears a previously saved bill', async () => {
+    gateway = await startGateway(env(), { llm: never().adapter });
+    const client = await gateway.ready(HELLO);
+    await say(client, 1, 'Sharma ji ko do kilo aata');
+    mock!.stt.queueTranscripts('haan');
+    client.sendJson({ type: 'ptt_start', turnId: 2, draftContext: null });
+    for (let i = 0; i < 8; i++) client.sendBinary(speechFrame());
+    client.sendJson({ type: 'ptt_end', turnId: 2 });
+    expect(await client.next('draft')).toMatchObject({ intent: 'unknown' });
+    await client.next('tts_end');
+  });
 });

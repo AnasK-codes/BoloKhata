@@ -2,8 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { LIMITS, MAX_ANY_MESSAGE_BYTES } from './constants';
 import { CLIENT_FIXTURES, SERVER_FIXTURES } from './fixtures';
 import { parseClientMessage, parseServerMessage } from './parse';
+import { draftSchema } from './server';
 
 const enc = (value: unknown) => JSON.stringify(value);
+
+describe('draft context on push-to-talk', () => {
+  it('accepts a validated draft or explicit null and enforces the larger size limit', () => {
+    const draft = draftSchema.parse(SERVER_FIXTURES.draft.valid);
+    expect(parseClientMessage(enc({ type: 'ptt_start', turnId: 2, draftContext: draft })).ok).toBe(true);
+    expect(parseClientMessage(enc({ type: 'ptt_start', turnId: 2, draftContext: null })).ok).toBe(true);
+    expect(parseClientMessage(enc({ type: 'ptt_start', turnId: 2, draftContext: { ...draft, confidence: 5 } })).ok).toBe(false);
+    expect(parseClientMessage(enc({ type: 'ptt_start', turnId: 2, pad: 'x'.repeat(34 * 1024) }))).toMatchObject({ ok: false, reason: 'too_large' });
+  });
+});
 
 describe.each(Object.entries(CLIENT_FIXTURES))('client message %s', (type, fixture) => {
   it('round-trips a valid message', () => {
@@ -88,17 +99,17 @@ describe('malformed and hostile input', () => {
   });
 
   it('enforces the per-type size limit', () => {
-    const padded = enc({ type: 'ptt_start', turnId: 1, pad: 'x'.repeat(1000) });
+    const padded = enc({ type: 'ptt_end', turnId: 1, pad: 'x'.repeat(1000) });
     expect(parseClientMessage(padded)).toEqual({
       ok: false,
       reason: 'too_large',
-      messageType: 'ptt_start',
+      messageType: 'ptt_end',
     });
   });
 
   it('counts bytes, not characters, for the size limit', () => {
-    // 100 three-byte characters = 300 bytes, which is over the 256 byte cap for ptt_start.
-    const padded = enc({ type: 'ptt_start', turnId: 1, pad: 'न'.repeat(100) });
+    // 100 three-byte characters = 300 bytes, over the 256 byte cap for ptt_end.
+    const padded = enc({ type: 'ptt_end', turnId: 1, pad: 'न'.repeat(100) });
     expect(padded.length).toBeLessThan(256);
     expect(parseClientMessage(padded)).toMatchObject({ ok: false, reason: 'too_large' });
   });

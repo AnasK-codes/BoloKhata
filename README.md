@@ -87,10 +87,20 @@ A built-in **latency HUD** shows the real measured timings of each turn, which m
 ### Stretch (pick by impact on the demo)
 
 - [ ] **Noise Lab:** clearly labelled synthetic noise injected into the mic stream to demonstrate robustness
-- [ ] Share bill as text or image through the Web Share API (WhatsApp)
+- [x] Share saved bills as text through the system share sheet, with copy fallback
 - [ ] Hands-free confirm window after the readback
 - [ ] Recorded-session replay (labelled as a replay) for when the live demo budget is used up
 - [ ] Regional language toggle
+
+### Implemented bill workflow additions
+
+- **Voice draft corrections:** while a bill is unsaved, say "Aata teen kilo karo", "Aata do nahi teen kilo karo", "Maggi hata do", or "Ek Maggi aur jodo". One product per correction; ambiguous products, invalid quantities and incompatible units leave the bill unchanged and ask for review. Prices are recomputed from the catalog, with the same draft ID and a new turn ID. Fully paid drafts remain fully paid; credit drafts retain their paid amount, capped at the new total. Corrected bills still require confirmation.
+- **Saved bills:** the Bills tab (`/bills`) lists cash and credit bills, searches customer/date/ID, and opens the saved receipt. Share uses the system share sheet; unsupported or failed sharing falls back to copy/selectable text. Mobile and address are omitted from receipts.
+- **Print:** open a saved bill and choose **Print / PDF**. The browser print dialog supports a configured printer or Save as PDF where available. Only the receipt is printed. Direct Bluetooth/USB thermal-printer integration is not included.
+- **Reversals:** Bills → open bill → reverse with a reason. Khata → customer → reverse an incorrect standalone payment/opening entry with a reason. Original records remain; one linked opposite ledger entry restores the balance. Duplicate reversals and reversing a reversal are rejected. Bill-linked entries must be reversed through the whole bill. Reversing a bill preserves later payments, which can leave a customer advance; cash refunds are manual.
+- **Mandatory credit details:** before saving any new udhaar bill, the customer must have a name, a ten-digit Indian mobile number and an address (5–300 characters). Fill these on the draft or in Khata → customer → Badlo. Contact details stay in IndexedDB; only a `creditReady` boolean is sent with the existing customer snapshot. Existing customers/balances are preserved and missing details must be completed before new credit is saved. Development, fixtures and demos use synthetic details only.
+
+These additions use existing dependencies. Optional data fields do not require resetting the local database; the service-worker shell now includes `/bills`.
 
 ## 4. Life of a turn
 
@@ -167,7 +177,7 @@ Defined once in `packages/shared/src/protocol` with Zod schemas, and used by bot
 |---|---|---|
 | `hello` | JSON | `{v, clientTime, lang, catalog:{version, products[], customers[]}}`. Products carry price and unit; customers carry balances. Sent once per session. |
 | `context_update` | JSON | New customer balances or catalog changes after a save or edit. |
-| `ptt_start` | JSON | `{turnId}`. The gateway readies the STT link. |
+| `ptt_start` | JSON | `{turnId, draftContext?}`. Current unsaved draft (including local edits) enables rules-only corrections; `null` clears obsolete gateway state. Prices/totals are recalculated from the catalog. The gateway readies the STT link. Maximum 33 KiB. |
 | audio frame | **binary** | Exactly 1,024 bytes: 512 samples of 16-bit little-endian mono PCM at 16 kHz. No header. |
 | `ptt_end` | JSON | `{turnId}`. The gateway drains and sends `commit`. |
 | `interrupt` | JSON | `{turnId}`. Stops TTS, cancels pending work for that turn. |
@@ -310,13 +320,15 @@ Stored locally in IndexedDB (Dexie). The gateway keeps only a **per-session, in-
 
 ```ts
 Product      { id, name, aliases: string[], unit, pricePerUnit, category? }
-Customer     { id, name, aliases: string[], createdAt }
-Bill         { id, customerId?, items: BillItem[], total, paid, udhaar, createdAt }
+Customer     { id, name, aliases: string[], createdAt, mobile?, address? }
+Bill         { id, customerId?, items: BillItem[], total, paid, udhaar, createdAt, reversedAt?, reversalReason? }
 BillItem     { productId, name, quantity, unit, unitPrice, lineTotal }
-LedgerEntry  { id, customerId, type: 'udhaar' | 'payment', amount, billId?, note?, createdAt }
+LedgerEntry  { id, customerId, type: 'udhaar' | 'payment', amount, billId?, note?, createdAt, reversesEntryId? }
 ```
 
 Customer balance = sum(udhaar) − sum(payments), always **derived**. Money is stored in integer rupees. A seed file (`data/seed-catalog.json`) holds about 40 synthetic products and 8 synthetic customers.
+
+Reversed bills retain their items/payment split and add `reversedAt` and `reversalReason`. Their linked ledger reversals are written atomically with the bill status. Contact details are local only and never included in gateway snapshots, LLM prompts or receipts.
 
 ## 11. Tech stack
 
@@ -386,6 +398,8 @@ pnpm install
 cp .env.example .env            # fill in keys (gateway) and the gateway URL (web)
 pnpm dev                        # runs web (3000) and gateway (8080) together
 ```
+
+Run only one dev stack at a time: stop `pnpm dev:mock` before starting `pnpm dev` (or vice versa). Both use ports 3000/8080; mock mode also needs its STT/TTS servers on 9101/9102. The root dev scripts stop their other processes when a service command exits with an error, so a failed mock-server startup does not leave a gateway connected to missing mocks. If the UI says online but speech fails, check which mode owns port 8080; online means the browser is connected to the gateway, not that the speech provider is healthy.
 
 `pnpm dev` and `pnpm build` in `apps/web` first compile the audio worklets (`src/lib/audio/worklets/*.worklet.ts`) into `public/worklets/` with esbuild; `pnpm --filter @bolbill/web worklets` does it by hand. Dev-only pages `/dev/audio` (audio layer) and `/dev/turn` (a whole turn against the gateway; its test-tone microphone is labelled as synthetic) are not served in production builds.
 

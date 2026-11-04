@@ -115,7 +115,7 @@ describe('barge-in', () => {
     await flush();
     expect(world.log).toEqual(['flush', 'interrupt', 'ptt_start', 'gate_open']);
     expect(world.sent.filter((m) => m.type === 'interrupt')).toEqual([{ type: 'interrupt', turnId: old }]);
-    expect(world.sent.at(-1)).toEqual({ type: 'ptt_start', turnId: old + 1 });
+    expect(world.sent.at(-1)).toMatchObject({ type: 'ptt_start', turnId: old + 1, draftContext: { draftId: `d${old}` } });
   });
 
   it('keeps protocol order when pressed again before the gate has finished closing', async () => {
@@ -244,6 +244,21 @@ describe('giving up on a silent gateway', () => {
 });
 
 describe('confirm', () => {
+  it('keeps a credit draft visible when a premature voice confirmation is rejected', async () => {
+    controller.press();
+    const first = controller.state.turnId!;
+    controller.release();
+    await flush();
+    controller.handleServerMessage(draftMessage(first, { customer: { id: 'c1', name: 'Synthetic Customer', isNew: false, creditReady: false } }));
+    controller.press();
+    const second = controller.state.turnId!;
+    controller.release();
+    await flush();
+    controller.handleServerMessage(draftMessage(second, { intent: 'unknown', replyText: ['Details pehle bharo.'] }));
+    expect(controller.state.draft).toMatchObject({ draftId: `d${first}`, bill: { total: 90 }, replyText: ['Details pehle bharo.'] });
+    expect(controller.state.pending).toBeNull();
+    expect(saved).toEqual([]);
+  });
   it('hands the draft to the save handler and speaks a confirmation', async () => {
     controller.press();
     const id = controller.state.turnId as number;

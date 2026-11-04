@@ -5,3 +5,5 @@ export * from './keyterms';
 export * from './types';
 export * from './pricing';
 export * from './ledger';
+export * from './customerDetails';
+export * from './correction';

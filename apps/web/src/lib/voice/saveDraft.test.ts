@@ -11,6 +11,8 @@ let n = 0;
 beforeEach(async () => {
   db = new BolDb(`save-${++n}`);
   await seedIfFirstRun(db);
+  // Explicit synthetic contact fixture for credit-saving tests.
+  await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
 });
 
 describe('saveDraft', () => {
@@ -22,10 +24,11 @@ describe('saveDraft', () => {
     expect((await repo.getBalances()).get('c_ramesh_sharma')).toBe(210);
   });
 
-  it('creates a new customer named in the draft', async () => {
+  it('requires details before creating a new customer on credit', async () => {
     const repo = createRepo(db);
-    await saveDraft(repo, draftMessage(2, { customer: { name: 'Naya Grahak', isNew: true } }));
-    expect((await repo.findCustomerByName('naya grahak'))?.name).toBe('Naya Grahak');
+    const result = await saveDraft(repo, draftMessage(2, { customer: { name: 'Naya Grahak', isNew: true } }));
+    expect(result).toMatchObject({ kind: 'error', message: expect.stringContaining('mobile') });
+    expect(await repo.findCustomerByName('naya grahak')).toBeUndefined();
   });
 
   it('records a payment once', async () => {

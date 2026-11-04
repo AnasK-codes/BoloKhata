@@ -63,6 +63,7 @@ export const draftCustomerSchema = z.object({
   id: idSchema.optional(),
   name: nameSchema,
   isNew: z.boolean(),
+  creditReady: z.boolean().optional(),
 });
 
 export const draftPaymentSchema = z.object({ amount: rupeesSchema.min(1) });

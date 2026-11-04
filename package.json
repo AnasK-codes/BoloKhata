@@ -8,8 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently -n web,gateway -c cyan,magenta \"pnpm --filter @bolbill/web dev\" \"pnpm --filter @bolbill/gateway dev\"",
-    "dev:mock": "concurrently -n mock,web,gateway -c yellow,cyan,magenta \"pnpm --filter @bolbill/mock-gnani start\" \"pnpm --filter @bolbill/web dev\" \"pnpm --filter @bolbill/gateway dev:mock\"",
+    "dev": "concurrently --kill-others-on-fail -n web,gateway -c cyan,magenta \"pnpm --filter @bolbill/web dev\" \"pnpm --filter @bolbill/gateway dev\"",
+    "dev:mock": "concurrently --kill-others-on-fail -n mock,web,gateway -c yellow,cyan,magenta \"pnpm --filter @bolbill/mock-gnani start\" \"pnpm --filter @bolbill/web dev\" \"pnpm --filter @bolbill/gateway dev:mock\"",
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "pnpm -r --if-present typecheck",

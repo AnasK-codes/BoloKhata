@@ -1,4 +1,4 @@
-import { LIMITS, UNITS, type Unit } from '@bolbill/shared';
+import { LIMITS, UNITS, creditDetailsSchema, type Unit } from '@bolbill/shared';
 
 export interface ProductFormInput {
   name: string;
@@ -56,10 +56,12 @@ export interface CustomerFormInput {
   name: string;
   /** Comma-separated: other ways the name is said, for example "Sharma uncle, शर्मा जी". */
   aliases: string;
+  mobile?: string;
+  address?: string;
 }
 
 export type CustomerFormResult =
-  | { ok: true; value: { name: string; aliases: string[] } }
+  | { ok: true; value: { name: string; aliases: string[]; mobile?: string; address?: string } }
   | { ok: false; errors: Partial<Record<keyof CustomerFormInput, string>> };
 
 export function validateCustomerForm(input: CustomerFormInput): CustomerFormResult {
@@ -68,7 +70,16 @@ export function validateCustomerForm(input: CustomerFormInput): CustomerFormResu
   if (name === '') errors.name = 'Naam likho (name is required).';
   else if (name.length > LIMITS.maxNameLength) errors.name = `Naam ${LIMITS.maxNameLength} akshar se chhota rakho.`;
   const aliases = parseAliases(input.aliases);
+  const mobile = input.mobile?.trim() ?? '';
+  const address = input.address?.trim() ?? '';
+  if (mobile || address) {
+    const details = creditDetailsSchema.safeParse({ name, mobile, address });
+    if (!details.success) for (const issue of details.error.issues) {
+      if (issue.path[0] === 'mobile') errors.mobile = '10 digit mobile number likho.';
+      if (issue.path[0] === 'address') errors.address = 'Poora address likho (5–300 letters).';
+    }
+  }
   if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = `Zyada se zyada ${LIMITS.maxAliasesPerEntry} doosre naam.`;
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: { name, aliases } };
+  return { ok: true, value: { name, aliases, ...(mobile || address ? { mobile, address } : {}) } };
 }

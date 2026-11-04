@@ -46,7 +46,7 @@ export function isConfirmable(draft: DraftMessage): boolean {
   if (draft.intent === 'create_bill') {
     const bill = draft.bill;
     if (!bill || bill.items.length === 0 || draft.unresolved.length > 0) return false;
-    return !udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined);
+    return !udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && !(bill.udhaar > 0 && draft.customer?.creditReady === false);
   }
   if (draft.intent === 'record_payment') return draft.customer?.id !== undefined && draft.payment !== undefined;
   return false;
@@ -233,7 +233,7 @@ function draft(state: TurnState, message: DraftMessage, at: number): TurnTransit
         const next = { ...base, replacement: message };
         return { state: { ...next, phase: rest(next) }, effects: [] };
       }
-      const next = { ...base, pending: isConfirmable(message) ? message : state.pending };
+      const next = { ...base, pending: isConfirmable(message) ? message : state.pending?.draftId === message.draftId ? null : state.pending };
       return { state: { ...next, phase: rest(next) }, effects: [] };
     }
     case 'confirm': {
@@ -245,7 +245,7 @@ function draft(state: TurnState, message: DraftMessage, at: number): TurnTransit
       }
       // The gateway names the pending draft; the browser owns the save. A draftId we do not
       // know about means the bill was already saved or discarded: do nothing.
-      if (state.pending?.draftId !== message.draftId) {
+      if (state.pending?.draftId !== message.draftId || !isConfirmable(state.pending)) {
         return { state: { ...base, phase: rest(base) }, effects: [] };
       }
       const next = { ...base, pending: null };

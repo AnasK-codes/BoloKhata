@@ -10,6 +10,8 @@ export interface Customer {
   name: string;
   aliases: string[];
   createdAt: number;
+  mobile?: string;
+  address?: string;
 }
 
 /** A saved bill. */
@@ -21,6 +23,8 @@ export interface Bill {
   paid: number;
   udhaar: number;
   createdAt: number;
+  reversedAt?: number;
+  reversalReason?: string;
 }
 
 /** A bill before it is saved: no id or timestamp yet (those come from the caller, keeping this pure). */
@@ -41,4 +45,5 @@ export interface LedgerEntry {
   billId?: string;
   note?: string;
   createdAt: number;
+  reversesEntryId?: string;
 }

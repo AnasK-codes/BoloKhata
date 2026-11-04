@@ -1,4 +1,4 @@
-import { LIMITS, type CatalogCustomer, type CatalogProduct } from '@bolbill/shared';
+import { LIMITS, hasCreditDetails, type CatalogCustomer, type CatalogProduct } from '@bolbill/shared';
 import type { CatalogSnapshot } from '../realtime/types';
 import type { BolDb } from './schema';
 
@@ -32,6 +32,7 @@ export async function buildSnapshot(db: BolDb): Promise<CatalogSnapshot> {
     name: clip(c.name),
     aliases: aliases(c.aliases),
     balance: balances.get(c.id) ?? 0,
+    creditReady: hasCreditDetails(c),
   }));
   return { version: 0, products: catalogProducts, customers: catalogCustomers };
 }

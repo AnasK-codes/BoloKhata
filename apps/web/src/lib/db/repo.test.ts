@@ -54,6 +54,7 @@ describe('seeding', () => {
 
   it('resets to the seed, discarding everything else', async () => {
     await seedIfFirstRun(db);
+    await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
     await repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' }));
     await repo.upsertProduct({ name: 'Extra', aliases: [], unit: 'kg', pricePerUnit: 1 });
     await resetDemoData(db);
@@ -121,6 +122,7 @@ describe('customers: add, edit, delete', () => {
 describe('saveBillWithLedger', () => {
   it('stores the bill and its udhaar entry together', async () => {
     await seedIfFirstRun(db);
+    await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
     const result = await repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' }));
     expect(result.created).toBe(true);
     expect(await db.bills.get('d1')).toMatchObject({ total: 90, customerId: 'c_ramesh_sharma' });
@@ -129,6 +131,7 @@ describe('saveBillWithLedger', () => {
 
   it('is idempotent by draft id: a second save writes nothing', async () => {
     await seedIfFirstRun(db);
+    await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
     await repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' }));
     const again = await repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' }));
     expect(again.created).toBe(false);
@@ -138,6 +141,7 @@ describe('saveBillWithLedger', () => {
 
   it('survives two saves of the same draft racing each other', async () => {
     await seedIfFirstRun(db);
+    await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
     await Promise.all([
       repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' })),
       repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' })),
@@ -148,6 +152,7 @@ describe('saveBillWithLedger', () => {
 
   it('writes nothing at all if the ledger write fails (atomic)', async () => {
     await seedIfFirstRun(db);
+    await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
     // An existing entry with the id the save will use forces bulkAdd to fail after the bill was added.
     await db.ledgerEntries.add({ id: 'udhaar:d9', customerId: 'c_ramesh_sharma', type: 'udhaar', amount: 1, createdAt: 1 });
     await expect(repo.saveBillWithLedger(bill('d9', { customerId: 'c_ramesh_sharma' }))).rejects.toThrow();
@@ -156,15 +161,15 @@ describe('saveBillWithLedger', () => {
   });
 
   it('creates a new customer by name inside the same transaction', async () => {
-    const result = await repo.saveBillWithLedger(bill('d2', { customerName: 'Gupta ji' }));
+    const result = await repo.saveBillWithLedger(bill('d2', { customerName: 'Gupta ji', paid: 90, udhaar: 0 }));
     expect(result.customer?.name).toBe('Gupta ji');
     expect(result.bill.customerId).toBe(result.customer?.id);
-    expect((await repo.getBalances()).get(result.customer!.id)).toBe(90);
+    expect((await repo.getBalances()).get(result.customer!.id) ?? 0).toBe(0);
   });
 
   it('adds no ledger entry for a fully paid or customer-less bill', async () => {
     await repo.saveBillWithLedger(bill('d3', { paid: 90, udhaar: 0, customerName: 'Walk In' }));
-    await repo.saveBillWithLedger(bill('d4'));
+    await repo.saveBillWithLedger(bill('d4', { paid: 90, udhaar: 0 }));
     expect(await db.ledgerEntries.count()).toBe(0);
     expect(await db.bills.count()).toBe(2);
   });
@@ -203,6 +208,7 @@ describe('payments and statements', () => {
 
   it('builds a statement with a running balance, oldest first', async () => {
     await seedIfFirstRun(db);
+    await db.customers.update('c_ramesh_sharma', { mobile: '9000000000', address: 'Synthetic Lane, Demo Nagar' });
     await repo.saveBillWithLedger(bill('d1', { customerId: 'c_ramesh_sharma' }));
     await repo.addPayment('c_ramesh_sharma', 50);
     const rows = await repo.getCustomerStatement('c_ramesh_sharma');

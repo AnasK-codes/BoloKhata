@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
-import { CatalogIndex, TTS_PCM_FORMAT, type ErrorCode } from '@bolbill/shared';
+import { CatalogIndex, TTS_PCM_FORMAT, correctDraft, buildBill, type DraftMessage, type ErrorCode } from '@bolbill/shared';
 import type { GatewayConfig } from '../config';
 import type { SttLink, SttTranscript } from '../gnani/sttLink';
 import type { TtsLink } from '../gnani/ttsLink';
@@ -68,6 +68,7 @@ export class TurnEngine {
   private activeTurn: number | null = null;
   private current: TurnContext | null = null;
   private pending: PendingDraft | null = null;
+  private correctionContext: DraftMessage | null = null;
   private sttReserved = 0;
   private disposed = false;
   /** The turn whose `tts_end` went out most recently, so an interrupt does not send timing twice. */
@@ -99,7 +100,14 @@ export class TurnEngine {
     if (this.activeTurn !== null) this.stt.pushFrame(frame);
   }
 
-  onPttStart(turnId: number): void {
+  onPttStart(turnId: number, draftContext?: DraftMessage | null): void {
+    if (draftContext !== undefined) {
+      this.correctionContext = draftContext;
+      const eligible = draftContext && (draftContext.intent === 'record_payment' ||
+        (draftContext.intent === 'create_bill' && draftContext.bill && draftContext.bill.items.length > 0 && draftContext.unresolved.length === 0 &&
+          (draftContext.bill.udhaar === 0 || (draftContext.customer && draftContext.customer.creditReady !== false))));
+      this.pending = draftContext ? { draftId: draftContext.draftId, intent: draftContext.intent === 'record_payment' ? 'record_payment' : 'create_bill', canConfirm: !!eligible } : null;
+    }
     this.tts.interruptAll(); // barge-in: pressing the button silences the shop's assistant
     this.supersedeCurrent();
     if (!this.guard.checkAndReserve('stt_seconds', this.config.gnani.stt.maxUtteranceSeconds)) {
@@ -224,6 +232,31 @@ export class TurnEngine {
       const catalog = this.catalog;
       const index = this.index;
       if (!catalog || !index) return;
+      if (this.correctionContext?.bill) {
+        const base = this.correctionContext;
+        // Recompute client-supplied prices and totals from the current catalog before editing.
+        const items = base.bill!.items.map((item) => ({
+          name: catalog.products.find((p) => p.id === item.productId)?.name ?? '',
+          quantity: item.quantity, unit: item.unit,
+        }));
+        const priced = buildBill({ parsedItems: items, products: index, amountPaid: base.bill!.udhaar === 0 ? null : base.bill!.paid,
+          ...(base.customer?.id ? { customerId: base.customer.id } : {}) });
+        const correction = correctDraft({ ...base, bill: priced.bill,
+          unresolved: [...base.unresolved, ...priced.unresolvedItems].slice(0, 10) }, transcript, catalog.products);
+        if (correction) {
+          const draft = { ...correction.draft, turnId: ctx.turnId, source: 'rules' as const };
+          this.correctionContext = draft;
+          this.pending = { draftId: draft.draftId, intent: 'create_bill', canConfirm: !!(draft.bill && draft.bill.items.length > 0 && draft.unresolved.length === 0 &&
+            (draft.bill.udhaar === 0 || (draft.customer && draft.customer.creditReady !== false))) };
+          this.timer.mark(ctx.turnId, 'rules_done');
+          this.timer.setParseSource(ctx.turnId, 'rules');
+          this.timer.mark(ctx.turnId, 'draft');
+          this.out.json(draft);
+          this.sendTiming(ctx.turnId);
+          if (!this.tts.speak(ctx.turnId, draft.replyText)) this.reportError(ctx.turnId, 'TTS_UNAVAILABLE', 'Could not speak the reply.', true);
+          return;
+        }
+      }
       const outcome = await this.orchestrator.parse({
         transcript,
         index,

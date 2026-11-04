@@ -69,10 +69,12 @@ describe('udhaar without a customer', () => {
     expect(r.pendingChange.action).toBe('set');
   });
 
-  it('is fine for a brand-new customer who is named', () => {
+  it('requires contact details for a brand-new customer who is named', () => {
     const r = bill({ customer: 'Naya Grahak', udhaar_amount: 40 });
     expect(r.draft.customer?.isNew).toBe(true);
-    expect(r.pendingChange.action).toBe('set');
+    expect(r.draft.customer?.creditReady).toBe(false);
+    expect(r.draft.replyText.join(' ')).toContain('mobile');
+    expect(r.pendingChange.action).toBe('clear');
   });
 });
 

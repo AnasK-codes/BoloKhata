@@ -12,11 +12,11 @@
  * Releasing: change VERSION when the shell changes in a way network-first fetching would not
  * pick up; old caches are deleted on activation.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL_CACHE = `bolbill-shell-${VERSION}`;
 const ASSET_CACHE = `bolbill-assets-${VERSION}`;
 
-const SHELL_PAGES = ['/', '/ledger', '/catalog', '/settings'];
+const SHELL_PAGES = ['/', '/ledger', '/bills', '/catalog', '/settings'];
 const SHELL_FILES = ['/offline.html', '/manifest.webmanifest'];
 // Served from the asset cache (see the fetch handler), so they are saved there.
 const ASSET_FILES = [

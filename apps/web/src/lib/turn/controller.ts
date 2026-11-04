@@ -65,6 +65,7 @@ export class TurnController {
   private firstFrameSent = false;
   private utteranceTimer: ReturnType<typeof setTimeout> | undefined;
   private responseTimer: ReturnType<typeof setTimeout> | undefined;
+  private draftContext: DraftMessage | null = null;
 
   constructor(private readonly deps: ControllerDeps) {
     this.now = deps.now ?? (() => performance.now());
@@ -94,6 +95,7 @@ export class TurnController {
       });
       return;
     }
+    this.draftContext = this.state.replacement ?? this.state.pending ?? this.draftContext;
     this.dispatch({ type: 'press', at: this.now() });
   }
 
@@ -133,6 +135,13 @@ export class TurnController {
   }
 
   handleServerMessage(message: ServerMessage): void {
+    if (message.type === 'draft' && message.turnId === this.state.turnId && message.intent === 'unknown' && this.draftContext?.intent === 'create_bill') {
+      // A rejected edit or premature "haan" must leave the editable bill and details form visible.
+      this.dispatch({ type: 'server', message: { ...this.draftContext, turnId: message.turnId, replyText: message.replyText }, at: this.now() });
+      return;
+    }
+    if (message.type === 'draft' && message.turnId === this.state.turnId && message.intent === 'create_bill') this.draftContext = message;
+    if (message.type === 'draft' && message.turnId === this.state.turnId && message.intent === 'cancel') this.draftContext = null;
     this.dispatch({ type: 'server', message, at: this.now() });
   }
 
@@ -154,6 +163,7 @@ export class TurnController {
 
   /** Applies a user edit to the displayed draft. */
   editDraft(draft: DraftMessage): void {
+    this.draftContext = draft;
     this.dispatch({ type: 'edit_draft', draft });
   }
 
@@ -216,7 +226,7 @@ export class TurnController {
     const { client, capture, playback, handlers } = this.deps;
     switch (effect.type) {
       case 'start_turn':
-        if (!client.send({ type: 'ptt_start', turnId: effect.turnId })) {
+        if (!client.send({ type: 'ptt_start', turnId: effect.turnId, draftContext: this.draftContext })) {
           this.dispatch({
             type: 'fault',
             error: { code: 'OFFLINE', message: 'Connection nahi hai. Please try again.', retryable: true },
@@ -265,9 +275,11 @@ export class TurnController {
         playback.endTurn(effect.turnId);
         return;
       case 'save_draft':
+        this.draftContext = null;
         handlers?.saveDraft?.(effect.draft);
         return;
       case 'discard_draft':
+        this.draftContext = null;
         handlers?.discardDraft?.(effect.draft);
         return;
       case 'speak':
