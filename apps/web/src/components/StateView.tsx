@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 export function StateView({ kind, title, hint, children }: { kind: 'loading' | 'empty' | 'error'; title: string; hint?: string; children?: ReactNode }) {
   return (
     <div role={kind === 'error' ? 'alert' : 'status'} aria-busy={kind === 'loading'} className={`rounded-2xl border border-dashed px-5 py-8 text-center ${kind === 'error' ? 'border-bad/70' : 'border-line'}`}>
-      <p className="text-lg font-bold">{kind === 'loading' ? '…' : ''}{title}</p>
+      {kind === 'loading' && <span aria-hidden="true" className="spin mx-auto mb-3 block h-7 w-7 rounded-full border-4 border-line border-t-ink" />}
+      <p className="text-lg font-bold">{title}</p>
       {hint && <p className="mt-1 text-dim">{hint}</p>}
       {children && <div className="mt-4">{children}</div>}
     </div>

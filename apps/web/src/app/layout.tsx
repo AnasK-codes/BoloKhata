@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en-IN">
       <body className="min-h-dvh antialiased">
         <AccountGate><AppProvider>
           <div className="app-content">{children}</div>

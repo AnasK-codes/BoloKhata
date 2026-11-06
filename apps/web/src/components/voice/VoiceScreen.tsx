@@ -18,6 +18,7 @@ import { statusText } from '@/lib/voice/statusText';
 import { useApp } from '../AppProvider';
 import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
+import { StateView } from '../StateView';
 import { BillCard } from './BillCard';
 import { BalanceCard, CustomerCard, PaymentCard, ProductCard, ProductListCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
@@ -60,7 +61,7 @@ export function VoiceScreen() {
   if (!session || !repo) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center px-4" aria-busy="true">
-        <p className="text-muted">Shuru ho raha hai…</p>
+        <StateView kind="loading" title="Shuru ho raha hai" />
       </main>
     );
   }

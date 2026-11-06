@@ -226,6 +226,6 @@ describe('updates', () => {
     let waited: Promise<unknown> = Promise.resolve();
     handlers['activate']!({ waitUntil: (p: Promise<unknown>) => (waited = p) });
     await waited;
-    expect([...store.keys()].sort()).toEqual(['bolbill-assets-v4', 'bolbill-shell-v4', 'unrelated-cache']);
+    expect([...store.keys()].sort()).toEqual(['bolbill-assets-v5', 'bolbill-shell-v5', 'unrelated-cache']);
   });
 });

@@ -12,7 +12,7 @@
  * Releasing: change VERSION when the shell changes in a way network-first fetching would not
  * pick up; old caches are deleted on activation.
  */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `bolbill-shell-${VERSION}`;
 const ASSET_CACHE = `bolbill-assets-${VERSION}`;
 

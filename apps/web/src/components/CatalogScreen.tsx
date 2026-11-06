@@ -117,7 +117,7 @@ export function CatalogScreen() {
       ) : products.error ? (
         <StateView kind="error" title="Samaan nahi khul paya" hint="Page reload karke dekho." />
       ) : shown.length === 0 ? (
-        <StateView kind="empty" title={query ? 'Kuch nahi mila' : 'Abhi koi samaan nahi'} hint={query ? 'Doosra naam try karo.' : 'Bill banane ke liye pehle samaan jodo.'}>
+        <StateView kind="empty" title={query ? 'Kuch nahi mila' : 'Abhi koi samaan nahi'} hint={query ? 'Doosra naam try karo.' : 'Bill banane ke liye pehle samaan jodo. Ya bolo poori list: "Samaan mein aata 45, cheeni 50, chawal 60 add karo".'}>
           {!query && <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">+ Samaan jodo</button>}
         </StateView>
       ) : (

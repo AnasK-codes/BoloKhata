@@ -164,7 +164,7 @@ export function LedgerScreen() {
       ) : list.error ? (
         <StateView kind="error" title="Khata nahi khul paya" hint="Page reload karke dekho." />
       ) : sorted.length === 0 ? (
-        <StateView kind="empty" title={query ? 'Koi grahak nahi mila' : 'Abhi koi grahak nahi'} hint={query ? 'Doosra naam try karo.' : 'Pehla bill bolo, grahak apne aap judega.'} />
+        <StateView kind="empty" title={query ? 'Koi grahak nahi mila' : 'Abhi koi grahak nahi'} hint={query ? 'Doosra naam try karo.' : 'Pehla bill bolo, grahak apne aap judega. Ya bolo: "Ramesh Kumar ko customer mein add karo".'} />
       ) : (
         <ul className="divide-y divide-line rounded-2xl bg-card">
           {sorted.map(({ customer, balance, oldestUnpaidAt }) => (

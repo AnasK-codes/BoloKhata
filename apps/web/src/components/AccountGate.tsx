@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { StateView } from './StateView';
 import type { BusinessProfile } from '@bolbill/shared';
 import { accountStateSchema, type AccountState } from '@/lib/auth/schema';
 import { BusinessProfileForm } from './BusinessProfileForm';
@@ -89,7 +90,7 @@ export function AccountGate({ children }: { children: ReactNode }) {
     setState(result);
   };
   const logout = async () => { const result = await requestAccount('logout'); setState(result); broadcast(); };
-  if (loading) return <main className="mx-auto max-w-md px-5 py-12" aria-busy="true">Account khul raha hai…</main>;
+  if (loading) return <main className="mx-auto max-w-md px-5 py-12" aria-busy="true"><StateView kind="loading" title="Account khul raha hai" /></main>;
   if (error) return <main className="mx-auto max-w-md space-y-4 px-5 py-12"><p role="alert">{error}</p><button onClick={() => void load()} className="min-h-12 rounded-xl bg-control px-4">Retry</button></main>;
   if (!state?.configured) return <main className="mx-auto max-w-md space-y-4 px-5 py-12"><h1 className="text-2xl font-bold">Cloud login setup baaki hai</h1><p>Supabase project connect karne ke baad signup aur login khulenge. Setup steps README aur docs/AUTH.md mein hain.</p><button className="min-h-12 rounded-xl bg-control px-4" onClick={() => void load()}>Setup ke baad retry karo</button></main>;
   if (!state.user) return <>

@@ -54,3 +54,11 @@ Real mic and TTS, iPhone Safari standalone, low-end Android, real-network speed,
 4. P1 copy/empty/loading states, PWA update path, manifest, then P2.
 
 Each step: lint + typecheck + test, then replay `docs/STORYBOARD.md` on `pnpm dev:mock`.
+
+## Progress log
+
+**Done (commits `4e068fc` and the P1 commit):** P0 #1 mic dock above the fold, #2 dark theme, #3 payment contrast, #5 lime override, #6 compact intro, #7 loading spinners, #8 tokens, #9 `lang="en-IN"`, #10 quick-tile scroll containment, #11 empty states teach voice phrases, #14 manifest shortcuts and `id`, offline page rebuilt on the app tokens (service worker bumped to v5), iOS standalone safe-area top padding.
+**Measured after:** client JS 321,005 bytes gzip (before: 321,269).
+**Partly done:** #4 confirm bar now says "Nahi" / "Haan, save" with a "haan/nahi" hint for every pending draft; a Change action for non-bill drafts is not added. Not seen in a browser (mic blocked).
+**Deliberately not done:** #12 connection-state polling: `client` has no subscribe API, so removing the 300 ms interval needs a client change. #13 re-render profiling needs React DevTools on a device.
+**Still open:** P2 (#15 to #18), draft-state screenshots, throttled vitals, hand-tests below.
