@@ -8,7 +8,8 @@
     "dev:mock": "tsx watch --env-file=mock.env src/main.ts",
     "build": "tsup",
     "start": "node dist/main.js",
-    "llm:check": "tsx src/parse/llm/check.ts",
+    "llm:check": "tsx --env-file=../../.env src/parse/llm/check.ts",
+    "llm:eval": "tsx --env-file=../../.env src/parse/llm/eval.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },

@@ -24,6 +24,7 @@ export function createLlmAdapter(llm: GatewayConfig['llm']): LlmAdapter {
         baseUrl: llm.openai.baseUrl,
         model: llm.openai.model,
         ...(llm.openai.apiKey ? { apiKey: llm.openai.apiKey } : {}),
+        ...(llm.openai.reasoningEffort ? { reasoningEffort: llm.openai.reasoningEffort } : {}),
       });
   }
 }

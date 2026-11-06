@@ -6,6 +6,8 @@ export interface OpenAiCompatibleOptions {
   baseUrl: string;
   model: string;
   apiKey?: string;
+  /** Sent as `reasoning_effort` (Gemini's compatibility API). Lower means a faster answer. */
+  reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
   /** Injected in tests; defaults to the platform fetch. */
   fetch?: typeof fetch;
 }
@@ -46,6 +48,7 @@ export class OpenAiCompatibleLlm implements LlmAdapter {
             temperature: 0,
             max_tokens: 300,
             response_format: { type: 'json_object' },
+            ...(this.options.reasoningEffort ? { reasoning_effort: this.options.reasoningEffort } : {}),
             messages: [
               { role: 'system', content: `${request.system}\n\nReply with one JSON object only.` },
               { role: 'user', content: request.userBlock },
