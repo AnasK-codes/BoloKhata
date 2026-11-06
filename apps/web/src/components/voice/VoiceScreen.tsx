@@ -312,13 +312,13 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
       </div>
       </div>
       <aside className="voice-sidebar">
-        <div className="quick-card"><div className="section-heading"><h2>Dukaan ke shortcuts</h2><span>↗</span></div><div className="quick-links">
-          <Link href="/bills"><span className="shortcut-icon lavender">▤</span><strong>Saved bills</strong><small>Dekho, print aur share karo</small></Link>
-          <Link href="/ledger"><span className="shortcut-icon peach"><Icon name="user" /></span><strong>Customer khata</strong><small>Udhaar aur payments dekho</small></Link>
-          <Link href="/catalog"><span className="shortcut-icon mint">▦</span><strong>Apna samaan</strong><small>Items aur rates manage karo</small></Link>
+        <div className="quick-card"><div className="section-heading"><h2>Dukaan ke shortcuts</h2><Icon name="arrow" size={18} /></div><div className="quick-links">
+          <Link href="/bills"><span className="shortcut-icon"><Icon name="receipt" /></span><strong>Saved bills</strong><small>Dekho, print aur share karo</small></Link>
+          <Link href="/ledger"><span className="shortcut-icon"><Icon name="book" /></span><strong>Customer khata</strong><small>Udhaar aur payments dekho</small></Link>
+          <Link href="/catalog"><span className="shortcut-icon"><Icon name="box" /></span><strong>Apna samaan</strong><small>Items aur rates manage karo</small></Link>
         </div></div>
         <div className="example-card"><p className="eyebrow">BOLKAR DEKHO</p><h2>Ek sentence. Kaam done.</h2><ul>{EXAMPLES.map((example, index) => <li key={example}><span>0{index + 1}</span><p>&ldquo;{example}&rdquo;</p></li>)}</ul></div>
-        <Link href="/settings" className="profile-banner"><Icon name="check" size={26} /><span><strong>Aapki dukaan, aapka bill.</strong><small>Business profile aur receipt details</small></span><span aria-hidden="true">↗</span></Link>
+        <Link href="/settings" className="profile-banner"><Icon name="check" size={26} /><span><strong>Aapki dukaan, aapka bill.</strong><small>Business profile aur receipt details</small></span><Icon name="arrow" size={20} /></Link>
       </aside>
       </div>
 

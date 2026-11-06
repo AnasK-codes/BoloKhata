@@ -62,3 +62,5 @@ Each step: lint + typecheck + test, then replay `docs/STORYBOARD.md` on `pnpm de
 **Partly done:** #4 confirm bar now says "Nahi" / "Haan, save" with a "haan/nahi" hint for every pending draft; a Change action for non-bill drafts is not added. Not seen in a browser (mic blocked).
 **Deliberately not done:** #12 connection-state polling: `client` has no subscribe API, so removing the 300 ms interval needs a client change. #13 re-render profiling needs React DevTools on a device.
 **Still open:** P2 (#15 to #18), draft-state screenshots, throttled vitals, hand-tests below.
+
+**P2 pass:** #16 done (all nav and shortcut icons come from `Icon`; unicode glyphs removed). #15 checked at 1280 px: sidebar plus an 850 px column is coherent, left unchanged. #17 checked: Settings is already grouped under section headings, left unchanged. #18 (print/receipt on a real printer) cannot be verified here.
