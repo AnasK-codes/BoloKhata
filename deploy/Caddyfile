@@ -13,12 +13,19 @@
 		# flush_interval -1: send bytes as they arrive (audio must not be buffered). No `encode`
 		# here: compressing audio frames only adds latency. WebSocket upgrades are proxied
 		# automatically.
+		# stream_close_delay: a config reload keeps open sockets (a held mic) instead of cutting them.
+		# Caddy sets no idle timeout on an upgraded WebSocket; the gateway's 15 s ping keeps it alive.
 		reverse_proxy gateway:8080 {
 			flush_interval -1
+			stream_close_delay 5m
 		}
 	}
 
 	handle {
+		# Account and profile requests are small JSON; nothing legitimate is larger.
+		request_body {
+			max_size 1MB
+		}
 		encode zstd gzip
 		reverse_proxy web:3000
 	}
@@ -29,9 +36,11 @@
 		Referrer-Policy "no-referrer"
 		Permissions-Policy "microphone=(self)"
 	}
-	# The service worker must be fetched fresh so updates are noticed.
-	@sw path /sw.js
-	header @sw Cache-Control "no-cache"
+	# The service worker and manifest must be fetched fresh so updates are noticed (">" replaces the
+	# header Next sends instead of adding a second one). Next already sends
+	# a long immutable Cache-Control for its hashed /_next/static files.
+	@fresh path /sw.js /manifest.webmanifest
+	header @fresh >Cache-Control "no-cache"
 
 	log {
 		output stdout
