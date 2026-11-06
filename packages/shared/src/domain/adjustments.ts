@@ -35,7 +35,8 @@ export interface BillTotals {
 }
 
 /** floor((2n + d) / 2d): half-up division for non-negative integers. */
-const halfUp = (numerator: number, denominator: number): number => Math.floor((2 * numerator + denominator) / (2 * denominator));
+/** The single half-up rounding rule for whole rupees: line totals, quoted bundles, discount, GST, round-off. */
+export const halfUp = (numerator: number, denominator: number): number => Math.floor((2 * numerator + denominator) / (2 * denominator));
 
 export function computeTotals(subtotal: number, adjust?: BillAdjust): BillTotals {
   const base = Math.max(0, Math.round(subtotal));

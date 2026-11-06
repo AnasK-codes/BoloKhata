@@ -22,7 +22,7 @@ import type { z } from 'zod';
 import { CatalogIndex, type MatchResult } from './matching';
 import type { BillItem, DraftBill } from './types';
 import { spokenPriceSchema } from '../protocol/server';
-import { computeTotals, isEmptyAdjust, type BillAdjust } from './adjustments';
+import { computeTotals, halfUp, isEmptyAdjust, type BillAdjust } from './adjustments';
 
 export type UnresolvedItem = z.infer<typeof unresolvedSchema>;
 
@@ -75,16 +75,14 @@ function conversionFactor(from: Unit, to: Unit): number | null {
 
 /** Half-up rounding of milli-quantity times price, in whole rupees. */
 export function lineTotal(milliQuantity: number, pricePerUnit: number): number {
-  return roundRupeesRatio(milliQuantity * pricePerUnit, 1000);
+  return halfUp(milliQuantity * pricePerUnit, 1000);
 }
 
-/** The single half-up rounding rule for whole-rupee totals, including quoted bundles. */
-function roundRupeesRatio(numerator: number, denominator: number): number {
-  return Math.floor((2 * numerator + denominator) / (2 * denominator));
-}
+/** The largest quantity on one line, in thousandths of a unit (one million units). */
+const MAX_MILLI_QUANTITY = 1_000_000_000;
 
 export function repriceBillItem(item: BillItem, quantity: number): BillItem | null {
-  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > 1_000_000) return null;
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity * 1000 > MAX_MILLI_QUANTITY) return null;
   const price = item.spokenPrice;
   if (!price) return item.unitPrice === null ? null : { ...item, quantity, lineTotal: lineTotal(Math.round(quantity * 1000), item.unitPrice) };
   const milli = convertToMilli(quantity, item.unit, price.unit);
@@ -93,7 +91,7 @@ export function repriceBillItem(item: BillItem, quantity: number): BillItem | nu
   if (denominator <= 0) return null;
   const numerator = milli * price.amount;
   if (!Number.isSafeInteger(numerator * 2 + denominator)) return null;
-  return { ...item, quantity, lineTotal: roundRupeesRatio(numerator, denominator) };
+  return { ...item, quantity, lineTotal: halfUp(numerator, denominator) };
 }
 
 const asRupees = (n: number | null | undefined): number | null =>
@@ -154,8 +152,9 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
       continue;
     }
     const milli = convertToMilli(item.quantity, item.unit ?? product.unit, product.unit);
-    if (milli === null || milli <= 0) {
-      const bad = !Number.isFinite(item.quantity) || item.quantity <= 0;
+    // Same bound as a spoken price (repriceBillItem): an absurd quantity is a mishearing, not a sale.
+    if (milli === null || milli <= 0 || milli > MAX_MILLI_QUANTITY || !Number.isSafeInteger(milli * product.pricePerUnit * 2 + 1000)) {
+      const bad = !Number.isFinite(item.quantity) || item.quantity <= 0 || milli !== null;
       warnings.push(
         bad
           ? `Quantity for "${product.name}" is not valid.`
