@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
-import { CatalogIndex, TTS_PCM_FORMAT, correctDraft, buildBill, type DraftMessage, type ErrorCode } from '@bolbill/shared';
+import { CatalogIndex, TTS_PCM_FORMAT, correctDraft, buildBill, isConfirmable, type DraftMessage, type ErrorCode } from '@bolbill/shared';
 import type { GatewayConfig } from '../config';
 import type { SttLink, SttTranscript } from '../gnani/sttLink';
 import type { TtsLink } from '../gnani/ttsLink';
@@ -33,8 +33,6 @@ interface TurnContext {
   abort: AbortController;
   /** Set once the turn is interrupted or superseded: nothing more may be sent for it. */
   cancelled: boolean;
-  /** Whether a draft was waiting for a yes/no when the button went down. */
-  hadPending: boolean;
 }
 
 /**
@@ -102,16 +100,12 @@ export class TurnEngine {
 
   onPttStart(turnId: number, draftContext?: DraftMessage | null): void {
     if (draftContext !== undefined) {
+      // The browser's draft (with local edits) replaces ours; it is confirmable by voice only if the
+      // browser could save it, by the same shared rule.
       this.correctionContext = draftContext;
-      const eligible = draftContext && (draftContext.intent === 'record_payment' ||
-        (draftContext.intent === 'add_customer' && draftContext.customer?.isNew === true) ||
-        (draftContext.intent === 'add_product' && draftContext.product?.isNew === true) ||
-        (draftContext.intent === 'add_products' && draftContext.products?.some((p) => p.isNew) === true) ||
-        (draftContext.intent === 'update_price' && draftContext.product?.id !== undefined && draftContext.product.pricePerUnit !== draftContext.product.previousPrice) ||
-        (draftContext.intent === 'out_of_stock' && draftContext.stock !== undefined) ||
-        (draftContext.intent === 'create_bill' && draftContext.bill && draftContext.bill.items.length > 0 && draftContext.unresolved.length === 0 &&
-          (draftContext.bill.udhaar === 0 || (draftContext.customer && draftContext.customer.creditReady !== false))));
-      this.pending = draftContext ? { draftId: draftContext.draftId, intent: draftContext.intent === 'record_payment' || draftContext.intent === 'out_of_stock' || draftContext.intent === 'add_customer' || draftContext.intent === 'add_product' || draftContext.intent === 'add_products' || draftContext.intent === 'update_price' ? draftContext.intent : 'create_bill', canConfirm: !!eligible } : null;
+      this.pending = draftContext && isPendingIntent(draftContext.intent)
+        ? { draftId: draftContext.draftId, intent: draftContext.intent, canConfirm: isConfirmable(draftContext) }
+        : null;
     }
     this.tts.interruptAll(); // barge-in: pressing the button silences the shop's assistant
     this.supersedeCurrent();
@@ -130,7 +124,6 @@ export class TurnEngine {
       turnId,
       abort: new AbortController(),
       cancelled: false,
-      hadPending: this.pending !== null,
     };
     this.metrics.turnsTotal++;
     this.timer.start(turnId);
@@ -253,8 +246,7 @@ export class TurnEngine {
         if (correction) {
           const draft = { ...correction.draft, turnId: ctx.turnId, source: 'rules' as const };
           this.correctionContext = draft;
-          this.pending = { draftId: draft.draftId, intent: 'create_bill', canConfirm: !!(draft.bill && draft.bill.items.length > 0 && draft.unresolved.length === 0 &&
-            (draft.bill.udhaar === 0 || (draft.customer && draft.customer.creditReady !== false))) };
+          this.pending = { draftId: draft.draftId, intent: 'create_bill', canConfirm: isConfirmable(draft) };
           this.timer.mark(ctx.turnId, 'rules_done');
           this.timer.setParseSource(ctx.turnId, 'rules');
           this.timer.mark(ctx.turnId, 'draft');
@@ -395,6 +387,9 @@ export class TurnEngine {
     if (timing) this.out.json(timing);
   }
 }
+
+const PENDING_INTENTS: ReadonlySet<string> = new Set<PendingDraft['intent']>(['create_bill', 'record_payment', 'out_of_stock', 'add_customer', 'add_product', 'add_products', 'update_price']);
+const isPendingIntent = (intent: DraftMessage['intent']): intent is PendingDraft['intent'] => PENDING_INTENTS.has(intent);
 
 function errorName(error: unknown): string {
   return error instanceof Error ? error.name : 'unknown';

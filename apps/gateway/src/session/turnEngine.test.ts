@@ -466,4 +466,18 @@ describe('voice corrections with the browser draft context', () => {
     expect(await client.next('draft')).toMatchObject({ intent: 'unknown' });
     await client.next('tts_end');
   });
+
+  it('a draft the browser cannot save is not confirmed by "haan" (payment from an unknown customer)', async () => {
+    gateway = await startGateway(env(), { llm: never().adapter });
+    const client = await gateway.ready(HELLO);
+    const first = draftSchema.parse(await say(client, 1, 'Kapoor ji ne do sau de diye'));
+    expect(first).toMatchObject({ intent: 'record_payment' });
+    expect(first.customer?.id).toBeUndefined();
+    mock!.stt.queueTranscripts('haan');
+    client.sendJson({ type: 'ptt_start', turnId: 2, draftContext: first });
+    for (let i = 0; i < 8; i++) client.sendBinary(speechFrame());
+    client.sendJson({ type: 'ptt_end', turnId: 2 });
+    expect(await client.next('draft')).toMatchObject({ intent: 'unknown' });
+    await client.next('tts_end');
+  });
 });
