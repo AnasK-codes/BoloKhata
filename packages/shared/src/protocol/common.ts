@@ -21,6 +21,8 @@ export const INTENTS = [
   'out_of_stock',
   'add_customer',
   'add_product',
+  'add_products',
+  'update_price',
   'confirm',
   'cancel',
   'unknown',

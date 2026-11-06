@@ -22,8 +22,10 @@ export interface Resolution {
   customer: ResolvedCustomer | null;
   /** Priced from catalog rates or rules-extracted quotes by shared code. Only for create_bill. */
   bill: BuildBillResult | null;
-  /** For out_of_stock and add_product: which existing product the speaker named, if any. */
+  /** For out_of_stock, add_product and update_price: which existing product the speaker named, if any. */
   stockMatch?: MatchResult | null;
+  /** For add_products: the existing product each spoken row matched, in order. */
+  rowMatches?: MatchResult[];
 }
 
 /**
@@ -44,8 +46,9 @@ export function resolveUtterance(parsed: ParsedUtterance, index: CatalogIndex): 
           ...(parsed.adjust ? { adjust: parsed.adjust } : {}),
         })
       : null;
-  const stockName = parsed.intent === 'out_of_stock' || parsed.intent === 'add_product' ? parsed.items[0]?.name : undefined;
-  return { customer, bill, ...(stockName ? { stockMatch: index.matchProduct(stockName) } : {}) };
+  const stockName = parsed.intent === 'out_of_stock' || parsed.intent === 'add_product' || parsed.intent === 'update_price' ? parsed.items[0]?.name : undefined;
+  const rowMatches = parsed.intent === 'add_products' ? parsed.items.map((item) => index.matchProduct(item.name)) : undefined;
+  return { customer, bill, ...(stockName ? { stockMatch: index.matchProduct(stockName) } : {}), ...(rowMatches ? { rowMatches } : {}) };
 }
 
 function resolveCustomer(spoken: string | null, index: CatalogIndex): ResolvedCustomer | null {

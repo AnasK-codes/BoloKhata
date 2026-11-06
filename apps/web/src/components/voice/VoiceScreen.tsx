@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { hasCreditDetails, type DraftMessage } from '@bolbill/shared';
+import { hasCreditDetails, type DraftMessage, type Product } from '@bolbill/shared';
 import { setAccessCode } from '@/lib/accessCode';
 import { rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
@@ -12,16 +12,17 @@ import type { ConnectionState } from '@/lib/realtime/types';
 import { useSettings } from '@/lib/settings';
 import { useOnline } from '@/lib/useOnline';
 import { useTurnStore } from '@/lib/turn/useTurnStore';
-import { draftFromTranscript } from '@/lib/voice/draftEdit';
+import { addProductToDraft, billFromProduct, draftFromTranscript } from '@/lib/voice/draftEdit';
 import { connectionNotice, friendlyError, micErrorText } from '@/lib/voice/errorText';
 import { statusText } from '@/lib/voice/statusText';
 import { useApp } from '../AppProvider';
 import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
 import { BillCard } from './BillCard';
-import { BalanceCard, CustomerCard, PaymentCard, ProductCard, StockCard, SummaryCard } from './InfoCards';
+import { BalanceCard, CustomerCard, PaymentCard, ProductCard, ProductListCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
 import { MicButton } from './MicButton';
+import { QuickTiles } from './QuickTiles';
 import { ReplaceDialog } from './ReplaceDialog';
 
 const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye', 'Aaj kitni bikri hui?', 'Ramesh Kumar ko customer mein add karo', 'Samaan mein Maida 35 rupaye kilo add karo'];
@@ -102,6 +103,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
 
   const products = useLive(() => repo.listProducts(), [repo]);
   const customers = useLive(() => repo.listCustomersWithBalance(), [repo]);
+  const frequent = useLive(() => repo.listFrequentProducts(8), [repo]);
   useEffect(() => {
     if (!draft?.bill || draft.bill.udhaar <= 0 || !draft.customer || !customers.data) return;
     const ready = hasCreditDetails(customers.data.find((c) => c.customer.id === draft.customer?.id)?.customer);
@@ -152,6 +154,17 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
 
   const change = (next: DraftMessage) => controller.editDraft(next);
 
+  /** A quick tile adds to the bill on screen, or starts a new one when nothing is waiting. */
+  const pickTile = (product: Product) => {
+    if (pending && pending.intent === 'create_bill' && draft?.draftId === pending.draftId) {
+      controller.editDraft(addProductToDraft(draft, product));
+    } else if (pending === null) {
+      controller.startDraft(billFromProduct(product, globalThis.crypto.randomUUID(), 0));
+    } else {
+      toast('Pehle jo draft hai use confirm ya cancel karo.', 'error');
+    }
+  };
+
   const applyTranscriptEdit = () => {
     if (!draft) return;
     const catalogCustomers = (customers.data ?? []).map(({ customer, balance }) => ({ id: customer.id, name: customer.name, aliases: customer.aliases, balance }));
@@ -169,7 +182,8 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     if (d.intent === 'record_payment') return <PaymentCard draft={d} repo={repo} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'query_summary') return <SummaryCard draft={d} />;
     if (d.intent === 'out_of_stock') return <StockCard draft={d} saved={pending?.draftId !== d.draftId} />;
-    if (d.intent === 'add_product') return <ProductCard draft={d} saved={pending?.draftId !== d.draftId} />;
+    if (d.intent === 'add_product' || d.intent === 'update_price') return <ProductCard draft={d} saved={pending?.draftId !== d.draftId} />;
+    if (d.intent === 'add_products') return <ProductListCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'add_customer') return <CustomerCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} repo={repo} onChange={change} />;
     return null;
@@ -228,6 +242,8 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             </div>
           </form>
         )}
+
+        <QuickTiles products={frequent.data ?? []} disabled={listening || busy} onPick={pickTile} />
 
         {draft ? showCard(draft) : null}
 

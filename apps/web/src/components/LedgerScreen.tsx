@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { daysSince } from '@bolbill/shared';
+import { reminderLink, reminderText } from '@/lib/reminder';
 import { formatDate, rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
 import { useOnline } from '@/lib/useOnline';
@@ -17,6 +19,7 @@ export function LedgerScreen() {
   const { profile } = useAccount();
   const online = useOnline();
   const [query, setQuery] = useState('');
+  const [oldestFirst, setOldestFirst] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,8 +33,10 @@ export function LedgerScreen() {
     const q = query.trim().toLowerCase();
     return (list.data ?? [])
       .filter((x) => !q || [x.customer.name, ...x.customer.aliases].some((n) => n.toLowerCase().includes(q)))
-      .sort((a, b) => b.balance - a.balance || a.customer.name.localeCompare(b.customer.name));
-  }, [list.data, query]);
+      .sort((a, b) => oldestFirst
+        ? (b.balance > 0 ? 1 : 0) - (a.balance > 0 ? 1 : 0) || (a.oldestUnpaidAt ?? Infinity) - (b.oldestUnpaidAt ?? Infinity) || a.customer.name.localeCompare(b.customer.name)
+        : b.balance - a.balance || a.customer.name.localeCompare(b.customer.name));
+  }, [list.data, query, oldestFirst]);
   const outstanding = (list.data ?? []).reduce((sum, x) => sum + Math.max(0, x.balance), 0);
 
   if (dataError) return <main className="mx-auto max-w-md px-4 py-6"><StateView kind="error" title="Data nahi khul paya" hint={dataError} /></main>;
@@ -90,6 +95,17 @@ export function LedgerScreen() {
             <button type="submit" disabled={busy || amount === ''} className="min-h-14 rounded-xl bg-emerald-500 px-5 text-lg font-bold text-stone-950 disabled:opacity-40">Likho</button>
           </div>
         </form>
+        {current.balance > 0 && (
+          <a
+            href={reminderLink(current.customer.mobile, reminderText({ businessName: profile.businessName, customerName: current.customer.name, balance: current.balance, days: current.oldestUnpaidAt === null ? null : daysSince(current.oldestUnpaidAt, Date.now()) })) ?? undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-500 px-4 font-bold text-stone-950"
+          >
+            WhatsApp pe yaad dilao
+          </a>
+        )}
+        {current.balance > 0 && !current.customer.mobile && <p className="text-sm text-muted">Mobile number nahi hai, isliye WhatsApp aapse contact chunne ko kahega. "Badlo" mein number bhar do.</p>}
         <button type="button" disabled={(rows.data ?? []).length === 0} className="min-h-12 w-full rounded-xl bg-raised px-4 font-semibold disabled:opacity-40" onClick={() => window.print()}>Statement print / PDF</button>
         <StatementSheet businessName={profile.businessName} customerName={current.customer.name} rows={rows.data ?? []} printedAt={Date.now()} />
         <section aria-label="Statement">
@@ -139,6 +155,10 @@ export function LedgerScreen() {
         <p className="num text-5xl font-extrabold text-warn">{list.loading ? '…' : rupees(outstanding)}</p>
       </header>
       <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Grahak dhundo (search)" aria-label="Grahak dhundo" className="min-h-14 w-full rounded-xl bg-inset px-4 text-lg" />
+      <div className="flex gap-2" role="group" aria-label="Sort">
+        <button type="button" aria-pressed={!oldestFirst} onClick={() => setOldestFirst(false)} className={`min-h-12 flex-1 rounded-xl px-3 font-semibold ${!oldestFirst ? 'bg-ink text-canvas' : 'bg-raised'}`}>Zyada baaki pehle</button>
+        <button type="button" aria-pressed={oldestFirst} onClick={() => setOldestFirst(true)} className={`min-h-12 flex-1 rounded-xl px-3 font-semibold ${oldestFirst ? 'bg-ink text-canvas' : 'bg-raised'}`}>Sabse purana pehle</button>
+      </div>
       {list.loading || !repo ? (
         <StateView kind="loading" title="Khata khul raha hai" />
       ) : list.error ? (
@@ -147,10 +167,13 @@ export function LedgerScreen() {
         <StateView kind="empty" title={query ? 'Koi grahak nahi mila' : 'Abhi koi grahak nahi'} hint={query ? 'Doosra naam try karo.' : 'Pehla bill bolo, grahak apne aap judega.'} />
       ) : (
         <ul className="divide-y divide-line rounded-2xl bg-card">
-          {sorted.map(({ customer, balance }) => (
+          {sorted.map(({ customer, balance, oldestUnpaidAt }) => (
             <li key={customer.id}>
               <button type="button" onClick={() => setSelected(customer.id)} className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-3 text-left active:bg-raised">
-                <span className="text-lg font-semibold">{customer.name}</span>
+                <span>
+                  <span className="block text-lg font-semibold">{customer.name}</span>
+                  {balance > 0 && oldestUnpaidAt !== null && <span className="block text-sm text-muted">{daysSince(oldestUnpaidAt, Date.now())} din se baaki</span>}
+                </span>
                 <span className={`num text-xl font-bold ${balance > 0 ? 'text-warn' : balance < 0 ? 'text-info' : 'text-muted'}`}>{rupees(balance)}</span>
               </button>
             </li>

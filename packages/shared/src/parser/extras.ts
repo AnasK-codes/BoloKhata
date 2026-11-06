@@ -19,7 +19,14 @@ import { parseNumber } from '../domain/numberWords';
  */
 const MEDIAL_SCHWA = /(?<=[aeiou][^aeiou\s]+)a(?=[^aeiou\s]+[aeiou])/g;
 
-export const fold = (s: string): string => normalize(s, { stripHonorifics: false }).replace(MEDIAL_SCHWA, '');
+/**
+ * Devanagari spells a final "-ye" as a bare vowel ("रुपए", "लिए", "दिए"), so those fold to "rupae",
+ * "lie" and "die" while the Roman keywords fold to "rupaye", "liye" and "diye". Folding "-ye" after a
+ * vowel to the bare vowel makes both spellings one key. Words and keyword lists go through the same fold.
+ */
+const FINAL_YE = /([aeiou])ye\b/g;
+
+export const fold = (s: string): string => normalize(s, { stripHonorifics: false }).replace(FINAL_YE, '$1e').replace(MEDIAL_SCHWA, '');
 export const foldSet = (words: readonly string[]): ReadonlySet<string> => new Set(words.map(fold));
 
 /** The parser's working copy of one utterance. */

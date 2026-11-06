@@ -298,9 +298,15 @@ Every turn carries timestamps from the browser (press, release, first frame sent
 | `out_of_stock` | "Aata khatam ho gaya" | Draft; "haan" sets that product's stock to 0 (rules only) |
 | `add_customer` | "Ramesh Kumar ko customer mein add karo" | Draft; "haan" creates the customer on the device, name only (rules only). An existing name is not offered again |
 | `add_product` | "Samaan mein Maida 35 rupaye kilo add karo" | Draft with the spoken rate per unit; "haan" adds it to Samaan (rules only). With no unit spoken it shows "piece"; a count above one or an existing product is not offered |
+| `add_products` | "Samaan mein jodo aata 45 kilo, cheeni 50 kilo, Maggi 14 packet" | Two or more name + price rows; one "haan" adds every new one, existing products are skipped (rules only). A row with no price is not understood |
+| `update_price` | "Chawal ka rate 45 karo" | Draft showing the old and new rate; "haan" changes only that product's rate (rules only). Unknown products, a rate for a different unit, and an unchanged rate are not offered |
 | `confirm` | "haan", "theek hai", "kar do" | Saves the pending draft |
 | `cancel` | "nahi", "rehne do", "cancel" | Discards the pending draft |
 | `unknown` | anything else | Friendly retry prompt |
+
+**Also on the device (no microphone needed):** the home screen shows the shop's most-sold products as one-tap **quick tiles** that start or extend a cash bill; the Khata screen can sort by **oldest unpaid udhaar** (shown as "N din se baaki") and opens a **WhatsApp reminder** (a `wa.me` link with a prefilled message; nothing is sent by the app, the shopkeeper taps send).
+
+Two manual scripts call the real LLM, one request at a time, and are never run by tests: `pnpm --filter @bolbill/gateway llm:check` (one call) and `pnpm --filter @bolbill/gateway llm:eval` (rules vs model on a small synthetic set, `apps/gateway/src/parse/llm/evalSet.ts`).
 
 ### Structured output
 
@@ -450,6 +456,7 @@ Defined in `.env.example`. **Never commit `.env`.** Only `NEXT_PUBLIC_GATEWAY_UR
 | `LLM_PROVIDER` | gateway | `bedrock`, `openai-compatible` or `none`. **Default `none`** until Bedrock access is verified on your account |
 | `AWS_REGION`, `BEDROCK_MODEL_ID` | gateway | Use a small fast model your account has access to; check the console for the exact ID or inference profile |
 | `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` | gateway | Only for `LLM_PROVIDER=openai-compatible` (any `POST {base}/chat/completions` server); the key is optional. How to verify a provider by hand: [docs/LLM.md](docs/LLM.md) |
+| `OPENAI_REASONING_EFFORT` | gateway | Optional `none` / `minimal` / `low` / `medium` / `high`, sent as `reasoning_effort` (Gemini's compatibility API). Lower thinks less. Measured results: [docs/LATENCY.md](docs/LATENCY.md) |
 | `LLM_TIMEOUT_MS` | gateway | Default `1200` |
 | `ALLOWED_ORIGINS`, `SESSION_TOKEN_SECRET`, `DEMO_ACCESS_CODE` | gateway | Origin allowlist, token signing, optional demo gate |
 | `MAX_SESSIONS`, `MAX_SESSION_MINUTES` | gateway | Concurrency and session length caps |

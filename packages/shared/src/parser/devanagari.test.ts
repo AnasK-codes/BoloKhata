@@ -81,3 +81,29 @@ describe('add a customer by voice', () => {
     expect(parse('customer 5 add karo').intent).not.toBe('add_customer');
   });
 });
+
+/** Found by `pnpm --filter @bolbill/gateway llm:eval`: the rules misread these four real-shaped sentences. */
+describe('regressions from the LLM evaluation', () => {
+  it('reads "रुपए" as money, so a Devanagari payment is not a bill', () => {
+    expect(parse('वर्मा जी ने तीन सौ रुपए दे दिए')).toMatchObject({ intent: 'record_payment', amount_paid: 300 });
+    expect(parse('वर्मा जी ने तीन सौ रुपये दिये')).toMatchObject({ intent: 'record_payment', amount_paid: 300 });
+  });
+
+  it('finds a known customer after "के लिए" at the end of a Devanagari bill', () => {
+    const r = parse('सरसों का तेल दो लीटर और अंडे एक दर्जन शर्मा जी के लिए');
+    expect(r.customer).toBe('शर्मा जी');
+    expect(r.items.map((i) => i.name)).toEqual(['सरसों तेल', 'अंडे']);
+  });
+
+  it('treats "बहन" like "behen": a respectful word, not part of the name', () => {
+    const r = parse('पटेल बहन को एक पैकेट मैगी और एक पैकेट नमकीन');
+    const index = seedIndex();
+    expect(index.matchCustomer(r.customer ?? '').best?.id).toBe('c_meena_patel');
+  });
+
+  it('ignores spoken fillers ("uh", "haan") around names and items', () => {
+    const r = parse('uh Joshi ji ko... teen packet maggi... haan aur ek bread');
+    expect(r.customer).toBe('Joshi ji');
+    expect(r.items.map((i) => i.name)).toEqual(['maggi', 'bread']);
+  });
+});

@@ -156,6 +156,24 @@ export function addProductAsk(productName: string | null | undefined, unit: stri
   return [clip(pick([`${item}, ${rupees(price)} per ${per}. Samaan mein jodun?`, `${item} ${rupees(price)} per ${per}, likh dun?`], variant))];
 }
 
+/** "Chawal ka rate 45 karo": reads the change back before it is written. */
+export function updatePriceAsk(productName: string | null | undefined, unit: string, price: number, variant = 0): string[] {
+  const item = name(productName);
+  const per = UNIT_WORDS[unit] ?? unit;
+  return [clip(pick([`${item} ka rate ${rupees(price)} per ${per} kar dun?`, `${item} ab ${rupees(price)} per ${per}, theek hai?`], variant))];
+}
+
+export function priceUnchanged(productName: string | null | undefined, variant = 0): string[] {
+  const item = name(productName);
+  return [clip(pick([`${item} ka rate pehle se yahi hai.`, `${item} ka rate pehle se wahi hai, badla nahi.`], variant))];
+}
+
+/** "Samaan mein aata 45, cheeni 50, ...": one confirmation for the whole list. */
+export function addProductsAsk(fresh: number, existing: number, variant = 0): string[] {
+  const head = pick([`${fresh} samaan jodun?`, `${fresh} naye samaan jodne hain, theek hai?`], variant);
+  return existing > 0 ? [head, `${existing} pehle se hain, unhe chhod dunga.`] : [head, `List dekh lo, phir haan bolo.`];
+}
+
 export function productExists(productName: string | null | undefined, variant = 0): string[] {
   const item = name(productName);
   return [clip(pick([`${item} samaan mein pehle se hai.`, `${item} list mein pehle se hai.`], variant))];

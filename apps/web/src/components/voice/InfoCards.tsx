@@ -114,17 +114,46 @@ const UNIT_LABEL: Record<string, string> = { kg: 'kg', g: 'gram', l: 'litre', ml
 export function ProductCard({ draft, saved }: { draft: DraftMessage; saved: boolean }) {
   const product = draft.product;
   if (!product) return null;
-  const exists = !product.isNew;
+  const changing = product.previousPrice !== undefined;
+  const exists = !product.isNew && !changing;
   return (
-    <article className="pop rounded-2xl bg-card p-4" aria-label="Naya samaan">
+    <article className="pop rounded-2xl bg-card p-4" aria-label={changing ? 'Rate badalna' : 'Naya samaan'}>
       <p className="text-dim">
-        {exists ? <span className="badge">Pehle se hai</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />Samaan jod diya</span> : <span className="badge badge-warn">Confirm karo</span>}
+        {exists ? <span className="badge">Pehle se hai</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />{changing ? 'Rate badal diya' : 'Samaan jod diya'}</span> : <span className="badge badge-warn">Confirm karo</span>}
       </p>
       <p className="mt-2 text-3xl font-extrabold tracking-tight">{product.name}</p>
-      <p className="num mt-1 text-2xl font-bold">{rupees(product.pricePerUnit)}<span className="text-base font-semibold text-dim"> / {UNIT_LABEL[product.unit] ?? product.unit}</span></p>
+      <p className="num mt-1 text-2xl font-bold">{changing && <span className="mr-2 text-lg font-semibold text-dim line-through">{rupees(product.previousPrice ?? 0)}</span>}{rupees(product.pricePerUnit)}<span className="text-base font-semibold text-dim"> / {UNIT_LABEL[product.unit] ?? product.unit}</span></p>
       <p className="mt-1 text-dim">
-        {exists ? 'Ye samaan list mein pehle se hai. Rate badalna ho to Samaan screen kholo.' : saved ? 'Samaan mein dikhega. Ab bill mein bol sakte ho.' : 'Samaan mein jodun? Confirm dabao ya bolo "haan".'}
+        {changing
+          ? saved ? 'Naya rate ab se naye bill mein lagega. Purane bill nahi badlenge.' : 'Rate badal dun? Confirm dabao ya bolo "haan".'
+          : exists ? 'Ye samaan list mein pehle se hai. Rate badalna ho to bolo: "chawal ka rate 45 karo".' : saved ? 'Samaan mein dikhega. Ab bill mein bol sakte ho.' : 'Samaan mein jodun? Confirm dabao ya bolo "haan".'}
       </p>
+    </article>
+  );
+}
+
+/** "Samaan mein aata 45, cheeni 50, ...": the whole list, one confirmation. Existing products are marked and skipped. */
+export function ProductListCard({ draft, saved }: { draft: DraftMessage; saved: boolean }) {
+  const products = draft.products;
+  if (!products || products.length === 0) return null;
+  const fresh = products.filter((p) => p.isNew).length;
+  return (
+    <article className="pop rounded-2xl bg-card p-4" aria-label="Naye samaan">
+      <p className="text-dim">
+        {fresh === 0 ? <span className="badge">Sab pehle se hain</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />{fresh} samaan jod diye</span> : <span className="badge badge-warn">{fresh} naye, confirm karo</span>}
+      </p>
+      <ul className="mt-3 divide-y divide-black/5">
+        {products.map((p, i) => (
+          <li key={`${p.name}-${i}`} className="flex items-center justify-between gap-3 py-2">
+            <span className={`text-lg font-bold ${p.isNew ? '' : 'text-dim line-through'}`}>{p.name}</span>
+            <span className="num text-lg font-semibold">
+              {rupees(p.pricePerUnit)}<span className="text-sm text-dim"> / {UNIT_LABEL[p.unit] ?? p.unit}</span>
+              {!p.isNew && <span className="badge ml-2">Pehle se hai</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {!saved && fresh > 0 && <p className="mt-2 text-dim">Sab sahi hai? Confirm dabao ya bolo "haan".</p>}
     </article>
   );
 }

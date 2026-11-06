@@ -46,18 +46,18 @@ const BALANCE_KW = foldSet(['kitna', 'kitni', 'kitne', 'hisab', 'balance', 'baka
 const UDHAAR_KW = foldSet(['udhaar', 'udhar', 'udhari', 'credit', 'baki', 'bakaya', 'khata', 'khate']);
 const PAID_KW = foldSet(['diye', 'diya', 'dia', 'jama', 'mile', 'mila', 'paid', 'pay', 'payment', 'दिए', 'दिये', 'chukaye', 'chukaya', 'bhare', 'bhara', 'wapas']);
 const MIL_GAYE = foldSet(['gaye', 'gaya', 'gae']);
-const AMOUNT_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'rupaye', 'rupaya', 'rupay', 'rupees', 'rupiya', 'rs', 'de', 'ne', 'hi', 'bhi', 'cash', 'nakad', 'abhi', 'aaj', 'mil', 'gaye', 'gaya', 'kar', 'kiye', 'kiya']);
+const AMOUNT_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'rupaye', 'rupaya', 'rupay', 'rupees', 'rupiya', 'rs', 'रुपये', 'रुपए', 'रुपया', 'de', 'ne', 'hi', 'bhi', 'cash', 'nakad', 'abhi', 'aaj', 'mil', 'gaye', 'gaya', 'kar', 'kiye', 'kiya']);
 const MARKER_ALWAYS = foldSet(['ko', 'ne', 'se']);
 const MARKER_NEEDS_KEYWORD = foldSet(['ka', 'ki', 'ke']);
 const AFTER_MARKER_KW = foldSet(['kitna', 'kitni', 'kitne', 'udhaar', 'udhar', 'udhari', 'baki', 'bakaya', 'hisab', 'balance', 'khata', 'khate', 'total', 'pending', 'liye']);
-const CUSTOMER_FILLER = foldSet(['bill', 'bana', 'banao', 'likho', 'likh', 'naya', 'hisab', 'aaj', 'abhi', 'please', 'pls']);
+const CUSTOMER_FILLER = foldSet(['bill', 'bana', 'banao', 'likho', 'likh', 'naya', 'hisab', 'aaj', 'abhi', 'please', 'pls', 'uh', 'um', 'umm', 'hmm', 'matlab', 'toh', 'haan']);
 /** Particles that follow a customer name at the end of an order: "... Sharma ji ke naam pe". */
 const TRAILING_PARTICLES = foldSet(['ko', 'ke', 'ki', 'liye', 'naam', 'nam', 'pe', 'par', 'mein', 'me', 'mei']);
 const SEPARATORS = foldSet(['aur', 'and', 'plus', 'tatha', 'saath']);
 const NOISE = foldSet([
   'likh', 'likho', 'jod', 'jodo', 'kar', 'karo', 'dena', 'de', 'dijiye', 'chahiye', 'bill', 'bana', 'banao',
   'banado', 'hai', 'hain', 'ka', 'ki', 'ke', 'ko', 'ne', 'se', 'ye', 'wo', 'please', 'pls', 'bhi', 'bas',
-  'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab',
+  'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab', 'haan',
   'toh', 'acha', 'accha', 'yaar', 'dekho', 'suno',
 ]);
 const BALANCE_FILLER = foldSet(['hai', 'hain', 'hua', 'hoga', 'batao', 'bataiye', 'bataye', 'dikhao', 'bolo', 'kya', 'total', 'abhi', 'ab', 'ho', 'gaya', 'gayi', 'gaye', 'tha', 'raha', 'rha']);
@@ -162,6 +162,73 @@ const TAKE_KW = foldSet(['le', 'lelo', 'lo']);
 const GIVE_VERBS = foldSet(['karo', 'kar', 'jod', 'jodo', 'daal', 'daalo', 'dalo', 'add', 'aid', 'le', 'rakh', 'rakho', 'likh', 'likho', 'bana', 'banao']);
 const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali']);
 
+const MAX_PRODUCT_ROWS = 20;
+
+/**
+ * "Samaan mein jodo aata 45 rupaye kilo, cheeni 50 rupaye kilo, Maggi 14 packet": two or more
+ * name + price rows. STT often drops commas and units, so a row ends at its price: words collect
+ * as the name until a number run appears, then an optional "rupaye" and unit finish that row.
+ * Any row without a price, a repeated name or a count above one makes the whole list ambiguous.
+ * One row is left to parseAddProduct.
+ */
+function parseAddProducts(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  if (!f.some((t) => SAMAAN_KW.has(t))) return null;
+  if (!f.some((t) => ADD_KW.has(t)) && !(SAMAAN_KW.has(f[0] ?? '') && f.some((t) => TAKE_KW.has(t)))) return null;
+  if (f.some((t) => CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t) || RATE_KW.has(t))) return null;
+
+  const rows: ParsedItemOutput[] = [];
+  const seen = new Set<string>();
+  let words: string[] = [];
+  let rowUnit: Unit | null = null;
+  const finish = (price: number): boolean => {
+    if (words.length < 1 || words.length > MAX_NAME_TOKENS || price <= 0 || !Number.isInteger(price)) return false;
+    const key = words.join(' ').toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    rows.push({ name: titleCase(words), quantity: 1, unit: rowUnit, spokenPrice: { amount: price, basis: 'unit', unit: rowUnit } });
+    words = [];
+    rowUnit = null;
+    return true;
+  };
+
+  let i = 0;
+  while (i < raw.length) {
+    const t = f[i] ?? '';
+    const word = raw[i] ?? '';
+    if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t) || SEPARATORS.has(t)) { i++; continue; }
+    const countWord = t === fold('ek') || t === fold('do');
+    if (ADD_PARTICLES.has(t) && (!countWord || (t === fold('do') && GIVE_VERBS.has(f[i - 1] ?? '')))) { i++; continue; }
+    // "ek kilo": a one-unit phrase belongs to the row it sits in.
+    const qty = extractQuantityAndUnit(raw.slice(i));
+    if (qty && qty.unit !== null) {
+      if (qty.quantity !== 1) return null;
+      rowUnit = qty.unit;
+      i += qty.consumed;
+      continue;
+    }
+    let price: { value: number; size: number } | null = null;
+    for (let size = Math.min(4, raw.length - i); size >= 1 && !price; size--) {
+      const value = parseNumber(raw.slice(i, i + size).join(' '));
+      if (value !== null) price = { value, size };
+    }
+    if (price) {
+      i += price.size;
+      while (i < raw.length && (isMoneyWord(raw[i] ?? '') || PRODUCT_PARTICLES.has(f[i] ?? ''))) i++;
+      const unitWord = raw[i] ?? '';
+      const asUnit = unitWord.length > 1 ? normalizeUnit(unitWord) : null;
+      if (asUnit) { rowUnit = rowUnit ?? asUnit; i++; }
+      if (!finish(price.value)) return null;
+      continue;
+    }
+    const asUnit = word.length > 1 ? normalizeUnit(word) : null;
+    if (asUnit) { rowUnit = rowUnit ?? asUnit; i++; continue; }
+    words.push(word);
+    i++;
+  }
+  if (words.length > 0 || rows.length < 2 || rows.length > MAX_PRODUCT_ROWS) return null;
+  return { ...EMPTY, intent: 'add_products', items: rows, confidence: 0.9 };
+}
+
 /** The longest number run ending right before, or starting right after, the money word. */
 function priceAround(raw: readonly string[], money: number): { value: number; from: number; to: number } | null {
   for (let size = Math.min(4, money); size >= 1; size--) {
@@ -233,6 +300,52 @@ function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUt
     ...EMPTY,
     intent: 'add_product',
     items: [{ name: titleCase(name), quantity: 1, unit, spokenPrice: { amount: price.value, basis: 'unit', unit } }],
+    confidence: 0.9,
+  };
+}
+
+// --- Change a product's rate ---------------------------------------------------------------
+
+const RATE_KW = foldSet(['rate', 'daam', 'dam', 'bhav', 'bhaav', 'price', 'kimat', 'keemat', 'रेट', 'दाम', 'भाव', 'कीमत']);
+const CHANGE_KW = foldSet(['karo', 'kar', 'kardo', 'badlo', 'badal', 'badalna', 'set', 'kijiye', 'kiye', 'ho', 'gaya', 'gayi', 'hua', 'rakho', 'rakh']);
+const RATE_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'ab', 'se', 'hai', 'mein', 'men', 'me', 'ek', 'do', 'bhi', 'naya', 'nayi', 'new', 'please', 'pls']);
+
+/**
+ * "chawal ka rate 45 karo", "चावल का रेट पैंतालीस रुपए कर दो". Needs a rate word, a change word and a
+ * number right after the rate word. The product must already exist (the gateway checks), and the
+ * price is per unit. A model never supplies this price: it is the number that was spoken.
+ */
+function parseUpdatePrice(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  const rate = f.findIndex((t) => RATE_KW.has(t));
+  if (rate < 0 || !f.some((t) => CHANGE_KW.has(t))) return null;
+  if (f.some((t) => SAMAAN_KW.has(t) || ADD_KW.has(t) || CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
+
+  let start = rate + 1;
+  while (start < raw.length && RATE_FILLER.has(f[start] ?? '') && !isNumeric(raw[start] ?? '')) start++;
+  let run: { value: number; end: number } | null = null;
+  for (let size = Math.min(4, raw.length - start); size >= 1 && !run; size--) {
+    const value = parseNumber(raw.slice(start, start + size).join(' '));
+    if (value !== null) run = { value, end: start + size };
+  }
+  if (!run || run.value <= 0 || !Number.isInteger(run.value)) return null;
+
+  let unit: Unit | null = null;
+  const name: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    if (i === rate || (i >= start && i < run.end)) continue;
+    const t = f[i] ?? '';
+    if (RATE_FILLER.has(t) || CHANGE_KW.has(t) || isMoneyWord(raw[i] ?? '')) continue;
+    const word = raw[i] ?? '';
+    const asUnit = word.length > 1 ? normalizeUnit(word) : null;
+    if (asUnit) { unit = asUnit; continue; }
+    if (isNumeric(word)) return null;
+    name.push(word);
+  }
+  if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  return {
+    ...EMPTY,
+    intent: 'update_price',
+    items: [{ name: titleCase(name), quantity: 1, unit, spokenPrice: { amount: run.value, basis: 'unit', unit } }],
     confidence: 0.9,
   };
 }
@@ -517,8 +630,14 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
   const addCustomer = parseAddCustomer(raw, f);
   if (addCustomer) return addCustomer;
 
+  const addProducts = parseAddProducts(raw, f);
+  if (addProducts) return addProducts;
+
   const addProduct = parseAddProduct(raw, f);
   if (addProduct) return addProduct;
+
+  const updatePrice = parseUpdatePrice(raw, f);
+  if (updatePrice) return updatePrice;
 
   const stockOut = parseStockOut({ raw, f, used: [] }, matcher);
   if (stockOut) {

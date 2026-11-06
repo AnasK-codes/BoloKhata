@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogCustomer, CatalogProduct } from '@bolbill/shared';
 import { draftMessage } from '../turn/testing';
-import { draftFromTranscript, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
+import { addProductToDraft, billFromProduct, draftFromTranscript, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
 
 const products: CatalogProduct[] = [
   { id: 'p1', name: 'Aata', aliases: ['atta'], unit: 'kg', pricePerUnit: 45 },
@@ -162,3 +162,46 @@ describe('discount, GST and round-off edits', () => {
   });
 });
 
+
+describe('quick tiles: one tap adds a product', () => {
+  const [aata, cheeni, maggi] = products as [CatalogProduct, CatalogProduct, CatalogProduct];
+
+  it('starts a paid bill with one unit of the product at the catalog price', () => {
+    const draft = billFromProduct(aata, 'new-id', 5);
+    expect(draft).toMatchObject({ intent: 'create_bill', draftId: 'new-id', turnId: 5 });
+    expect(draft.bill).toMatchObject({ total: 45, paid: 45, udhaar: 0 });
+    expect(draft.bill?.items).toHaveLength(1);
+    expect(draft.bill?.items[0]).toMatchObject({ productId: 'p1', quantity: 1, unit: 'kg', unitPrice: 45, lineTotal: 45 });
+    expect(draft.unresolved).toEqual([]);
+  });
+
+  it('uses 100 for a gram or millilitre product, so one tap is a sensible amount', () => {
+    const haldi: CatalogProduct = { id: 'p9', name: 'Haldi', aliases: [], unit: 'g', pricePerUnit: 1 };
+    expect(billFromProduct(haldi, 'x', 0).bill?.items[0]).toMatchObject({ quantity: 100, lineTotal: 100 });
+  });
+
+  it('adds a different product as a new line and recomputes the total', () => {
+    const next = addProductToDraft(billFromProduct(aata, 'd', 1), cheeni);
+    expect(next.bill?.items.map((i) => i.productId)).toEqual(['p1', 'p2']);
+    expect(next.bill).toMatchObject({ total: 95, paid: 95, udhaar: 0 });
+  });
+
+  it('raises the quantity when the same product is tapped again', () => {
+    const twice = addProductToDraft(addProductToDraft(billFromProduct(maggi, 'd', 1), maggi), maggi);
+    expect(twice.bill?.items).toHaveLength(1);
+    expect(twice.bill?.items[0]).toMatchObject({ quantity: 3, lineTotal: 42 });
+    expect(twice.bill?.total).toBe(42);
+  });
+
+  it('keeps udhaar and the customer when a tile is tapped on a credit bill', () => {
+    const credit = draftMessage(1, { bill: { items: [{ productId: 'p1', name: 'Aata', quantity: 2, unit: 'kg', unitPrice: 45, lineTotal: 90 }], total: 90, paid: 0, udhaar: 90 } });
+    const next = addProductToDraft(credit, cheeni);
+    expect(next.customer).toEqual(credit.customer);
+    expect(next.bill).toMatchObject({ total: 140, paid: 0, udhaar: 140 });
+  });
+
+  it('does nothing to a draft that is not a bill', () => {
+    const payment = draftMessage(1, { intent: 'record_payment', bill: undefined, payment: { amount: 100 } });
+    expect(addProductToDraft(payment, aata)).toBe(payment);
+  });
+});

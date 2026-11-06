@@ -332,3 +332,71 @@ describe('add_product', () => {
     expect(r.draft).toMatchObject({ intent: 'confirm', draftId: 'd-prod' });
   });
 });
+
+describe('update_price', () => {
+  const update = (name: string | null, amount = 48, unit: 'kg' | null = null) =>
+    build({
+      intent: 'update_price',
+      items: name ? [{ name, quantity: 1, unit, spokenPrice: { amount, basis: 'unit' as const, unit } }] : [],
+    });
+
+  it('offers a new rate for an existing product, with the old rate for comparison', () => {
+    const r = update('aata');
+    expect(r.draft.product).toEqual({ id: 'p1', name: 'Aata', unit: 'kg', pricePerUnit: 48, previousPrice: 45, isNew: false });
+    expect(r.pendingChange).toEqual({ action: 'set', pending: { draftId: 'new-id', intent: 'update_price' } });
+    expect(r.draft.replyText.join(' ')).toContain('Aata');
+  });
+
+  it('does not offer a rate that is the same as today', () => {
+    const r = update('aata', 45);
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+    expect(r.draft.replyText.join(' ')).toContain('pehle se');
+  });
+
+  it('refuses a rate for a different unit than the product uses', () => {
+    const r = update('aata', 48, null);
+    expect(r.draft.product?.unit).toBe('kg');
+    const wrongUnit = build({ intent: 'update_price', items: [{ name: 'aata', quantity: 1, unit: 'packet', spokenPrice: { amount: 48, basis: 'unit', unit: 'packet' } }] });
+    expect(wrongUnit.pendingChange).toEqual({ action: 'clear' });
+  });
+
+  it('says so when the product is unknown, and is not understood without a price', () => {
+    const missing = update('xyzzy');
+    expect(missing.pendingChange).toEqual({ action: 'clear' });
+    expect(missing.draft.unresolved[0]?.kind).toBe('item');
+    expect(update(null).draft.intent).toBe('unknown');
+    expect(update('aata', 0).draft.intent).toBe('unknown');
+  });
+});
+
+describe('add_products', () => {
+  const rows = (...names: string[]) => names.map((name, i) => ({ name, quantity: 1, unit: 'kg' as const, spokenPrice: { amount: 30 + i, basis: 'unit' as const, unit: 'kg' as const } }));
+  const add = (...names: string[]) => build({ intent: 'add_products', items: rows(...names) });
+
+  it('offers every new product at once', () => {
+    const r = add('Maida', 'Sooji', 'Besan');
+    expect(r.draft.products).toEqual([
+      { name: 'Maida', unit: 'kg', pricePerUnit: 30, isNew: true },
+      { name: 'Sooji', unit: 'kg', pricePerUnit: 31, isNew: true },
+      { name: 'Besan', unit: 'kg', pricePerUnit: 32, isNew: true },
+    ]);
+    expect(r.pendingChange).toEqual({ action: 'set', pending: { draftId: 'new-id', intent: 'add_products' } });
+    expect(r.draft.replyText.join(' ')).toContain('3');
+  });
+
+  it('marks products that already exist and still offers the new ones', () => {
+    const r = add('Maida', 'aata');
+    expect(r.draft.products?.map((p) => [p.name, p.isNew])).toEqual([['Maida', true], ['Aata', false]]);
+    expect(r.pendingChange).toMatchObject({ action: 'set' });
+    expect(r.draft.replyText.join(' ')).toContain('pehle se');
+  });
+
+  it('offers nothing when every product exists', () => {
+    const r = add('aata', 'cheeni');
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+  });
+
+  it('is not understood with no rows', () => {
+    expect(add().draft.intent).toBe('unknown');
+  });
+});

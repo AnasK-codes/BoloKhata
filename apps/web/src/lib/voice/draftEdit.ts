@@ -68,6 +68,40 @@ export function setPaid(draft: DraftMessage, paid: number): DraftMessage {
   return withBill(draft, draft.bill.items, paid);
 }
 
+/** One tap on a quick tile: 100 g or ml, otherwise one whole unit. */
+const tileQuantity = (unit: CatalogProduct['unit']): number => (unit === 'g' || unit === 'ml' ? 100 : 1);
+
+/** A new cash bill with one unit of the tapped product at its catalog price. */
+export function billFromProduct(product: CatalogProduct, draftId: string, turnId: number): DraftMessage {
+  const built = buildBill({ parsedItems: [{ name: product.name, quantity: tileQuantity(product.unit), unit: product.unit }], products: [product] });
+  const bill = built.bill;
+  return {
+    type: 'draft',
+    turnId,
+    draftId,
+    intent: 'create_bill',
+    source: 'rules',
+    confidence: 1,
+    bill,
+    unresolved: [],
+    warnings: [],
+    replyText: billReadback({ total: bill.total, udhaar: bill.udhaar }) as DraftMessage['replyText'],
+  };
+}
+
+/** Adds a tapped product to the bill on screen: a new line, or more of the line it already has. */
+export function addProductToDraft(draft: DraftMessage, product: CatalogProduct): DraftMessage {
+  const bill = draft.bill;
+  if (draft.intent !== 'create_bill' || !bill) return draft;
+  const step = tileQuantity(product.unit);
+  const at = bill.items.findIndex((i) => i.productId === product.id);
+  if (at >= 0) return setItemQuantity(draft, at, (bill.items[at]?.quantity ?? 0) + step);
+  const added = buildBill({ parsedItems: [{ name: product.name, quantity: step, unit: product.unit }], products: [product] }).bill.items[0];
+  if (!added) return draft;
+  // A cash bill stays fully paid at the new total; a credit bill keeps what was already paid.
+  return withBill(draft, [...bill.items, added], bill.udhaar === 0 ? Number.MAX_SAFE_INTEGER : bill.paid);
+}
+
 /** Resolves one unresolved item to a chosen product, keeping the quantity that was spoken. */
 export function resolveItem(draft: DraftMessage, unresolvedIndex: number, product: CatalogProduct): DraftMessage {
   const target = draft.unresolved[unresolvedIndex];

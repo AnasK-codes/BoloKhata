@@ -74,4 +74,44 @@ describe('saveDraft', () => {
     const draft = draftMessage(7, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Free', unit: 'kg', pricePerUnit: 1, isNew: true } });
     expect(await saveDraft(repo, { ...draft, product: { name: '', unit: 'kg', pricePerUnit: 1, isNew: true } })).toMatchObject({ kind: 'error' });
   });
+
+  it('changes a product rate once and keeps its name, unit and stock', async () => {
+    const repo = createRepo(db);
+    const before = (await repo.listProducts()).find((p) => p.name === 'Aata' || p.aliases.length > 0);
+    expect(before).toBeDefined();
+    const id = before!.id;
+    const draft = draftMessage(8, { intent: 'update_price', bill: undefined, customer: undefined, product: { id, name: before!.name, unit: before!.unit, pricePerUnit: before!.pricePerUnit + 5, previousPrice: before!.pricePerUnit, isNew: false } });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'price', created: true });
+    const after = (await repo.listProducts()).find((p) => p.id === id);
+    expect(after).toMatchObject({ name: before!.name, unit: before!.unit, pricePerUnit: before!.pricePerUnit + 5 });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'price', created: false });
+  });
+
+  it('will not change the rate of a product that is gone', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(9, { intent: 'update_price', bill: undefined, customer: undefined, product: { id: 'nope', name: 'Gone', unit: 'kg', pricePerUnit: 50, previousPrice: 40, isNew: false } });
+    expect(await saveDraft(repo, draft)).toMatchObject({ kind: 'error' });
+  });
+
+  it('adds a whole list once, skipping products that already exist', async () => {
+    const repo = createRepo(db);
+    const row = (name: string, pricePerUnit: number) => ({ name, unit: 'kg' as const, pricePerUnit, isNew: true });
+    const draft = draftMessage(10, { intent: 'add_products', bill: undefined, customer: undefined, products: [row('Sooji', 52), row('Besan', 80), row('Sooji', 60)] });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'products', created: 2 });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'products', created: 0 });
+    const all = await repo.listProducts();
+    expect(all.filter((p) => p.name === 'Sooji')).toHaveLength(1);
+    expect(all.find((p) => p.name === 'Sooji')?.pricePerUnit).toBe(52);
+    expect(all.find((p) => p.name === 'Besan')?.pricePerUnit).toBe(80);
+  });
+
+  it('refuses the whole list if one row is invalid, so nothing is half-saved', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(11, { intent: 'add_products', bill: undefined, customer: undefined, products: [
+      { name: 'Ragi', unit: 'kg', pricePerUnit: 40, isNew: true },
+      { name: '', unit: 'kg', pricePerUnit: 40, isNew: true },
+    ] });
+    expect(await saveDraft(repo, draft)).toMatchObject({ kind: 'error' });
+    expect((await repo.listProducts()).some((p) => p.name === 'Ragi')).toBe(false);
+  });
 });

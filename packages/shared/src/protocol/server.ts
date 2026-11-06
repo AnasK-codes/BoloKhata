@@ -90,6 +90,8 @@ export const draftProductSchema = z.object({
   name: nameSchema,
   unit: unitSchema,
   pricePerUnit: rupeesSchema.min(1),
+  /** update_price only: the rate before the change, for the card. */
+  previousPrice: rupeesSchema.optional(),
   isNew: z.boolean(),
 });
 
@@ -124,6 +126,8 @@ export const draftSchema = z.object({
   summary: draftSummarySchema.optional(),
   stock: draftStockSchema.optional(),
   product: draftProductSchema.optional(),
+  /** add_products: a whole list of products to create after one confirmation. */
+  products: z.array(draftProductSchema).max(LIMITS.maxBillItems).optional(),
   unresolved: z.array(unresolvedSchema).max(LIMITS.maxUnresolved),
   warnings: z.array(safeText(LIMITS.maxWarningLength)).max(LIMITS.maxWarnings),
   /** At most two short sentences so TTS can start on the first. */

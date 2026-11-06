@@ -4,6 +4,7 @@ import { BolDb } from './schema';
 import { createRepo, type Repo } from './repo';
 import { resetDemoData, seedIfFirstRun } from './seed';
 import { buildSnapshot } from './snapshot';
+import type { Product } from '@bolbill/shared';
 
 let db: BolDb;
 let repo: Repo;
@@ -220,6 +221,35 @@ describe('payments and statements', () => {
     const list = await repo.listCustomersWithBalance();
     expect(list.find((x) => x.customer.id === 'c_suresh_verma')?.balance).toBe(300);
     expect(list.find((x) => x.customer.id === 'c_anil_singh')?.balance).toBe(0);
+  });
+
+  it('says since when a customer has owed money, and nothing for a customer who owes nothing', async () => {
+    await seedIfFirstRun(db);
+    const list = await repo.listCustomersWithBalance();
+    const verma = list.find((x) => x.customer.id === 'c_suresh_verma');
+    expect(verma?.oldestUnpaidAt).toEqual(expect.any(Number));
+    expect(list.find((x) => x.customer.id === 'c_anil_singh')?.oldestUnpaidAt).toBeNull();
+  });
+});
+
+describe('frequent products (quick tiles)', () => {
+  it('lists the products sold most often first, and ignores reversed bills', async () => {
+    await seedIfFirstRun(db);
+    const products = await repo.listProducts();
+    const [a, b] = products as [Product, Product];
+    const line = (p: Product) => ({ productId: p.id, name: p.name, quantity: 1, unit: p.unit, unitPrice: p.pricePerUnit, lineTotal: p.pricePerUnit });
+    await repo.saveBillWithLedger({ draftId: 'f1', items: [line(b)], total: b.pricePerUnit, paid: b.pricePerUnit, udhaar: 0 });
+    await repo.saveBillWithLedger({ draftId: 'f2', items: [line(b)], total: b.pricePerUnit, paid: b.pricePerUnit, udhaar: 0 });
+    await repo.saveBillWithLedger({ draftId: 'f3', items: [line(a)], total: a.pricePerUnit, paid: a.pricePerUnit, udhaar: 0 });
+    const top = await repo.listFrequentProducts(2);
+    expect(top.map((p) => p.id)).toEqual([b.id, a.id]);
+  });
+
+  it('falls back to the catalog by name for a shop with no bills yet, up to the limit', async () => {
+    await seedIfFirstRun(db);
+    const top = await repo.listFrequentProducts(3);
+    expect(top).toHaveLength(3);
+    expect(top.map((p) => p.name)).toEqual((await repo.listProducts()).slice(0, 3).map((p) => p.name));
   });
 });
 

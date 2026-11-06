@@ -88,6 +88,8 @@ export type TurnEvent =
   | { type: 'silenced'; at: number }
   /** The user changed the displayed draft (item, quantity, customer, transcript). */
   | { type: 'edit_draft'; draft: DraftMessage }
+  /** A bill started by hand (a quick tile). Ignored while another draft is waiting for confirmation. */
+  | { type: 'start_draft'; draft: DraftMessage }
   | { type: 'accept_replacement' }
   | { type: 'keep_pending' }
   | { type: 'confirm' }
