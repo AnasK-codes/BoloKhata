@@ -1,5 +1,8 @@
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DailyCreditGuard } from './creditGuard';
+import { DailyCreditGuard, FileCreditStore } from './creditGuard';
 import { RateLimiter } from './rateLimit';
 import { createTokenService } from './token';
 
@@ -92,5 +95,34 @@ describe('credit guard', () => {
     const guard = new DailyCreditGuard({ stt_seconds: 0, tts_chars: 0 });
     expect(guard.checkAndReserve('stt_seconds', 1)).toBe(false);
     expect(guard.isExhausted()).toBe(true);
+  });
+});
+
+describe('file credit store', () => {
+  const caps = { stt_seconds: 100, tts_chars: 1000 };
+
+  it('keeps today\'s usage across a restart, so a redeploy does not reset the caps', async () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'credits-')), 'nested', 'credit-usage.json');
+    const first = new FileCreditStore(file);
+    const before = new DailyCreditGuard(caps, first, () => 0);
+    expect(before.checkAndReserve('stt_seconds', 90)).toBe(true);
+    before.record('tts_chars', 400, 0);
+    await first.flush();
+
+    const after = new DailyCreditGuard(caps, new FileCreditStore(file), () => 0);
+    expect(after.usage()).toMatchObject({ stt_seconds: 90, tts_chars: 400 });
+    expect(after.checkAndReserve('stt_seconds', 20)).toBe(false);
+  });
+
+  it('keeps only the current day and starts from zero on a missing or damaged file', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'credits-'));
+    const file = join(dir, 'credit-usage.json');
+    expect(new FileCreditStore(file).get('2026-11-06', 'stt_seconds')).toBe(0);
+    writeFileSync(file, '{not json');
+    const store = new FileCreditStore(file);
+    store.add('2026-11-05', 'stt_seconds', 10);
+    store.add('2026-11-06', 'stt_seconds', 5);
+    await store.flush();
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ '2026-11-06:stt_seconds': 5 });
   });
 });

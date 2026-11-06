@@ -61,7 +61,7 @@ const envSchema = z
     OPENAI_API_KEY: optionalString,
     OPENAI_MODEL: optionalString,
     // Gemini's OpenAI-compatible API: how long the model may think. Unset leaves the model's default.
-    OPENAI_REASONING_EFFORT: z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional(),
+    OPENAI_REASONING_EFFORT: z.preprocess(blankToUndefined, z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional()),
     // 'always' sends every utterance to the model first; 'fallback' only when the rules are unsure.
     LLM_MODE: z.enum(['fallback', 'always']).default('fallback'),
     LLM_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(1200),
@@ -85,6 +85,8 @@ const envSchema = z
     SESSION_RATE_PER_IP_PER_MIN: z.coerce.number().int().min(1).default(10),
     SESSION_RATE_GLOBAL_PER_MIN: z.coerce.number().int().min(1).default(60),
     METRICS_TOKEN: optionalString,
+    // Where today's credit usage is kept across restarts. Unset keeps it in memory (tests).
+    CREDIT_USAGE_FILE: optionalString,
     TRUST_PROXY: z
       .enum(['true', 'false'])
       .default('false')
@@ -95,8 +97,17 @@ const envSchema = z
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
+    NODE_ENV: optionalString,
   })
   .superRefine((env, ctx) => {
+    // The images set NODE_ENV=production. There, refuse the .env.example placeholders and plain HTTP.
+    if (env.NODE_ENV === 'production') {
+      if (env.SESSION_TOKEN_SECRET.length < 32 || env.SESSION_TOKEN_SECRET.startsWith('replace-'))
+        ctx.addIssue({ code: 'custom', path: ['SESSION_TOKEN_SECRET'], message: 'use a fresh random value of at least 32 characters (openssl rand -hex 32)' });
+      if (env.GNANI_API_KEY.startsWith('replace-')) ctx.addIssue({ code: 'custom', path: ['GNANI_API_KEY'], message: 'still the .env.example placeholder' });
+      if (env.ALLOWED_ORIGINS.some((o) => !o.startsWith('https://')))
+        ctx.addIssue({ code: 'custom', path: ['ALLOWED_ORIGINS'], message: 'production origins must be https://' });
+    }
     if (env.ACCOUNT_AUTH_REQUIRED === 'true' || env.SUPABASE_URL || env.SUPABASE_ANON_KEY) {
       if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: 'SUPABASE_URL and SUPABASE_ANON_KEY are both required for account authentication' });
       if (env.SUPABASE_URL && !env.SUPABASE_URL.startsWith('https://') && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(env.SUPABASE_URL)) ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: 'use HTTPS (HTTP is allowed only for local tests)' });
@@ -169,6 +180,7 @@ export interface GatewayConfig {
     sessionRatePerIpPerMin: number;
     sessionRateGlobalPerMin: number;
     metricsToken: string | undefined;
+    creditUsageFile: string | undefined;
   };
   server: { port: number; logLevel: string; trustProxy: boolean; drainTimeoutMs: number };
 }
@@ -240,6 +252,7 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
       sessionRatePerIpPerMin: e.SESSION_RATE_PER_IP_PER_MIN,
       sessionRateGlobalPerMin: e.SESSION_RATE_GLOBAL_PER_MIN,
       metricsToken: e.METRICS_TOKEN,
+      creditUsageFile: e.CREDIT_USAGE_FILE,
     },
     server: {
       port: e.PORT,

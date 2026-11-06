@@ -1,4 +1,4 @@
-import { MAX_TURN_ID, saved, udhaarNeedsCustomer, type DraftMessage, type ServerMessage, type TimingSpan } from '@bolbill/shared';
+import { MAX_TURN_ID, isConfirmable, saved, type DraftMessage, type ServerMessage, type TimingSpan } from '@bolbill/shared';
 import type { Degradation, Effect, TurnError, TurnEvent, TurnRecord, TurnState, TurnTransition } from './types';
 
 export const HISTORY_LIMIT = 20;
@@ -41,21 +41,8 @@ function settled(state: TurnState): TurnState['phase'] {
   return state.pending ? 'reviewing' : 'idle';
 }
 
-/** A bill needs items that all resolved; a payment needs a known customer. */
-export function isConfirmable(draft: DraftMessage): boolean {
-  if (draft.intent === 'create_bill') {
-    const bill = draft.bill;
-    if (!bill || bill.items.length === 0 || draft.unresolved.length > 0) return false;
-    return !udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && !(bill.udhaar > 0 && draft.customer?.creditReady === false);
-  }
-  if (draft.intent === 'record_payment') return draft.customer?.id !== undefined && draft.payment !== undefined;
-  if (draft.intent === 'out_of_stock') return draft.stock !== undefined;
-  if (draft.intent === 'add_products') return draft.products?.some((p) => p.isNew && p.id === undefined) === true;
-  if (draft.intent === 'update_price') return draft.product?.id !== undefined && draft.product.pricePerUnit !== draft.product.previousPrice;
-  if (draft.intent === 'add_product') return draft.product?.isNew === true && draft.product.id === undefined;
-  if (draft.intent === 'add_customer') return draft.customer?.isNew === true && draft.customer.id === undefined;
-  return false;
-}
+/** Same rule the gateway uses for a spoken "haan" (shared), so voice and tap always agree. */
+export { isConfirmable };
 
 function nextId(id: number): number {
   return id >= MAX_TURN_ID ? 1 : id + 1;

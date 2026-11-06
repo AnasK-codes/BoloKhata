@@ -1,4 +1,4 @@
--- Run once in your Supabase SQL editor. No service-role key is used by Bol-Bill.
+-- Run in your Supabase SQL editor; safe to run again. No service-role key is used by Bol-Bill.
 create table if not exists public.bolbill_business_profiles (
   owner_id uuid primary key references auth.users(id) on delete cascade,
   business_name text not null check (char_length(btrim(business_name)) between 1 and 100),
@@ -9,8 +9,13 @@ create table if not exists public.bolbill_business_profiles (
 );
 
 alter table public.bolbill_business_profiles enable row level security;
-revoke all on public.bolbill_business_profiles from anon;
+-- Supabase grants ALL (TRUNCATE included, which RLS does not cover) by default: grant exactly what the app uses.
+revoke all on public.bolbill_business_profiles from public, anon, authenticated;
 grant select, insert, update on public.bolbill_business_profiles to authenticated;
+
+drop policy if exists "Owner reads business profile" on public.bolbill_business_profiles;
+drop policy if exists "Owner creates business profile" on public.bolbill_business_profiles;
+drop policy if exists "Owner updates business profile" on public.bolbill_business_profiles;
 
 create policy "Owner reads business profile" on public.bolbill_business_profiles
   for select to authenticated using ((select auth.uid()) = owner_id);

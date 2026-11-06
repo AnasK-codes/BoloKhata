@@ -90,11 +90,17 @@ export async function handleAccount(request: NextRequest, action = 'current', fe
       const parsed = z.object({ accessCode: z.string().max(128).optional() }).safeParse(await body(request));
       if (!parsed.success) throw new AccountError(400, 'Demo code valid nahi hai.');
       const gatewayUrl = env.GATEWAY_INTERNAL_URL ?? env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:8080';
+      const forwardedFor = request.headers.get('x-forwarded-for');
       let upstream: Response;
       try {
         upstream = await fetcher(`${gatewayUrl.replace(/\/$/, '')}/session`, {
           method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(8000),
-          headers: { 'content-type': 'application/json', origin: appOrigin, authorization: `Bearer ${access}` }, body: JSON.stringify(parsed.data),
+          headers: {
+            'content-type': 'application/json', origin: appOrigin, authorization: `Bearer ${access}`,
+            // Pass the visitor's address chain on so the gateway rate-limits per visitor, not per web container.
+            ...(forwardedFor ? { 'x-forwarded-for': forwardedFor } : {}),
+          },
+          body: JSON.stringify(parsed.data),
         });
       } catch { throw new AccountError(503, 'Voice gateway se connection nahi hua. Dobara try karo.'); }
       const raw: unknown = await upstream.json().catch(() => null);

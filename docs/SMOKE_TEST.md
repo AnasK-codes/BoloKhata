@@ -5,6 +5,7 @@ Run this on the **deployed** app, on a **real phone over mobile data**, the day 
 Setup: phone on mobile data (Wi-Fi off), volume up, quiet room, the live HTTPS link, the demo access code if you set one.
 
 **Before you start (30 s)**
+- [ ] From a laptop: `pnpm smoke --url https://YOUR.DOMAIN` prints `all checks passed` (health, origin, bad token, single-use token, oversize message; no audio, no credits).
 - [ ] `https://YOUR.DOMAIN/healthz` shows `{"ok":true,...}` in the phone's browser.
 - [ ] The pill on the voice screen says **Online** within 3 seconds.
 - [ ] Operator check on the instance: `credits.stt_seconds_remaining` and `credits.tts_chars_remaining` are comfortably above what the next 20 turns need (see `docs/DEPLOY.md` section 7, step 5).

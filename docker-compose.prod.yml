@@ -26,6 +26,8 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    # Sized for a 2 GB instance with swap: caddy 256 MB + gateway 512 MB + web 768 MB.
+    mem_limit: 256m
     depends_on:
       web:
         condition: service_healthy
@@ -41,12 +43,17 @@ services:
     init: true
     # Longer than DRAIN_TIMEOUT_MS so the graceful drain can finish before Docker kills it.
     stop_grace_period: 30s
+    mem_limit: 512m
     env_file: .env
     environment:
       PORT: "8080"
+      # Heap below the container limit, so Node collects before the kernel kills it.
+      NODE_OPTIONS: --max-old-space-size=384
       TRUST_PROXY: "true"
       # The volume, whatever .env says (the working directory in the image is not writable).
       GNANI_TTS_CACHE_DIR: /data/tts-cache
+      # Daily credit counters survive restarts and redeploys (same volume).
+      CREDIT_USAGE_FILE: /data/tts-cache/credit-usage.json
       # Same-origin: the browser origin is the site itself.
       ALLOWED_ORIGINS: https://${DOMAIN}
     expose:
@@ -69,12 +76,14 @@ services:
         NEXT_PUBLIC_GATEWAY_URL: https://${DOMAIN}
     restart: unless-stopped
     init: true
+    mem_limit: 768m
     # Only account-backend settings go to Next's server. Gnani/LLM keys stay on the gateway.
     environment:
       SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set SUPABASE_ANON_KEY in .env}
       GATEWAY_INTERNAL_URL: http://gateway:8080
       APP_ORIGIN: https://${DOMAIN}
+      NODE_OPTIONS: --max-old-space-size=512
     expose:
       - "3000"
     healthcheck:

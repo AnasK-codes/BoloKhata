@@ -275,3 +275,35 @@ describe('always mode', () => {
     expect(out.llm).toBe('timeout');
   });
 });
+
+describe('circuit breaker', () => {
+  it('after three timeouts in a row the model is skipped for a cooldown, then tried again', async () => {
+    let now = 0;
+    const { adapter, calls } = stub(() => fail('timeout'));
+    const o = new Orchestrator({ llm: adapter, timeoutMs: 1200, now: () => now });
+    for (let i = 0; i < 3; i++) expect((await parse(o, MESSY)).llm).toBe('timeout');
+    const skipped = await parse(o, MESSY);
+    expect(skipped).toMatchObject({ llm: 'skipped', source: 'rules', needsReview: true });
+    expect(calls).toHaveLength(3);
+    now += 30_001;
+    expect((await parse(o, MESSY)).llm).toBe('timeout');
+    expect(calls).toHaveLength(4);
+    expect((await parse(o, MESSY)).llm).toBe('skipped'); // still failing: open again at once
+  });
+
+  it('a rate-limit answer opens the breaker at once; an interrupted turn does not count', async () => {
+    let now = 0;
+    let reply: LlmResult<unknown> = { ok: false, reason: 'aborted', ms: 1 };
+    const { adapter, calls } = stub(() => reply);
+    const o = new Orchestrator({ llm: adapter, timeoutMs: 1200, now: () => now });
+    for (let i = 0; i < 5; i++) await parse(o, MESSY);
+    expect(calls).toHaveLength(5);
+    reply = { ok: false, reason: 'unavailable', ms: 1, detail: 'HttpError429' };
+    await parse(o, MESSY);
+    expect((await parse(o, MESSY)).llm).toBe('skipped');
+    now += 30_001;
+    reply = ok(answer({}));
+    expect((await parse(o, MESSY)).llm).toBe('ok');
+    expect((await parse(o, MESSY)).llm).toBe('ok');
+  });
+});

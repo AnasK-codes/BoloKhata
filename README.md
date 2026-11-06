@@ -462,6 +462,7 @@ Defined in `.env.example`. **Never commit `.env`.** Only `NEXT_PUBLIC_GATEWAY_UR
 | `MAX_SESSIONS`, `MAX_SESSION_MINUTES` | gateway | Concurrency and session length caps |
 | `SESSION_RATE_PER_IP_PER_MIN`, `SESSION_RATE_GLOBAL_PER_MIN` | gateway | Rate limits on `POST /session` (defaults 10 and 60) |
 | `METRICS_TOKEN` | gateway | Bearer token for `GET /metrics`; the endpoint is disabled when unset |
+| `CREDIT_USAGE_FILE` | gateway | JSON file holding today's credit usage so a restart does not reset the daily caps; blank keeps it in memory (tests). Compose sets it on the cache volume |
 | `TRUST_PROXY`, `DRAIN_TIMEOUT_MS` | gateway | Trust `X-Forwarded-For` (set `true` behind Caddy); how long SIGTERM waits for sessions to finish (default 10 s) |
 | `DAILY_STT_SECONDS_CAP`, `DAILY_TTS_CHARS_CAP` | gateway | Credit guard |
 | `PORT`, `LOG_LEVEL` | gateway | Server settings |

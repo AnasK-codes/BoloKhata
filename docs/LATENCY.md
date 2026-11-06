@@ -31,6 +31,21 @@ These come from the hardening pass on a developer laptop with the **mock** Gnani
 
 The two runs have different lengths (2,400 vs 1,000 turns) and random interrupt rates, so small differences are noise: the gateway path was not changed in this pass and the numbers show no regression. The 20x120 soak is described in `docs/TESTING.md` section 1. Bundle sizes are bytes of gzip over the files listed in the built `/` HTML (`apps/web/.next/server/app/index.html`), not a transfer measurement over a network.
 
+### Backend pass, 2026-11-06 (mock servers, NOT the real Gnani API)
+
+Same 20x50 `pnpm loadtest` on one laptop, before and after the backend fixes (`docs/BACKEND_REVIEW.md`). No hot-path code changed; the differences are noise.
+
+| What | Before | After |
+|---|---|---|
+| Turns completed | 1,000 / 1,000 | 1,000 / 1,000 |
+| Frames sent / received by the mock STT | 44,391 / 44,391 | 44,236 / 44,236 |
+| Gateway event-loop delay p99 (median of windows; worst) | 1.67 ms; 2.75 ms | 1.85 ms; 2.85 ms |
+| Release to transcript (mock STT delay 120 ms) | p50 121.0, p95 122.3 ms | p50 121.1, p95 122.6 ms |
+| Release to first TTS byte | p50 152.1, p95 154.5 ms | p50 152.2, p95 154.7 ms |
+| Heap floor slope | 0.06 MB/min | -1.5 MB/min |
+
+In-process, rules parse took p50 0.017 ms and p99 0.045 ms per utterance on the 24-sentence eval set, at most 0.44 ms on adversarial 500-character strings.
+
 ## LLM fallback (Gemini, free tier): measured 2026-11-06
 
 Measured from one laptop on one home network, with the real Gemini API. **Not** a Gnani result: the speech-to-text and text-to-speech numbers above are unrelated. Provider: `openai-compatible` against `https://generativelanguage.googleapis.com/v1beta/openai/`, model `gemini-3.1-flash-lite`, `OPENAI_REASONING_EFFORT=low`. Only synthetic sentences were sent.

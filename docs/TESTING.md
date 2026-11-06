@@ -137,3 +137,10 @@ How to run it when you are ready (about 2 minutes of audio, a few credits):
 3. Put the table in `docs/LATENCY.md` under a heading "Mic processing" with the device, the noise, and the counts, and set the defaults in `apps/web/src/lib/audio/micCapture.ts` (`DEFAULT_MIC_SETTINGS`) to the winner.
 
 Until then, do not claim that noise suppression helps or hurts.
+
+## Fuzz, property and smoke tests (backend pass, 2026-11-06)
+
+- `apps/gateway/src/fuzz.test.ts`: a seeded hostile client (random bytes, broken UTF-8, valid messages with mutated fields) over 6 sessions; the gateway must not throw or hang, and a fresh session must still complete a turn.
+- `packages/shared/src/parser/fuzz.test.ts`: random Latin, Devanagari, digits and symbols up to twice `maxTranscriptLength`; never throws, stays fast, and the bill built from the result is sound.
+- `packages/shared/src/domain/money.property.test.ts` and the property test in `overdue.test.ts`: random bills (NaN, negative, fractional, huge inputs), adjustments and ledgers.
+- `pnpm smoke --url <base>`: checks a running stack (health, origin, bad and single-use tokens, `hello`/`ready`, oversize message). No audio, no credits. See `docs/DEPLOY.md` section 7.

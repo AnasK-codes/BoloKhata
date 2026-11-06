@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from './config';
 import { TEST_ENV, testConfig } from './testConfig';
@@ -70,5 +71,42 @@ describe('loadConfig', () => {
   it('rejects non-websocket Gnani URLs and unsupported sample rates', () => {
     expect(() => testConfig({ GNANI_STT_URL: 'https://example.test' })).toThrow(/GNANI_STT_URL/);
     expect(() => testConfig({ GNANI_TTS_SAMPLE_RATE: '12345' })).toThrow(/GNANI_TTS_SAMPLE_RATE/);
+  });
+
+  it('starts from a copy of .env.example once the account URL and key are filled', () => {
+    const example = Object.fromEntries(
+      readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8')
+        .split('\n')
+        .filter((line) => /^[A-Z_]+=/.test(line))
+        .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
+    );
+    const config = loadConfig({ ...example, SUPABASE_URL: 'https://example.supabase.co', SUPABASE_ANON_KEY: 'anon' });
+    expect(config.llm.openai.reasoningEffort).toBeUndefined();
+  });
+
+  describe('in production (NODE_ENV=production)', () => {
+    const prod = {
+      NODE_ENV: 'production',
+      GNANI_API_KEY: 'real-looking-key',
+      SESSION_TOKEN_SECRET: 'a'.repeat(64),
+      ALLOWED_ORIGINS: 'https://shop.example.test',
+    };
+
+    it('accepts a complete HTTPS configuration', () => {
+      expect(testConfig(prod).guard.allowedOrigins).toEqual(['https://shop.example.test']);
+    });
+
+    it('rejects the placeholder or a short session secret', () => {
+      expect(() => testConfig({ ...prod, SESSION_TOKEN_SECRET: 'replace-with-a-long-random-string' })).toThrow(/SESSION_TOKEN_SECRET/);
+      expect(() => testConfig({ ...prod, SESSION_TOKEN_SECRET: 'x'.repeat(20) })).toThrow(/SESSION_TOKEN_SECRET/);
+    });
+
+    it('rejects the placeholder Gnani key', () => {
+      expect(() => testConfig({ ...prod, GNANI_API_KEY: 'replace-me' })).toThrow(/GNANI_API_KEY/);
+    });
+
+    it('rejects a non-HTTPS origin', () => {
+      expect(() => testConfig({ ...prod, ALLOWED_ORIGINS: 'http://shop.example.test' })).toThrow(/ALLOWED_ORIGINS/);
+    });
   });
 });

@@ -18,9 +18,12 @@ Everything the repository can check is already checked (see `HARDENING_REPORT.md
 
 ## 3. On the instance
 - [ ] Install Docker and add swap (DEPLOY.md section 4).
-- [ ] `git clone`, then create `.env` from `.env.example`, `chmod 600 .env`. Put **your real Gnani key** in it yourself, set `DOMAIN`, `ACME_EMAIL`, a fresh `SESSION_TOKEN_SECRET` (`openssl rand -hex 32`) and `METRICS_TOKEN`. Never paste the key into chat or commit it.
+- [ ] `git clone`, then create `.env` from `.env.example`, `chmod 600 .env`. Put **your real Gnani key** in it yourself, set `DOMAIN`, `ACME_EMAIL`, a fresh `SESSION_TOKEN_SECRET` (`openssl rand -hex 32`; the gateway refuses a short one or the placeholder) and `METRICS_TOKEN`. Never paste the key into chat or commit it.
 - [ ] `docker compose -f docker-compose.prod.yml --env-file .env up -d --build`; all three containers healthy.
 - [ ] `https://YOUR.DOMAIN/healthz` answers; the padlock is valid.
+- [ ] From your laptop: `pnpm smoke --url https://YOUR.DOMAIN` passes (add `SMOKE_BEARER` with a signed-in user's access token to include the token checks).
+- [ ] Supabase: run the migration (safe to rerun), set the Auth Site URL to `https://YOUR.DOMAIN`, and use the same `SUPABASE_URL`/`SUPABASE_ANON_KEY` for web and gateway.
+- [ ] If you use Gemini: `LLM_PROVIDER=openai-compatible`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY`, optional `OPENAI_REASONING_EFFORT`, and `LLM_TIMEOUT_MS=2500`. A provider that times out three times in a row is skipped for 30 s, so rules answer at once.
 
 ## 4. Real Gnani, once, deliberately
 - [ ] Record the 10 spike clips (`scripts/spike/clips/README.md`) with fictional names.
