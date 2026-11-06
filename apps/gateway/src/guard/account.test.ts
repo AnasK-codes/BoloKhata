@@ -27,6 +27,15 @@ describe('gateway account guard', () => {
     expect(await verifyAccount('Bearer synthetic', config, async () => json({}, 500))).toBe('unavailable');
     expect(await verifyAccount('Bearer synthetic', config, async () => { throw new Error('offline'); })).toBe('unavailable');
   });
+  it('gives the whole check one deadline, so a slow provider fails closed before the web broker gives up', async () => {
+    const slow: typeof fetch = (url, init) => new Promise((resolve, reject) => {
+      if (String(url).endsWith('/user')) setTimeout(() => resolve(json({ id })), 40);
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+    const started = Date.now();
+    expect(await verifyAccount('Bearer synthetic', config, slow, 60)).toBe('unavailable');
+    expect(Date.now() - started).toBeLessThan(500);
+  });
   it('protects session issuance while retaining origin/rate/credit guards', async () => {
     const app = buildServer(testConfig({ LOG_LEVEL: 'silent', SUPABASE_URL: config.url, SUPABASE_ANON_KEY: config.key }), { accountFetch: good });
     try {
