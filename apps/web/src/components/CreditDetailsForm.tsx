@@ -23,13 +23,13 @@ export function CreditDetailsForm({ repo, customer, name, onSaved }: {
     } catch { setError('Details save nahi hui. Dobara try karo.'); }
     finally { setBusy(false); }
   };
-  return <form className="mt-3 space-y-2 rounded-xl border border-amber-500 p-3" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+  return <form className="mt-3 space-y-2 rounded-xl border border-warn p-3" onSubmit={(e) => { e.preventDefault(); void save(); }}>
     <p className="font-bold">Udhaar ke liye grahak ki details zaroori hain</p>
     <p>{name || 'Pehle upar grahak ka naam chuno.'}</p>
     <label className="block">Mobile number<input aria-label="Mobile number" type="tel" inputMode="numeric" maxLength={10} value={mobile} onChange={(e) => setMobile(e.target.value)} className="min-h-12 w-full rounded-xl bg-inset px-3" /></label>
     <label className="block">Address<textarea aria-label="Address" maxLength={300} value={address} onChange={(e) => setAddress(e.target.value)} className="min-h-20 w-full rounded-xl bg-inset p-3" /></label>
     <p className="text-sm text-muted">Details sirf is device par save hoti hain. Demo mein synthetic details use karo.</p>
     {error && <p role="alert" className="text-bad">{error}</p>}
-    <button disabled={busy || !name} className="min-h-12 rounded-xl bg-lime-300 px-4 font-bold text-stone-950 disabled:opacity-50">{busy ? 'Save ho raha hai…' : 'Details save karo'}</button>
+    <button disabled={busy || !name} className="min-h-12 rounded-xl bg-accent px-4 font-bold text-on-solid disabled:opacity-50">{busy ? 'Save ho raha hai…' : 'Details save karo'}</button>
   </form>;
 }

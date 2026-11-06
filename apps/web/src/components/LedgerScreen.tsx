@@ -92,7 +92,7 @@ export function LedgerScreen() {
           <label htmlFor="pay" className="font-bold">Payment mila</label>
           <div className="mt-2 flex gap-2">
             <input id="pay" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="₹ rakam" className="num min-h-14 min-w-0 flex-1 rounded-xl bg-inset px-4 text-xl" />
-            <button type="submit" disabled={busy || amount === ''} className="min-h-14 rounded-xl bg-emerald-500 px-5 text-lg font-bold text-stone-950 disabled:opacity-40">Likho</button>
+            <button type="submit" disabled={busy || amount === ''} className="min-h-14 rounded-xl bg-good px-5 text-lg font-bold text-on-solid disabled:opacity-40">Likho</button>
           </div>
         </form>
         {current.balance > 0 && (
@@ -100,7 +100,7 @@ export function LedgerScreen() {
             href={reminderLink(current.customer.mobile, reminderText({ businessName: profile.businessName, customerName: current.customer.name, balance: current.balance, days: current.oldestUnpaidAt === null ? null : daysSince(current.oldestUnpaidAt, Date.now()) })) ?? undefined}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-500 px-4 font-bold text-stone-950"
+            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-good px-4 font-bold text-on-solid"
           >
             WhatsApp pe yaad dilao
           </a>
@@ -149,7 +149,7 @@ export function LedgerScreen() {
       <header>
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-extrabold">Khata</h1>
-          <button type="button" className="min-h-12 rounded-xl bg-lime-300 px-5 font-bold text-stone-950" onClick={() => setForm({ name: '', aliases: '' })}>+ Naya grahak</button>
+          <button type="button" className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid" onClick={() => setForm({ name: '', aliases: '' })}>+ Naya grahak</button>
         </div>
         <p className="text-dim">Kul baaki udhaar (total outstanding)</p>
         <p className="num text-5xl font-extrabold text-warn">{list.loading ? '…' : rupees(outstanding)}</p>

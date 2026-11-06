@@ -24,7 +24,7 @@ export function ReverseDialog({ onReverse, onCancel }: {
     <label className="block">Wajah<input required maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} className="min-h-12 w-full rounded-xl bg-inset px-3" /></label>
     {error && <p role="alert" className="text-bad">{error}</p>}
     <div className="flex gap-2">
-      <button disabled={busy || !reason.trim()} className="min-h-12 rounded-xl bg-red-500 px-4 font-bold text-white disabled:opacity-50">{busy ? 'Ho raha hai…' : 'Haan, reverse karo'}</button>
+      <button disabled={busy || !reason.trim()} className="min-h-12 rounded-xl bg-bad px-4 font-bold text-on-solid disabled:opacity-50">{busy ? 'Ho raha hai…' : 'Haan, reverse karo'}</button>
       <button type="button" disabled={busy} onClick={onCancel} className="min-h-12 rounded-xl bg-control px-4">Raho</button>
     </div>
   </form>;

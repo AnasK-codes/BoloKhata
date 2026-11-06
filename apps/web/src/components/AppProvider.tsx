@@ -135,7 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {synthetic && (
-        <p className="fixed inset-x-0 top-0 z-50 bg-amber-400 px-3 py-1 text-center text-sm font-bold text-stone-950">
+        <p className="fixed inset-x-0 top-0 z-50 bg-warn px-3 py-1 text-center text-sm font-bold text-on-solid">
           SYNTHETIC TEST TONE (dev only): not a real voice
         </p>
       )}
@@ -145,7 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             className={`rise pointer-events-auto rounded-xl px-4 py-3 text-base font-semibold shadow-lg ${
-              t.kind === 'ok' ? 'bg-emerald-500 text-stone-950' : t.kind === 'error' ? 'bg-red-500 text-white' : 'bg-stone-100 text-stone-950'
+              t.kind === 'ok' ? 'bg-good text-on-solid' : t.kind === 'error' ? 'bg-bad text-on-solid' : 'bg-raised text-ink'
             }`}
           >
             {t.message}

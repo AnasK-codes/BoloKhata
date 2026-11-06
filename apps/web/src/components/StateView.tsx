@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 /** One consistent look for loading, empty and error states, so no screen is ever blank. */
 export function StateView({ kind, title, hint, children }: { kind: 'loading' | 'empty' | 'error'; title: string; hint?: string; children?: ReactNode }) {
   return (
-    <div role={kind === 'error' ? 'alert' : 'status'} aria-busy={kind === 'loading'} className={`rounded-2xl border border-dashed px-5 py-8 text-center ${kind === 'error' ? 'border-red-500/70' : 'border-line'}`}>
+    <div role={kind === 'error' ? 'alert' : 'status'} aria-busy={kind === 'loading'} className={`rounded-2xl border border-dashed px-5 py-8 text-center ${kind === 'error' ? 'border-bad/70' : 'border-line'}`}>
       <p className="text-lg font-bold">{kind === 'loading' ? '…' : ''}{title}</p>
       {hint && <p className="mt-1 text-dim">{hint}</p>}
       {children && <div className="mt-4">{children}</div>}

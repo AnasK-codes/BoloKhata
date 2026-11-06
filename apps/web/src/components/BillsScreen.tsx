@@ -51,7 +51,7 @@ export function BillsScreen() {
         </div>
       </div>
       <div className="flex gap-2">
-        <button className="min-h-12 flex-1 rounded-xl bg-lime-300 px-4 font-bold text-stone-950" onClick={() => void share()}>Share / Copy</button>
+        <button className="min-h-12 flex-1 rounded-xl bg-accent px-4 font-bold text-on-solid" onClick={() => void share()}>Share / Copy</button>
         <button className="min-h-12 flex-1 rounded-xl bg-control px-4 font-bold" onClick={() => window.print()}>Print (58 mm)</button>
       </div>
       <p className="text-sm text-muted">Print dialog mein apna 58 mm thermal printer chuno (paper size 58 mm). Share / Copy mein simple text jaata hai.</p>

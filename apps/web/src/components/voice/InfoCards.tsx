@@ -43,9 +43,9 @@ export function PaymentCard({ draft, repo, saved }: { draft: DraftMessage; repo:
       <p className="text-dim">{saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />Likh liya</span> : 'Payment mila'} · {draft.customer?.name ?? 'grahak?'}</p>
       <p className="num text-5xl font-extrabold text-good">{rupees(amount)}</p>
       {current !== undefined && (saved ? (
-        <p className="num text-dim">Ab baaki udhaar: <strong className="text-white">{rupees(current)}</strong></p>
+        <p className="num text-dim">Ab baaki udhaar: <strong className="font-bold text-ink">{rupees(current)}</strong></p>
       ) : (
-        <p className="num text-dim">Baaki udhaar: {rupees(current)} → <strong className="text-white">{rupees(current - amount)}</strong></p>
+        <p className="num text-dim">Baaki udhaar: {rupees(current)} → <strong className="font-bold text-ink">{rupees(current - amount)}</strong></p>
       ))}
       {draft.warnings.map((w) => <p key={w} className="mt-2 flex gap-2 text-sm text-warn"><Icon name="alert" size={18} />{w}</p>)}
     </article>

@@ -58,7 +58,7 @@ export function BusinessProfileForm({ initial, onSave, onCancel }: {
         <hr className="border-line" /><p className="whitespace-pre-wrap break-words text-center">{form.receiptFooter}</p>
       </section>
       {error && <p role="alert" className="text-bad">{error}</p>}
-      <button disabled={busy} className="min-h-14 w-full rounded-xl bg-lime-300 px-4 text-lg font-bold text-stone-950 disabled:opacity-50">{busy ? 'Save ho raha hai…' : 'Profile aur template save karo'}</button>
+      <button disabled={busy} className="min-h-14 w-full rounded-xl bg-accent px-4 text-lg font-bold text-on-solid disabled:opacity-50">{busy ? 'Save ho raha hai…' : 'Profile aur template save karo'}</button>
       {onCancel && <button type="button" disabled={busy} onClick={onCancel} className="min-h-12 w-full rounded-xl bg-control px-4">Wapas</button>}
     </form>
   </main>;

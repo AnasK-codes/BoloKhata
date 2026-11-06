@@ -14,7 +14,7 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
         <span className="block text-lg font-semibold">{label}</span>
         <span className="block text-sm text-muted">{hint}</span>
       </span>
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-7 w-7 shrink-0 accent-lime-600" />
+      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-7 w-7 shrink-0 accent-good" />
     </label>
   );
 }
@@ -113,7 +113,7 @@ export function SettingsScreen() {
             <div className="space-y-2" role="alertdialog" aria-label="Reset confirm">
               <p className="font-bold text-bad">Pakka? Yeh wapas nahi hoga. (This cannot be undone.)</p>
               <div className="flex gap-2">
-                <button type="button" disabled={busy || !db} onClick={() => void reset()} className="min-h-14 flex-1 rounded-xl bg-red-500 text-lg font-bold text-white disabled:opacity-50">Haan, reset karo</button>
+                <button type="button" disabled={busy || !db} onClick={() => void reset()} className="min-h-14 flex-1 rounded-xl bg-bad text-lg font-bold text-on-solid disabled:opacity-50">Haan, reset karo</button>
                 <button type="button" onClick={() => setConfirming(false)} className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold">Nahi</button>
               </div>
             </div>

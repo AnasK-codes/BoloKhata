@@ -16,7 +16,7 @@ export function ReplaceDialog({ current, incoming, onAccept, onKeep }: { current
         <p className="num mt-3">Purana: <strong>{summary(current)}</strong></p>
         <p className="num">Naya: <strong>{summary(incoming)}</strong></p>
         <div className="mt-4 flex flex-col gap-2">
-          <button type="button" className="min-h-14 rounded-xl bg-lime-300 text-lg font-bold text-stone-950" onClick={onAccept}>Naya bill lo (replace)</button>
+          <button type="button" className="min-h-14 rounded-xl bg-accent text-lg font-bold text-on-solid" onClick={onAccept}>Naya bill lo (replace)</button>
           <button type="button" className="min-h-14 rounded-xl bg-control text-lg font-bold" onClick={onKeep}>Purana rakho (keep old)</button>
         </div>
       </div>

@@ -48,7 +48,7 @@ export function MicButton({ listening, busy, speaking, disabled, label, level, b
       <div
         ref={ring}
         aria-hidden="true"
-        className={`absolute h-28 w-28 rounded-full will-change-transform transition-colors ${listening ? 'bg-red-500/35' : 'bg-zinc-200/60'}`}
+        className={`absolute h-28 w-28 rounded-full will-change-transform transition-colors ${listening ? 'bg-bad/35' : 'bg-control'}`}
       />
       <button
         type="button"
@@ -57,17 +57,17 @@ export function MicButton({ listening, busy, speaking, disabled, label, level, b
         aria-label={label}
         aria-pressed={listening}
         className={`relative flex h-28 w-28 items-center justify-center rounded-full shadow-[0_8px_30px_rgba(24,24,27,0.16)] outline-offset-4 transition-colors disabled:opacity-40 ${
-          listening ? 'bg-red-500 text-white' : busy ? 'bg-control text-ink' : speaking ? 'bg-card text-accent ring-4 ring-zinc-300' : 'bg-zinc-900 text-white'
+          listening ? 'bg-bad text-on-solid' : busy ? 'bg-control text-ink' : speaking ? 'bg-card text-accent ring-4 ring-line' : 'bg-accent text-on-solid'
         }`}
       >
         <Icon name={speaking ? 'speaker' : 'mic'} size={46} />
       </button>
       {busy && (
-        <span aria-hidden="true" className="spin absolute h-32 w-32 rounded-full border-4 border-transparent border-t-zinc-800" />
+        <span aria-hidden="true" className="spin absolute h-32 w-32 rounded-full border-4 border-transparent border-t-ink" />
       )}
       {listening && (
-        <span className="absolute -bottom-1 flex items-center whitespace-nowrap gap-1.5 rounded-full bg-red-600 px-3 py-1 text-sm font-bold text-white">
-          <span className="rec-dot h-2.5 w-2.5 rounded-full bg-white" aria-hidden="true" />
+        <span className="absolute -bottom-1 flex items-center whitespace-nowrap gap-1.5 rounded-full bg-bad px-3 py-1 text-sm font-bold text-on-solid">
+          <span className="rec-dot h-2.5 w-2.5 rounded-full bg-on-solid" aria-hidden="true" />
           REC
         </span>
       )}
