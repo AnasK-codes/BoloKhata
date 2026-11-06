@@ -156,6 +156,12 @@ export function addProductAsk(productName: string | null | undefined, unit: stri
   return [clip(pick([`${item}, ${rupees(price)} per ${per}. Samaan mein jodun?`, `${item} ${rupees(price)} per ${per}, likh dun?`], variant))];
 }
 
+/** "Samaan mein rajma add karo" with no price: the rate is never guessed, so ask for it. */
+export function addProductNeedsRate(productName: string | null | undefined, variant = 0): string[] {
+  const item = name(productName);
+  return [clip(pick([`${item} ka rate bhi bolo, rupaye aur kilo ke saath.`, `${item} kitne rupaye kilo hai? Rate bhi bolo.`], variant))];
+}
+
 /** "Chawal ka rate 45 karo": reads the change back before it is written. */
 export function updatePriceAsk(productName: string | null | undefined, unit: string, price: number, variant = 0): string[] {
   const item = name(productName);

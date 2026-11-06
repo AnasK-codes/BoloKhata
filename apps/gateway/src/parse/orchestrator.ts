@@ -52,8 +52,8 @@ const BREAKER_COOLDOWN_MS = 30_000;
 const isRateLimited = (detail: string | undefined): boolean => detail === 'HttpError429' || detail === 'ThrottlingException';
 
 const isShortAnswer = (p: ParsedUtterance): boolean => p.intent === 'confirm' || p.intent === 'cancel';
-/** Intents that change stock or read shop-wide numbers: rules only, never from a model. */
-const isRulesOnly = (p: ParsedUtterance): boolean => p.intent === 'out_of_stock' || p.intent === 'query_summary';
+/** Intents that change stock, add a product or read shop-wide numbers: rules only, never from a model. */
+const isRulesOnly = (p: ParsedUtterance): boolean => p.intent === 'out_of_stock' || p.intent === 'query_summary' || p.intent === 'add_product';
 
 /**
  * Rules first, model second (default). With `mode: 'always'` the model is asked on every turn

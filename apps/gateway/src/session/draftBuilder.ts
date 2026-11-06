@@ -2,6 +2,7 @@ import {
   LIMITS,
   addCustomerAsk,
   addProductAsk,
+  addProductNeedsRate,
   addProductsAsk,
   applyPayment,
   balanceReply,
@@ -284,6 +285,10 @@ function addProduct(input: DraftInput, base: Base, variant: number): DraftResult
   const item = input.outcome.parsed.items[0];
   const price = item?.spokenPrice?.amount;
   const intent = 'add_product' as const;
+  // Name only: ask for the rate. A price is never guessed, and a spoken but unusable one is "not understood".
+  if (item && item.spokenPrice === undefined && item.name.trim() !== '') {
+    return plain(input, base, 'unknown', addProductNeedsRate(item.name.slice(0, LIMITS.maxNameLength), variant), false, { action: 'clear' });
+  }
   if (!item || price === undefined || !Number.isInteger(price) || price <= 0) {
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   }

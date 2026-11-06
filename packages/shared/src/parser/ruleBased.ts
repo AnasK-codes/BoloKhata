@@ -160,7 +160,7 @@ const SAMAAN_KW = foldSet(['samaan', 'saman', 'saaman', 'सामान', 'cata
 const TAKE_KW = foldSet(['le', 'lelo', 'lo']);
 /** "do" is the number two in "do kilo" but the verb in "jod do"; it is a particle only after one of these. */
 const GIVE_VERBS = foldSet(['karo', 'kar', 'jod', 'jodo', 'daal', 'daalo', 'dalo', 'add', 'aid', 'le', 'rakh', 'rakho', 'likh', 'likho', 'bana', 'banao']);
-const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali']);
+const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali', 'list', 'लिस्ट', 'den', 'dein', 'दें', 'दीजिए']);
 
 const MAX_PRODUCT_ROWS = 20;
 
@@ -244,9 +244,11 @@ function priceAround(raw: readonly string[], money: number): { value: number; fr
 
 /**
  * "Samaan mein chawal add karo 40 rupaye kilo", "सामान में एक किलो चावल ले लो, चालीस रुपए के एक किलो".
- * Needs a Samaan word, an add word and a spoken price. The price is per unit, so a count above one
+ * Needs a Samaan word and an add word. The price is per unit, so a count above one
  * ("do kilo chawal 80 rupaye") is ambiguous and not understood. With no unit spoken the unit stays
  * null and the gateway shows "piece". The user always confirms the card, so a wrong guess is visible.
+ * With no price at all ("samaan mein rajma add karo") the result has no spokenPrice: the gateway asks
+ * for the rate instead of guessing one. A spoken price that cannot be used is still not understood.
  */
 function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
   if (!f.some((t) => SAMAAN_KW.has(t))) return null;
@@ -255,14 +257,13 @@ function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUt
   if (f.some((t) => CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
 
   const money = raw.findIndex(isMoneyWord);
-  if (money < 0) return null;
-  const price = priceAround(raw, money);
-  if (!price || price.value <= 0 || !Number.isInteger(price.value)) return null;
+  const price = money < 0 ? null : priceAround(raw, money);
+  if (money >= 0 && (!price || price.value <= 0 || !Number.isInteger(price.value))) return null;
 
   const left: string[] = [];
   for (let i = 0; i < raw.length; i++) {
     const t = f[i] ?? '';
-    if (i === money || (i >= price.from && i <= price.to)) continue;
+    if (i === money || (price && i >= price.from && i <= price.to)) continue;
     if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t)) continue;
     // "ek" and "do" can be counts ("do kilo"), so they are only particles in "... kar do".
     const countWord = t === fold('ek') || t === fold('do');
@@ -299,7 +300,7 @@ function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUt
   return {
     ...EMPTY,
     intent: 'add_product',
-    items: [{ name: titleCase(name), quantity: 1, unit, spokenPrice: { amount: price.value, basis: 'unit', unit } }],
+    items: [{ name: titleCase(name), quantity: 1, unit, ...(price ? { spokenPrice: { amount: price.value, basis: 'unit' as const, unit } } : {}) }],
     confidence: 0.9,
   };
 }
