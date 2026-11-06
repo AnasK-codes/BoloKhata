@@ -47,6 +47,8 @@ services:
       TRUST_PROXY: "true"
       # The volume, whatever .env says (the working directory in the image is not writable).
       GNANI_TTS_CACHE_DIR: /data/tts-cache
+      # Daily credit counters survive restarts and redeploys (same volume).
+      CREDIT_USAGE_FILE: /data/tts-cache/credit-usage.json
       # Same-origin: the browser origin is the site itself.
       ALLOWED_ORIGINS: https://${DOMAIN}
     expose:

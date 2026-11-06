@@ -1,6 +1,11 @@
+import { mkdirSync, readFileSync } from 'node:fs';
+import { rename, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { z } from 'zod';
+
 /**
  * Credit guard: daily caps on Gnani usage so a public link cannot exhaust our credits.
- * Counters live behind `CreditStore` so a persistent store (file, Redis) can replace memory later.
+ * Counters live behind `CreditStore`: memory in tests, a small file in deployment.
  * A cap of 0 means "none allowed", not "unlimited".
  */
 export type CreditKind = 'stt_seconds' | 'tts_chars';
@@ -20,6 +25,66 @@ export class MemoryCreditStore implements CreditStore {
   add(day: string, kind: CreditKind, amount: number): void {
     const key = `${day}:${kind}`;
     this.values.set(key, Math.max(0, (this.values.get(key) ?? 0) + amount));
+  }
+}
+
+const countersSchema = z.record(z.string().max(64), z.number().finite().min(0));
+
+/**
+ * Today's counters in a small JSON file, so a restart or redeploy does not reset the daily caps.
+ * Writes are async (tmp file + rename), coalesced, and happen per turn, never per audio frame.
+ * shortcut: a crash can lose the last write and a damaged file starts from zero; one process only.
+ */
+export class FileCreditStore implements CreditStore {
+  private values: Record<string, number>;
+  private writing: Promise<void> | null = null;
+  private dirty = false;
+
+  constructor(private readonly path: string) {
+    mkdirSync(dirname(path), { recursive: true });
+    let raw: unknown = {};
+    try {
+      raw = JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+      // Missing or unreadable: start from zero.
+    }
+    const parsed = countersSchema.safeParse(raw);
+    this.values = parsed.success ? parsed.data : {};
+  }
+
+  get(day: string, kind: CreditKind): number {
+    return this.values[`${day}:${kind}`] ?? 0;
+  }
+
+  add(day: string, kind: CreditKind, amount: number): void {
+    const key = `${day}:${kind}`;
+    const next = Math.max(0, (this.values[key] ?? 0) + amount);
+    const today: Record<string, number> = {};
+    for (const [k, v] of Object.entries(this.values)) if (k.startsWith(`${day}:`)) today[k] = v;
+    today[key] = next;
+    this.values = today;
+    this.dirty = true;
+    this.writing ??= this.writeLoop();
+  }
+
+  /** Resolves once everything added so far is on disk. */
+  async flush(): Promise<void> {
+    await this.writing;
+  }
+
+  private async writeLoop(): Promise<void> {
+    try {
+      while (this.dirty) {
+        this.dirty = false;
+        const tmp = `${this.path}.tmp`;
+        await writeFile(tmp, JSON.stringify(this.values));
+        await rename(tmp, this.path);
+      }
+    } catch {
+      // Disk full or read-only: the in-memory counters still enforce the caps until a restart.
+    } finally {
+      this.writing = null;
+    }
   }
 }
 
