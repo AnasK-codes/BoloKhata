@@ -19,7 +19,8 @@
     "warm-phrases": "pnpm --filter @bolbill/scripts warm-phrases",
     "loadtest": "pnpm --filter @bolbill/scripts loadtest",
     "measure-rtt": "pnpm --filter @bolbill/scripts measure-rtt",
-    "check:bundle": "pnpm --filter @bolbill/scripts check:bundle"
+    "check:bundle": "pnpm --filter @bolbill/scripts check:bundle",
+    "smoke": "pnpm --filter @bolbill/scripts smoke"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
