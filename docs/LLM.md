@@ -2,6 +2,10 @@
 
 The rule parser handles the common sentences. The LLM is only asked when the rules are not confident (or an item does not resolve), under a hard timeout (`LLM_TIMEOUT_MS`, default 1200 ms). If it is slow, wrong or absent, the turn ships the rules result with a review flag. **Rules-only (`LLM_PROVIDER=none`) is the default and must always work.**
 
+**Circuit breaker.** After three timeouts or provider errors in a row, or one rate-limit answer (HTTP 429 / `ThrottlingException`), the gateway skips the model for 30 s and answers from the rules at once (status `skipped`, review flag on). The next unsure sentence after the cooldown tries the model again; one success resets the count. An interrupted turn or an invalid answer does not count. The breaker is process-wide and the manual `llm:eval` turns it off.
+
+What was looked at and not changed: the system prompt is already static (provider prompt caching can apply), Node's `fetch` already reuses connections (keep-alive), and the per-turn name list is small next to the system prompt (measured: 3,433 characters of system prompt; 658 characters of user block with the 43-product seed catalog, 3,337 at the 500/500 maximum). Sending only the closest candidate names would cut the names that leave the server, but it changes what the model sees and needs a fresh `llm:eval` run (real calls) to prove accuracy holds, so it was not done.
+
 The model never sets a price, total or balance. Its Zod schema accepts only intent, names, quantities and payment/credit amounts. Rules may extract explicit spoken item prices, and shared code computes their totals; otherwise catalog prices apply. A turn with a spoken item-price quote always stays rules-only (also under `LLM_MODE=always`), so the model cannot rewrite or invent that price. Model output is revalidated to strip any injected quote metadata. Invalid spoken prices require review.
 
 ## Providers

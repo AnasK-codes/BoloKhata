@@ -88,9 +88,12 @@ Set these (everything else can stay at the defaults):
 | `METRICS_TOKEN` | another random string (lets you read `/metrics` from the instance) |
 | `DEMO_ACCESS_CODE` | optional; shown to people you invite |
 | `MAX_SESSIONS`, `DAILY_STT_SECONDS_CAP`, `DAILY_TTS_CHARS_CAP` | your credit protection. Start small |
-| `LLM_PROVIDER` | `none` (the app works fully without a model) |
+| `LLM_PROVIDER` | `none` (the app works fully without a model). For Gemini: `openai-compatible` with `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` and optionally `OPENAI_REASONING_EFFORT` (`docs/LLM.md`, measured numbers in `docs/LATENCY.md`) |
+| `LLM_TIMEOUT_MS` | `1200` by default; the Gemini free tier measured a floor of about 1.5 s from a laptop, so `2500` if you use it |
 
-`ALLOWED_ORIGINS`, `PORT` and `TRUST_PROXY` are set for you by `docker-compose.prod.yml`. `NEXT_PUBLIC_GATEWAY_URL` is also set by it (to `https://$DOMAIN`) when it builds the web image.
+`ALLOWED_ORIGINS`, `PORT`, `TRUST_PROXY`, `GNANI_TTS_CACHE_DIR` and `CREDIT_USAGE_FILE` are set for you by `docker-compose.prod.yml`. The daily credit counters are kept in `/data/tts-cache/credit-usage.json` on the cache volume, so a restart or redeploy does **not** reset the caps (`docker compose down -v` deletes the volume and does).
+
+The images run with `NODE_ENV=production`, and the gateway refuses to start (with a message naming the variable) on: a `SESSION_TOKEN_SECRET` shorter than 32 characters or still the `replace-...` placeholder, the `replace-me` Gnani key, an `ALLOWED_ORIGINS` entry that is not `https://`, `ACCOUNT_AUTH_REQUIRED=true` without both Supabase settings. `docker compose logs gateway` shows which. `NEXT_PUBLIC_GATEWAY_URL` is also set by it (to `https://$DOMAIN`) when it builds the web image.
 
 **Prefer not to keep the key in a file?** Store it in SSM Parameter Store (Standard tier is free): Systems Manager, Parameter Store, Create parameter, name `/bolbill/GNANI_API_KEY`, type `SecureString`. Give the instance a role with `ssm:GetParameter` on that name and `kms:Decrypt` for the default key, and write `.env` at boot from it: `aws ssm get-parameter --name /bolbill/GNANI_API_KEY --with-decryption --query Parameter.Value --output text`. This adds an IAM role, so do it only if you want it; `chmod 600 .env` on an instance only you can SSH into is acceptable for this project.
 
@@ -121,7 +124,8 @@ Caddy needs ports 80 and 443 reachable and your DNS record to be live to get the
      "fetch('http://127.0.0.1:8080/metrics',{headers:{authorization:'Bearer '+process.env.METRICS_TOKEN}}).then(r=>r.json()).then(j=>console.log(JSON.stringify(j,null,2)))"
    ```
    Look at `credits.stt_seconds_remaining`, `credits.tts_chars_remaining`, `activeSessions` and `runtime`.
-6. Run the pre-submission checklist in `docs/SMOKE_TEST.md`.
+6. Server smoke test from your laptop (no audio, no credits): `pnpm smoke --url https://YOUR.DOMAIN`. With account auth on, the token checks need a signed-in user's access token in `SMOKE_BEARER` (never commit it); without it they are reported as skipped and the rest still runs.
+7. Run the pre-submission checklist in `docs/SMOKE_TEST.md`.
 
 ## 8. Everyday operations
 
@@ -146,6 +150,16 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 ```
 
 `up -d` replaces each changed container; the gateway gets `SIGTERM` and has up to 30 s to drain, telling connected phones to reconnect (they do, within seconds). Changed `NEXT_PUBLIC_GATEWAY_URL` or `DOMAIN`? That needs the same command (the web image is rebuilt).
+
+**If the mic does nothing**
+
+Check in this order; each step names what it rules out.
+1. The pill says **Online**? If not, `curl -s https://YOUR.DOMAIN/healthz`; if that fails, `docker compose -f docker-compose.prod.yml ps` and the Caddy logs (certificate, DNS, ports 80/443).
+2. The browser asked for the microphone? It only does on HTTPS. On iPhone: Settings, Safari, Microphone; on Android: the site settings. A denied permission shows "Mic ready nahi hai".
+3. A "busy", "budget" or "rate limited" message? Read `/metrics` (section 7, step 5): `activeSessions` against `MAX_SESSIONS`, and `credits.*_remaining`. The caps reset at midnight IST.
+4. A "login" or "business profile" error? The account check failed: `docker compose logs gateway` shows `account_service_unavailable` when Supabase is slow or down, and the web and gateway `SUPABASE_*` values must be the same project.
+5. Online, no error, but no transcript? `docker compose logs gateway | grep -i stt` for an upstream error code (wrong key, Gnani down, concurrency limit). `pnpm measure-rtt --label ec2-mumbai` checks the network to Gnani without spending credits.
+6. Transcript but no voice? Tap once on the page first (iOS starts audio only after a gesture), check the phone is not on silent, and look for `TTS_UNAVAILABLE` in the gateway logs.
 
 **Roll back**
 
