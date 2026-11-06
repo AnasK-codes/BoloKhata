@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { runTimeboxed } from './request';
-import type { LlmAdapter, LlmResult, StructuredRequest } from './types';
+import type { LlmAdapter, LlmResult, StructuredRequest, ToolCall, ToolRequest } from './types';
 
 export interface OpenAiCompatibleOptions {
   baseUrl: string;
@@ -73,7 +73,69 @@ export class OpenAiCompatibleLlm implements LlmAdapter {
       },
     );
   }
+
+  /** Function calling (`tools` + `tool_choice: required`): the model must call one of the given tools. */
+  callTool(request: ToolRequest): Promise<LlmResult<ToolCall>> {
+    return runTimeboxed(
+      request,
+      async (signal) => {
+        const response = await this.fetchImpl(this.url, {
+          method: 'POST',
+          signal,
+          headers: {
+            'content-type': 'application/json',
+            ...(this.options.apiKey ? { authorization: `Bearer ${this.options.apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: this.options.model,
+            temperature: 0,
+            max_tokens: 400,
+            tool_choice: 'required',
+            ...(this.options.reasoningEffort ? { reasoning_effort: this.options.reasoningEffort } : {}),
+            tools: request.tools.map((t) => ({
+              type: 'function',
+              function: { name: t.name, description: t.description, parameters: t.parameters },
+            })),
+            messages: [
+              { role: 'system', content: request.system },
+              { role: 'user', content: request.userBlock },
+            ],
+          }),
+        });
+        if (!response.ok) throw new HttpError(response.status);
+        return response.json();
+      },
+      (raw) => {
+        const envelope = toolResponseSchema.safeParse(raw);
+        const call = envelope.success ? envelope.data.choices[0]?.message.tool_calls?.[0]?.function : undefined;
+        const tool = call ? request.tools.find((t) => t.name === call.name) : undefined;
+        if (!call || !tool) return null;
+        let args: unknown;
+        try {
+          args = JSON.parse(call.arguments);
+        } catch {
+          return null;
+        }
+        const checked = tool.schema.safeParse(args);
+        return checked.success ? { name: tool.name, args: checked.data } : null;
+      },
+    );
+  }
 }
+
+const toolResponseSchema = z.looseObject({
+  choices: z
+    .array(
+      z.looseObject({
+        message: z.looseObject({
+          tool_calls: z
+            .array(z.looseObject({ function: z.looseObject({ name: z.string(), arguments: z.string() }) }))
+            .optional(),
+        }),
+      }),
+    )
+    .min(1),
+});
 
 class HttpError extends Error {
   constructor(status: number) {

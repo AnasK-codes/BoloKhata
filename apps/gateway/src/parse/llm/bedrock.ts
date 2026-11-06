@@ -7,7 +7,7 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 import { z } from 'zod';
 import { runTimeboxed } from './request';
-import type { LlmAdapter, LlmResult, StructuredRequest } from './types';
+import type { LlmAdapter, LlmResult, StructuredRequest, ToolCall, ToolRequest } from './types';
 
 const TOOL_NAME = 'record_parse';
 const MAX_OUTPUT_TOKENS = 300;
@@ -79,6 +79,37 @@ export class BedrockLlm implements LlmAdapter {
         if (toolInput === undefined) return null;
         const checked = request.schema.safeParse(toolInput);
         return checked.success ? checked.data : null;
+      },
+    );
+  }
+
+  /** Several tools with `toolChoice: any`: the model must call one of them. */
+  callTool(request: ToolRequest): Promise<LlmResult<ToolCall>> {
+    const input: ConverseCommandInput = {
+      modelId: this.modelId,
+      system: [{ text: request.system }],
+      messages: [{ role: 'user', content: [{ text: request.userBlock }] }],
+      inferenceConfig: { maxTokens: 400, temperature: 0 },
+      toolConfig: {
+        tools: request.tools.map((t) => ({
+          toolSpec: { name: t.name, description: t.description, inputSchema: { json: t.parameters as Record<string, never> } },
+        })),
+        toolChoice: { any: {} },
+      },
+    };
+    return runTimeboxed(
+      request,
+      (signal) => this.client.send(new ConverseCommand(input), { abortSignal: signal }),
+      (raw) => {
+        const content = (raw as ConverseCommandOutput | null)?.output?.message?.content;
+        if (!Array.isArray(content)) return null;
+        for (const block of content) {
+          const tool = block.toolUse ? request.tools.find((t) => t.name === block.toolUse?.name) : undefined;
+          if (!tool) continue;
+          const checked = tool.schema.safeParse(block.toolUse?.input);
+          return checked.success ? { name: tool.name, args: checked.data } : null;
+        }
+        return null;
       },
     );
   }

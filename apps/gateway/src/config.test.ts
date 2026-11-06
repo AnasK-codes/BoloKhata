@@ -84,6 +84,23 @@ describe('loadConfig', () => {
     expect(config.llm.openai.reasoningEffort).toBeUndefined();
   });
 
+  describe('PARSER_MODE', () => {
+    it('defaults to rules_ai, so today\'s behaviour is unchanged', () => {
+      expect(testConfig().llm.parserMode).toBe('rules_ai');
+      expect(testConfig({ PARSER_MODE: '' }).llm.parserMode).toBe('rules_ai');
+    });
+
+    it('ai_only needs a model: it fails fast with LLM_PROVIDER=none', () => {
+      expect(() => testConfig({ PARSER_MODE: 'ai_only' })).toThrow(/PARSER_MODE/);
+      const ok = testConfig({ PARSER_MODE: 'ai_only', LLM_PROVIDER: 'openai-compatible', OPENAI_BASE_URL: 'https://llm.test/v1', OPENAI_MODEL: 'm' });
+      expect(ok.llm.parserMode).toBe('ai_only');
+    });
+
+    it('rejects an unknown mode', () => {
+      expect(() => testConfig({ PARSER_MODE: 'magic' })).toThrow(/PARSER_MODE/);
+    });
+  });
+
   describe('in production (NODE_ENV=production)', () => {
     const prod = {
       NODE_ENV: 'production',

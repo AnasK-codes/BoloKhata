@@ -34,6 +34,7 @@ function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
+  app.log.info({ parserMode: config.llm.parserMode, llmProvider: config.llm.provider }, 'parser mode');
   app.listen({ port: config.server.port, host: '0.0.0.0' }).catch((error: unknown) => {
     app.log.error({ err: error }, 'failed to start');
     process.exit(1);

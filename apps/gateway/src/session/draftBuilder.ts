@@ -31,6 +31,7 @@ import {
   type UnresolvedItem,
 } from '@bolbill/shared';
 import type { ParseOutcome } from '../parse/orchestrator';
+import { modelReplyFor } from '../parse/agent/reply';
 
 export interface Catalog {
   version: number;
@@ -76,6 +77,15 @@ const REVIEW_WARNING = 'Please check this draft before saving.';
  * Anything else is shown for correction and cannot be saved by a spoken yes.
  */
 export function buildDraft(input: DraftInput): DraftResult {
+  const result = buildTemplateDraft(input);
+  // ai_only: the model's own reply replaces the template when it is safe to say (see modelReplyFor).
+  const template = input.outcome.modelReply;
+  if (!template) return result;
+  const sentences = modelReplyFor(result.draft, template, input.outcome.parsed.intent === 'unknown');
+  return sentences ? { ...result, draft: { ...result.draft, replyText: sentences }, cacheReply: false } : result;
+}
+
+function buildTemplateDraft(input: DraftInput): DraftResult {
   const { outcome, turnId } = input;
   const variant = turnId;
   const base = {
