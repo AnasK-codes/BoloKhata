@@ -1,10 +1,14 @@
 import {
   LIMITS,
+  addCustomerAsk,
+  addProductAsk,
+  addProductsAsk,
   applyPayment,
   balanceReply,
   billReadback,
   cancelled,
   customerAmbiguous,
+  customerExists,
   customerNeeded,
   customerNotFound,
   itemNotFound,
@@ -14,12 +18,15 @@ import {
   summaryReply,
   type ShopStats,
   paymentRecorded,
+  priceUnchanged,
+  productExists,
   saved,
   udhaarNeedsCustomer,
   type CatalogCustomer,
   type CatalogProduct,
   type DraftMessage,
   type LedgerEntry,
+  updatePriceAsk,
   type UnresolvedItem,
 } from '@bolbill/shared';
 import type { ParseOutcome } from '../parse/orchestrator';
@@ -34,7 +41,7 @@ export interface Catalog {
 /** A draft the user can still confirm by voice. Only one exists at a time. */
 export interface PendingDraft {
   draftId: string;
-  intent: 'create_bill' | 'record_payment' | 'out_of_stock';
+  intent: 'create_bill' | 'record_payment' | 'out_of_stock' | 'add_customer' | 'add_product' | 'add_products' | 'update_price';
   canConfirm?: boolean;
 }
 
@@ -88,6 +95,14 @@ export function buildDraft(input: DraftInput): DraftResult {
       return querySummary(input, base, variant);
     case 'out_of_stock':
       return outOfStock(input, base, variant);
+    case 'add_customer':
+      return addCustomer(input, base, variant);
+    case 'add_product':
+      return addProduct(input, base, variant);
+    case 'update_price':
+      return updatePrice(input, base, variant);
+    case 'add_products':
+      return addProducts(input, base, variant);
     case 'confirm':
     case 'cancel':
       return answer(input, base, variant);
@@ -226,6 +241,150 @@ function queryBalance(input: DraftInput, base: Base, variant: number): DraftResu
     replyText: balanceReply(known.name, known.balance, variant),
   };
   return { draft, cacheReply: false, pendingChange: { action: 'keep' } };
+}
+
+/** "Anil Singh ko customer mein add karo": a new name waits for "haan"; the browser creates the customer. */
+function addCustomer(input: DraftInput, base: Base, variant: number): DraftResult {
+  const customer = input.outcome.resolution.customer;
+  const intent = 'add_customer' as const;
+  if (!customer) return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
+  if (customer.ambiguous) {
+    const reply = customerAmbiguous(customer.ambiguous.candidates.map((c) => c.name), variant);
+    return plain(input, base, intent, reply, false, { action: 'clear' }, [customer.ambiguous]);
+  }
+  if (customer.id) {
+    const draft: DraftMessage = {
+      ...base,
+      draftId: input.draftId,
+      intent,
+      customer: { id: customer.id, name: customer.name, isNew: false },
+      unresolved: [],
+      warnings: [],
+      replyText: customerExists(customer.name, variant),
+    };
+    return { draft, cacheReply: false, pendingChange: { action: 'clear' } };
+  }
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent,
+    customer: { name: customer.name, isNew: true },
+    unresolved: [],
+    warnings: warningsOf([], input.outcome.needsReview),
+    replyText: addCustomerAsk(customer.name, variant),
+  };
+  return { draft, cacheReply: false, pendingChange: { action: 'set', pending: { draftId: input.draftId, intent } } };
+}
+
+/**
+ * "Samaan mein chawal 40 rupaye kilo": a new product waits for "haan"; the browser creates it. The
+ * price is the literal one the rules heard, shown on the card, never a model's guess.
+ */
+function addProduct(input: DraftInput, base: Base, variant: number): DraftResult {
+  const item = input.outcome.parsed.items[0];
+  const price = item?.spokenPrice?.amount;
+  const intent = 'add_product' as const;
+  if (!item || price === undefined || !Number.isInteger(price) || price <= 0) {
+    return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
+  }
+  const name = item.name.slice(0, LIMITS.maxNameLength);
+  const unit = item.unit ?? 'piece';
+  const match = input.outcome.resolution.stockMatch;
+  const existing = match && !match.ambiguous ? match.best : undefined;
+  if (existing || match?.ambiguous) {
+    const shown = existing?.name ?? match?.candidates[0]?.name ?? name;
+    const draft: DraftMessage = {
+      ...base,
+      draftId: input.draftId,
+      intent,
+      product: { ...(existing ? { id: existing.id } : {}), name: shown, unit, pricePerUnit: price, isNew: false },
+      unresolved: [],
+      warnings: [],
+      replyText: productExists(shown, variant),
+    };
+    return { draft, cacheReply: false, pendingChange: { action: 'clear' } };
+  }
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent,
+    product: { name, unit, pricePerUnit: price, isNew: true },
+    unresolved: [],
+    warnings: warningsOf([], input.outcome.needsReview),
+    replyText: addProductAsk(name, unit, price, variant),
+  };
+  return { draft, cacheReply: false, pendingChange: { action: 'set', pending: { draftId: input.draftId, intent } } };
+}
+
+/** "Samaan mein aata 45, cheeni 50, ...": the whole list waits for one "haan"; existing products are skipped. */
+function addProducts(input: DraftInput, base: Base, variant: number): DraftResult {
+  const items = input.outcome.parsed.items;
+  const matches = input.outcome.resolution.rowMatches ?? [];
+  const intent = 'add_products' as const;
+  const products: NonNullable<DraftMessage['products']> = [];
+  items.forEach((item, i) => {
+    const price = item.spokenPrice?.amount;
+    if (price === undefined || !Number.isInteger(price) || price <= 0) return;
+    const unit = item.unit ?? 'piece';
+    const match = matches[i];
+    const existing = match && !match.ambiguous ? match.best : undefined;
+    if (existing || match?.ambiguous) {
+      const shown = existing?.name ?? match?.candidates[0]?.name ?? item.name;
+      products.push({ ...(existing ? { id: existing.id } : {}), name: shown.slice(0, LIMITS.maxNameLength), unit, pricePerUnit: price, isNew: false });
+    } else {
+      products.push({ name: item.name.slice(0, LIMITS.maxNameLength), unit, pricePerUnit: price, isNew: true });
+    }
+  });
+  const fresh = products.filter((p) => p.isNew).length;
+  if (products.length === 0) return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent,
+    products: products.slice(0, LIMITS.maxBillItems),
+    unresolved: [],
+    warnings: warningsOf([], input.outcome.needsReview),
+    replyText: fresh > 0 ? addProductsAsk(fresh, products.length - fresh, variant) : [`Ye sab samaan mein pehle se hain.`],
+  };
+  return { draft, cacheReply: false, pendingChange: fresh > 0 ? { action: 'set', pending: { draftId: input.draftId, intent } } : { action: 'clear' } };
+}
+
+/**
+ * "Chawal ka rate 45 karo": an existing product gets the rate that was spoken, after "haan". The
+ * unit stays the product's own: a rate spoken for another unit is refused rather than guessed.
+ */
+function updatePrice(input: DraftInput, base: Base, variant: number): DraftResult {
+  const item = input.outcome.parsed.items[0];
+  const price = item?.spokenPrice?.amount;
+  const intent = 'update_price' as const;
+  if (!item || price === undefined || !Number.isInteger(price) || price <= 0) {
+    return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
+  }
+  const match = input.outcome.resolution.stockMatch;
+  if (match?.ambiguous) {
+    const candidates = match.candidates.map((c) => ({ id: c.id, name: c.name, score: c.score }));
+    const unresolved: UnresolvedItem[] = [{ kind: 'item', spoken: item.name.slice(0, LIMITS.maxNameLength), candidates }];
+    return plain(input, base, intent, itemNotFound(item.name, variant), false, { action: 'clear' }, unresolved);
+  }
+  const known = match?.best ? input.catalog.products.find((p) => p.id === match.best?.id) : undefined;
+  if (!known) {
+    const unresolved: UnresolvedItem[] = [{ kind: 'item', spoken: item.name.slice(0, LIMITS.maxNameLength), candidates: [] }];
+    return plain(input, base, intent, itemNotFound(item.name, variant), false, { action: 'clear' }, unresolved);
+  }
+  if (item.unit !== null && item.unit !== known.unit) {
+    return plain(input, base, intent, notUnderstood(variant), true, { action: 'clear' });
+  }
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent,
+    product: { id: known.id, name: known.name, unit: known.unit, pricePerUnit: price, previousPrice: known.pricePerUnit, isNew: false },
+    unresolved: [],
+    warnings: warningsOf([], input.outcome.needsReview),
+    replyText: price === known.pricePerUnit ? priceUnchanged(known.name, variant) : updatePriceAsk(known.name, known.unit, price, variant),
+  };
+  const changed = price !== known.pricePerUnit;
+  return { draft, cacheReply: false, pendingChange: changed ? { action: 'set', pending: { draftId: input.draftId, intent } } : { action: 'clear' } };
 }
 
 /** "Aaj kitni bikri hui": shop-wide numbers from the device's snapshot; nothing to confirm. */

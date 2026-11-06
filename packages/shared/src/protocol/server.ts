@@ -84,6 +84,16 @@ export const draftBalanceSchema = z.object({ balance: signedRupeesSchema });
 export const draftSummarySchema = z.object({ todaySales: rupeesSchema, todayBills: z.number().int().min(0), totalUdhaar: rupeesSchema });
 /** "Aata khatam ho gaya": the product to mark as out of stock once the user confirms. */
 export const draftStockSchema = z.object({ productId: idSchema, name: nameSchema });
+/** "Samaan mein chawal 40 rupaye kilo": a product to create once the user confirms. `id` means it already exists. */
+export const draftProductSchema = z.object({
+  id: idSchema.optional(),
+  name: nameSchema,
+  unit: unitSchema,
+  pricePerUnit: rupeesSchema.min(1),
+  /** update_price only: the rate before the change, for the card. */
+  previousPrice: rupeesSchema.optional(),
+  isNew: z.boolean(),
+});
 
 export const candidateSchema = z.object({
   id: idSchema,
@@ -115,6 +125,9 @@ export const draftSchema = z.object({
   balance: draftBalanceSchema.optional(),
   summary: draftSummarySchema.optional(),
   stock: draftStockSchema.optional(),
+  product: draftProductSchema.optional(),
+  /** add_products: a whole list of products to create after one confirmation. */
+  products: z.array(draftProductSchema).max(LIMITS.maxBillItems).optional(),
   unresolved: z.array(unresolvedSchema).max(LIMITS.maxUnresolved),
   warnings: z.array(safeText(LIMITS.maxWarningLength)).max(LIMITS.maxWarnings),
   /** At most two short sentences so TTS can start on the first. */

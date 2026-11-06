@@ -16,10 +16,11 @@
  * confidence. Only this rules path may attach a literal spoken-price quote.
  */
 import { LIMITS } from '../protocol/constants';
+import type { Unit } from '../protocol/common';
 import type { CatalogMatcher } from '../domain/matching';
 import { extractQuantityAndUnit, normalizeUnit, parseNumber, tokenizeSpeech } from '../domain/numberWords';
 import type { ParsedUtterance, ParsedItemOutput } from './schema';
-import { pricedItems, hasMoneyTail } from './pricedItems';
+import { pricedItems, hasMoneyTail, isMoneyWord } from './pricedItems';
 import { extractAdjust, fold, foldSet, parseStockOut, parseSummaryQuery } from './extras';
 
 /** Rules results at or above this are used directly; below it the LLM may be tried. */
@@ -43,23 +44,37 @@ const CONFIRM_VOCAB = foldSet([
 
 const BALANCE_KW = foldSet(['kitna', 'kitni', 'kitne', 'hisab', 'balance', 'bakaya', 'outstanding', 'baki', 'pending']);
 const UDHAAR_KW = foldSet(['udhaar', 'udhar', 'udhari', 'credit', 'baki', 'bakaya', 'khata', 'khate']);
-const PAID_KW = foldSet(['diye', 'diya', 'dia', 'jama', 'mile', 'mila', 'paid', 'pay', 'payment', 'chukaye', 'chukaya', 'bhare', 'bhara', 'wapas']);
+const PAID_KW = foldSet(['diye', 'diya', 'dia', 'jama', 'mile', 'mila', 'paid', 'pay', 'payment', 'दिए', 'दिये', 'chukaye', 'chukaya', 'bhare', 'bhara', 'wapas']);
 const MIL_GAYE = foldSet(['gaye', 'gaya', 'gae']);
-const AMOUNT_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'rupaye', 'rupaya', 'rupay', 'rupees', 'rupiya', 'rs', 'de', 'ne', 'hi', 'bhi', 'cash', 'nakad', 'abhi', 'aaj', 'mil', 'gaye', 'gaya', 'kar', 'kiye', 'kiya']);
+const AMOUNT_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'rupaye', 'rupaya', 'rupay', 'rupees', 'rupiya', 'rs', 'रुपये', 'रुपए', 'रुपया', 'de', 'ne', 'hi', 'bhi', 'cash', 'nakad', 'abhi', 'aaj', 'mil', 'gaye', 'gaya', 'kar', 'kiye', 'kiya']);
 const MARKER_ALWAYS = foldSet(['ko', 'ne', 'se']);
 const MARKER_NEEDS_KEYWORD = foldSet(['ka', 'ki', 'ke']);
 const AFTER_MARKER_KW = foldSet(['kitna', 'kitni', 'kitne', 'udhaar', 'udhar', 'udhari', 'baki', 'bakaya', 'hisab', 'balance', 'khata', 'khate', 'total', 'pending', 'liye']);
-const CUSTOMER_FILLER = foldSet(['bill', 'bana', 'banao', 'likho', 'likh', 'naya', 'hisab', 'aaj', 'abhi', 'please', 'pls']);
+const CUSTOMER_FILLER = foldSet(['bill', 'bana', 'banao', 'likho', 'likh', 'naya', 'hisab', 'aaj', 'abhi', 'please', 'pls', 'uh', 'um', 'umm', 'hmm', 'matlab', 'toh', 'haan']);
 /** Particles that follow a customer name at the end of an order: "... Sharma ji ke naam pe". */
 const TRAILING_PARTICLES = foldSet(['ko', 'ke', 'ki', 'liye', 'naam', 'nam', 'pe', 'par', 'mein', 'me', 'mei']);
 const SEPARATORS = foldSet(['aur', 'and', 'plus', 'tatha', 'saath']);
 const NOISE = foldSet([
   'likh', 'likho', 'jod', 'jodo', 'kar', 'karo', 'dena', 'de', 'dijiye', 'chahiye', 'bill', 'bana', 'banao',
   'banado', 'hai', 'hain', 'ka', 'ki', 'ke', 'ko', 'ne', 'se', 'ye', 'wo', 'please', 'pls', 'bhi', 'bas',
-  'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab',
+  'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab', 'haan',
   'toh', 'acha', 'accha', 'yaar', 'dekho', 'suno',
 ]);
 const BALANCE_FILLER = foldSet(['hai', 'hain', 'hua', 'hoga', 'batao', 'bataiye', 'bataye', 'dikhao', 'bolo', 'kya', 'total', 'abhi', 'ab', 'ho', 'gaya', 'gayi', 'gaye', 'tha', 'raha', 'rha']);
+/** "Anil Singh ko customer mein add karo": the words that make a sentence an add-customer request. */
+const CUSTOMER_KW = foldSet(['customer', 'custumer', 'costumer', 'kastamar', 'kastmar', 'grahak', 'कस्टमर', 'कस्टमार', 'ग्राहक']);
+const ADD_KW = foldSet([
+  'add', 'aid', 'ad', 'ऐड', 'एड', 'jodo', 'jod', 'jodna', 'joden', 'जोड़ो', 'जोड़', 'जोड़ना', 'banao', 'bana', 'banado', 'banana',
+  'naya', 'nayi', 'naye', 'नया', 'नई', 'new', 'register', 'darj', 'dalo', 'daalo', 'डालो', 'likho', 'likh', 'shamil',
+]);
+/** Words around the name that are not part of it. */
+const ADD_PARTICLES = foldSet([
+  'ka', 'ki', 'ke', 'ko', 'mein', 'men', 'me', 'mei', 'se', 'naam', 'nam', 'name', 'karo', 'kar', 'do', 'dijiye', 'kijiye',
+  'dena', 'de', 'hai', 'please', 'pls', 'ek', 'mera', 'meri', 'ye', 'is', 'isko', 'bhi', 'list', 'mere', 'apne',
+]);
+const MAX_NAME_TOKENS = 4;
+/** "kul udhaar kitna baaki hai" asks about the whole shop: these words never start a customer name. */
+const SHOP_WIDE = foldSet(['kul', 'total', 'sab', 'saara', 'sara', 'poora', 'pura', 'tak', 'today', 'mera', 'hamara', 'sabka']);
 const DO_AFTER = foldSet(['likh', 'likho', 'jod', 'jodo', 'kar', 'de', 'rehne', 'rahne', 'bhi', 'dijiye']);
 
 const INJECTION =
@@ -116,6 +131,225 @@ function answerIntent(f: readonly string[]): 'confirm' | 'cancel' | null {
   return null;
 }
 
+// --- Add a customer ------------------------------------------------------------------------
+
+/**
+ * "Ramesh Kumar ko customer mein add karo", "naya customer Ramesh Kumar". Needs BOTH a customer word
+ * and an add word, so ordinary bills, payments and balance questions never land here. Whatever is
+ * left after those words and particles is the name; no name, or a number in it, is not understood.
+ */
+function parseAddCustomer(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  if (!f.some((t) => CUSTOMER_KW.has(t)) || !f.some((t) => ADD_KW.has(t))) return null;
+  if (f.some((t) => PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
+  const name: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const t = f[i] ?? '';
+    if (CUSTOMER_KW.has(t) || ADD_KW.has(t) || ADD_PARTICLES.has(t)) continue;
+    const word = raw[i] ?? '';
+    if (isNumeric(word)) return null;
+    name.push(word);
+  }
+  if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  return { ...EMPTY, intent: 'add_customer', customer: titleCase(name), confidence: 0.9 };
+}
+
+// --- Add a product to Samaan ---------------------------------------------------------------
+
+const SAMAAN_KW = foldSet(['samaan', 'saman', 'saaman', 'सामान', 'catalog', 'catalogue']);
+/** "le lo" only means "add it" when the sentence starts with "samaan mein"; elsewhere it is an order. */
+const TAKE_KW = foldSet(['le', 'lelo', 'lo']);
+/** "do" is the number two in "do kilo" but the verb in "jod do"; it is a particle only after one of these. */
+const GIVE_VERBS = foldSet(['karo', 'kar', 'jod', 'jodo', 'daal', 'daalo', 'dalo', 'add', 'aid', 'le', 'rakh', 'rakho', 'likh', 'likho', 'bana', 'banao']);
+const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali']);
+
+const MAX_PRODUCT_ROWS = 20;
+
+/**
+ * "Samaan mein jodo aata 45 rupaye kilo, cheeni 50 rupaye kilo, Maggi 14 packet": two or more
+ * name + price rows. STT often drops commas and units, so a row ends at its price: words collect
+ * as the name until a number run appears, then an optional "rupaye" and unit finish that row.
+ * Any row without a price, a repeated name or a count above one makes the whole list ambiguous.
+ * One row is left to parseAddProduct.
+ */
+function parseAddProducts(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  if (!f.some((t) => SAMAAN_KW.has(t))) return null;
+  if (!f.some((t) => ADD_KW.has(t)) && !(SAMAAN_KW.has(f[0] ?? '') && f.some((t) => TAKE_KW.has(t)))) return null;
+  if (f.some((t) => CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t) || RATE_KW.has(t))) return null;
+
+  const rows: ParsedItemOutput[] = [];
+  const seen = new Set<string>();
+  let words: string[] = [];
+  let rowUnit: Unit | null = null;
+  const finish = (price: number): boolean => {
+    if (words.length < 1 || words.length > MAX_NAME_TOKENS || price <= 0 || !Number.isInteger(price)) return false;
+    const key = words.join(' ').toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    rows.push({ name: titleCase(words), quantity: 1, unit: rowUnit, spokenPrice: { amount: price, basis: 'unit', unit: rowUnit } });
+    words = [];
+    rowUnit = null;
+    return true;
+  };
+
+  let i = 0;
+  while (i < raw.length) {
+    const t = f[i] ?? '';
+    const word = raw[i] ?? '';
+    if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t) || SEPARATORS.has(t)) { i++; continue; }
+    const countWord = t === fold('ek') || t === fold('do');
+    if (ADD_PARTICLES.has(t) && (!countWord || (t === fold('do') && GIVE_VERBS.has(f[i - 1] ?? '')))) { i++; continue; }
+    // "ek kilo": a one-unit phrase belongs to the row it sits in.
+    const qty = extractQuantityAndUnit(raw.slice(i));
+    if (qty && qty.unit !== null) {
+      if (qty.quantity !== 1) return null;
+      rowUnit = qty.unit;
+      i += qty.consumed;
+      continue;
+    }
+    let price: { value: number; size: number } | null = null;
+    for (let size = Math.min(4, raw.length - i); size >= 1 && !price; size--) {
+      const value = parseNumber(raw.slice(i, i + size).join(' '));
+      if (value !== null) price = { value, size };
+    }
+    if (price) {
+      i += price.size;
+      while (i < raw.length && (isMoneyWord(raw[i] ?? '') || PRODUCT_PARTICLES.has(f[i] ?? ''))) i++;
+      const unitWord = raw[i] ?? '';
+      const asUnit = unitWord.length > 1 ? normalizeUnit(unitWord) : null;
+      if (asUnit) { rowUnit = rowUnit ?? asUnit; i++; }
+      if (!finish(price.value)) return null;
+      continue;
+    }
+    const asUnit = word.length > 1 ? normalizeUnit(word) : null;
+    if (asUnit) { rowUnit = rowUnit ?? asUnit; i++; continue; }
+    words.push(word);
+    i++;
+  }
+  if (words.length > 0 || rows.length < 2 || rows.length > MAX_PRODUCT_ROWS) return null;
+  return { ...EMPTY, intent: 'add_products', items: rows, confidence: 0.9 };
+}
+
+/** The longest number run ending right before, or starting right after, the money word. */
+function priceAround(raw: readonly string[], money: number): { value: number; from: number; to: number } | null {
+  for (let size = Math.min(4, money); size >= 1; size--) {
+    const value = parseNumber(raw.slice(money - size, money).join(' '));
+    if (value !== null) return { value, from: money - size, to: money - 1 };
+  }
+  for (let size = Math.min(4, raw.length - money - 1); size >= 1; size--) {
+    const value = parseNumber(raw.slice(money + 1, money + 1 + size).join(' '));
+    if (value !== null) return { value, from: money + 1, to: money + size };
+  }
+  return null;
+}
+
+/**
+ * "Samaan mein chawal add karo 40 rupaye kilo", "सामान में एक किलो चावल ले लो, चालीस रुपए के एक किलो".
+ * Needs a Samaan word, an add word and a spoken price. The price is per unit, so a count above one
+ * ("do kilo chawal 80 rupaye") is ambiguous and not understood. With no unit spoken the unit stays
+ * null and the gateway shows "piece". The user always confirms the card, so a wrong guess is visible.
+ */
+function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  if (!f.some((t) => SAMAAN_KW.has(t))) return null;
+  const addWord = f.some((t) => ADD_KW.has(t)) || (SAMAAN_KW.has(f[0] ?? '') && f.some((t) => TAKE_KW.has(t)));
+  if (!addWord) return null;
+  if (f.some((t) => CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
+
+  const money = raw.findIndex(isMoneyWord);
+  if (money < 0) return null;
+  const price = priceAround(raw, money);
+  if (!price || price.value <= 0 || !Number.isInteger(price.value)) return null;
+
+  const left: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const t = f[i] ?? '';
+    if (i === money || (i >= price.from && i <= price.to)) continue;
+    if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t)) continue;
+    // "ek" and "do" can be counts ("do kilo"), so they are only particles in "... kar do".
+    const countWord = t === fold('ek') || t === fold('do');
+    if (ADD_PARTICLES.has(t) && (!countWord || (t === fold('do') && GIVE_VERBS.has(f[i - 1] ?? '')))) continue;
+    if (t === fold('ek') && !f.slice(i + 1).some((x) => normalizeUnit(x) !== null)) continue;
+    left.push(raw[i] ?? '');
+  }
+
+  let unit: Unit | null = null;
+  const name: string[] = [];
+  for (let i = 0; i < left.length; i++) {
+    const found = extractQuantityAndUnit(left.slice(i));
+    if (found) {
+      if (found.quantity !== 1 || (unit !== null && found.unit !== null && found.unit !== unit)) return null;
+      unit = unit ?? found.unit;
+      i += found.consumed - 1;
+      continue;
+    }
+    const word = left[i] ?? '';
+    // A lone "g" or "l" is part of a name ("Parle G"), not a unit: people say "gram" and "litre".
+    const asUnit = word.length > 1 ? normalizeUnit(word) : null;
+    if (asUnit) {
+      if (unit !== null && unit !== asUnit) return null;
+      unit = asUnit;
+      continue;
+    }
+    if (isNumeric(word)) {
+      if (parseNumber(word) === 1) continue;
+      return null;
+    }
+    name.push(word);
+  }
+  if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  return {
+    ...EMPTY,
+    intent: 'add_product',
+    items: [{ name: titleCase(name), quantity: 1, unit, spokenPrice: { amount: price.value, basis: 'unit', unit } }],
+    confidence: 0.9,
+  };
+}
+
+// --- Change a product's rate ---------------------------------------------------------------
+
+const RATE_KW = foldSet(['rate', 'daam', 'dam', 'bhav', 'bhaav', 'price', 'kimat', 'keemat', 'रेट', 'दाम', 'भाव', 'कीमत']);
+const CHANGE_KW = foldSet(['karo', 'kar', 'kardo', 'badlo', 'badal', 'badalna', 'set', 'kijiye', 'kiye', 'ho', 'gaya', 'gayi', 'hua', 'rakho', 'rakh']);
+const RATE_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'ab', 'se', 'hai', 'mein', 'men', 'me', 'ek', 'do', 'bhi', 'naya', 'nayi', 'new', 'please', 'pls']);
+
+/**
+ * "chawal ka rate 45 karo", "चावल का रेट पैंतालीस रुपए कर दो". Needs a rate word, a change word and a
+ * number right after the rate word. The product must already exist (the gateway checks), and the
+ * price is per unit. A model never supplies this price: it is the number that was spoken.
+ */
+function parseUpdatePrice(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  const rate = f.findIndex((t) => RATE_KW.has(t));
+  if (rate < 0 || !f.some((t) => CHANGE_KW.has(t))) return null;
+  if (f.some((t) => SAMAAN_KW.has(t) || ADD_KW.has(t) || CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
+
+  let start = rate + 1;
+  while (start < raw.length && RATE_FILLER.has(f[start] ?? '') && !isNumeric(raw[start] ?? '')) start++;
+  let run: { value: number; end: number } | null = null;
+  for (let size = Math.min(4, raw.length - start); size >= 1 && !run; size--) {
+    const value = parseNumber(raw.slice(start, start + size).join(' '));
+    if (value !== null) run = { value, end: start + size };
+  }
+  if (!run || run.value <= 0 || !Number.isInteger(run.value)) return null;
+
+  let unit: Unit | null = null;
+  const name: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    if (i === rate || (i >= start && i < run.end)) continue;
+    const t = f[i] ?? '';
+    if (RATE_FILLER.has(t) || CHANGE_KW.has(t) || isMoneyWord(raw[i] ?? '')) continue;
+    const word = raw[i] ?? '';
+    const asUnit = word.length > 1 ? normalizeUnit(word) : null;
+    if (asUnit) { unit = asUnit; continue; }
+    if (isNumeric(word)) return null;
+    name.push(word);
+  }
+  if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  return {
+    ...EMPTY,
+    intent: 'update_price',
+    items: [{ name: titleCase(name), quantity: 1, unit, spokenPrice: { amount: run.value, basis: 'unit', unit } }],
+    confidence: 0.9,
+  };
+}
+
 // --- Step 2: customer ----------------------------------------------------------------------
 
 function findCustomer(w: Working, matcher: CatalogMatcher | undefined): string | null {
@@ -142,8 +376,31 @@ function findCustomer(w: Working, matcher: CatalogMatcher | undefined): string |
     if (marker === fold('ke') && f[m + 1] === fold('liye')) w.used[m + 1] = true;
     return titleCase(nameTokens);
   }
-  if (!matcher) return null;
-  return findCustomerWithoutMarker(w, matcher) ?? findTrailingCustomer(w, matcher);
+  if (!matcher) return findLeadingNameBeforeQuestion(w, undefined);
+  return findCustomerWithoutMarker(w, matcher) ?? findTrailingCustomer(w, matcher) ?? findLeadingNameBeforeQuestion(w, matcher);
+}
+
+/**
+ * "Mohan Lal ji kitna udhaar hai" / "मोहन लाल जी, क्या कितना उधार है?": no "ka" particle, and the
+ * customer may not exist yet. Everything before the first question word is the name, but only
+ * when the rest of the sentence is nothing but question words, so an item can never become a name.
+ */
+function findLeadingNameBeforeQuestion(w: Working, matcher: CatalogMatcher | undefined): string | null {
+  const { raw, f } = w;
+  const isQuestionWord = (t: string) => BALANCE_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_FILLER.has(t);
+  let first = 0;
+  while (first < f.length && CUSTOMER_FILLER.has(f[first] ?? '')) first++;
+  let end = first;
+  while (end < f.length && !isQuestionWord(f[end] ?? '')) end++;
+  if (end === f.length || end - first < 1 || end - first > MAX_NAME_TOKENS) return null;
+  if (!f.slice(end).every(isQuestionWord) || !f.slice(end).some((t) => BALANCE_KW.has(t) || UDHAAR_KW.has(t))) return null;
+  const name = raw.slice(first, end);
+  const folded = f.slice(first, end);
+  if (name.some(isNumeric) || folded.some((t) => SHOP_WIDE.has(t) || NOISE.has(t) || PAID_KW.has(t) || normalizeUnit(t) !== null)) return null;
+  const joined = name.join(' ');
+  if (matcher && matcher.matchProduct(joined).best && !matcher.matchCustomer(joined).best) return null;
+  markRange(w, first, end - 1);
+  return titleCase(name);
 }
 
 function isProductNotCustomer(matcher: CatalogMatcher, name: string): boolean {
@@ -369,6 +626,18 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
 
   const answer = answerIntent(f);
   if (answer) return { ...EMPTY, intent: answer, confidence: 0.95 };
+
+  const addCustomer = parseAddCustomer(raw, f);
+  if (addCustomer) return addCustomer;
+
+  const addProducts = parseAddProducts(raw, f);
+  if (addProducts) return addProducts;
+
+  const addProduct = parseAddProduct(raw, f);
+  if (addProduct) return addProduct;
+
+  const updatePrice = parseUpdatePrice(raw, f);
+  if (updatePrice) return updatePrice;
 
   const stockOut = parseStockOut({ raw, f, used: [] }, matcher);
   if (stockOut) {

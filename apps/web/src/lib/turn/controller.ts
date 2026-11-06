@@ -167,6 +167,13 @@ export class TurnController {
     this.dispatch({ type: 'edit_draft', draft });
   }
 
+  /** Starts a bill by hand (a quick tile). The gateway learns about it on the next press, like any edit. */
+  startDraft(draft: DraftMessage): void {
+    if (this.state.pending !== null) return;
+    this.draftContext = draft;
+    this.dispatch({ type: 'start_draft', draft });
+  }
+
   acceptReplacement(): void {
     this.dispatch({ type: 'accept_replacement' });
   }

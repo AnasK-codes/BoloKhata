@@ -50,6 +50,10 @@ export function isConfirmable(draft: DraftMessage): boolean {
   }
   if (draft.intent === 'record_payment') return draft.customer?.id !== undefined && draft.payment !== undefined;
   if (draft.intent === 'out_of_stock') return draft.stock !== undefined;
+  if (draft.intent === 'add_products') return draft.products?.some((p) => p.isNew && p.id === undefined) === true;
+  if (draft.intent === 'update_price') return draft.product?.id !== undefined && draft.product.pricePerUnit !== draft.product.previousPrice;
+  if (draft.intent === 'add_product') return draft.product?.isNew === true && draft.product.id === undefined;
+  if (draft.intent === 'add_customer') return draft.customer?.isNew === true && draft.customer.id === undefined;
   return false;
 }
 
@@ -229,7 +233,11 @@ function draft(state: TurnState, message: DraftMessage, at: number): TurnTransit
   switch (message.intent) {
     case 'create_bill':
     case 'record_payment':
-    case 'out_of_stock': {
+    case 'out_of_stock':
+    case 'add_customer':
+    case 'add_product':
+    case 'update_price':
+    case 'add_products': {
       // Something is already waiting and this is a different bill: ask before replacing it.
       if (state.pending && state.pending.draftId !== message.draftId && isConfirmable(message)) {
         const next = { ...base, replacement: message };
@@ -385,6 +393,11 @@ export function reduce(state: TurnState, event: TurnEvent): TurnTransition {
     }
     case 'edit_draft':
       return editDraft(state, event.draft);
+    case 'start_draft': {
+      if (state.pending !== null) return { state, effects: [] };
+      const next = { ...state, draft: event.draft, pending: isConfirmable(event.draft) ? event.draft : null, replacement: null };
+      return { state: { ...next, phase: state.phase === 'idle' || state.phase === 'reviewing' ? settled(next) : state.phase }, effects: [] };
+    }
     case 'accept_replacement': {
       if (!state.replacement) return { state, effects: [] };
       return { state: { ...state, pending: state.replacement, replacement: null }, effects: [] };

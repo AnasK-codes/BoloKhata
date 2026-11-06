@@ -3,6 +3,7 @@ import {
   applyBill,
   applyPayment,
   getBalance,
+  oldestUnpaidSince,
   normalize,
   statement,
   reverseEntry,
@@ -49,6 +50,8 @@ export type PaymentOutcome =
 export interface CustomerBalance {
   customer: Customer;
   balance: number;
+  /** When the oldest still-unpaid udhaar was written; null when nothing is owed. */
+  oldestUnpaidAt: number | null;
 }
 
 type Clock = () => number;
@@ -91,6 +94,38 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
       const saved: Product = { ...product, id: product.id ?? newId() };
       await db.products.put(saved);
       return saved;
+    },
+    /**
+     * The products sold most often, for the quick tiles. Reversed bills do not count. A shop with no
+     * sales yet gets its catalog by name, so the tiles are never empty when products exist.
+     */
+    async listFrequentProducts(limit: number): Promise<Product[]> {
+      const [products, bills] = await Promise.all([db.products.orderBy('name').toArray(), db.bills.toArray()]);
+      const sold = new Map<string, number>();
+      for (const bill of bills) {
+        if (bill.reversedAt !== undefined) continue;
+        for (const item of bill.items) if (item.productId) sold.set(item.productId, (sold.get(item.productId) ?? 0) + 1);
+      }
+      return [...products]
+        .sort((a, b) => (sold.get(b.id) ?? 0) - (sold.get(a.id) ?? 0) || a.name.localeCompare(b.name))
+        .slice(0, Math.max(0, limit));
+    },
+    /** The product that already answers to this spoken name (its name or an alias), if any. */
+    async findProductByName(name: string): Promise<Product | undefined> {
+      const key = normalize(name);
+      if (key === '') return undefined;
+      return (await db.products.toArray()).find((p) => [p.name, ...p.aliases].some((n) => normalize(n) === key));
+    },
+    /** Changes only the rate; name, unit, aliases and stock stay. Returns whether it changed. */
+    async setProductPrice(id: string, pricePerUnit: number): Promise<{ ok: true; changed: boolean } | { ok: false; error: string }> {
+      if (!Number.isInteger(pricePerUnit) || pricePerUnit <= 0) return { ok: false, error: 'Rate poora rupaya ho, 0 se zyada.' };
+      return db.transaction('rw', db.products, async () => {
+        const product = await db.products.get(id);
+        if (!product) return { ok: false, error: 'Samaan nahi mila.' } as const;
+        if (product.pricePerUnit === pricePerUnit) return { ok: true, changed: false } as const;
+        await db.products.put({ ...product, pricePerUnit });
+        return { ok: true, changed: true } as const;
+      });
     },
     deleteProduct: (id: string) => db.products.delete(id),
     async setStock(productId: string, stock: number | undefined): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -293,7 +328,13 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
 
     async listCustomersWithBalance(): Promise<CustomerBalance[]> {
       const [customers, entries] = await Promise.all([db.customers.toArray(), db.ledgerEntries.toArray()]);
-      return customers.map((customer) => ({ customer, balance: getBalance(customer.id, entries) }));
+      const byCustomer = new Map<string, LedgerEntry[]>();
+      for (const entry of entries) byCustomer.set(entry.customerId, [...(byCustomer.get(entry.customerId) ?? []), entry]);
+      return customers.map((customer) => {
+        const own = byCustomer.get(customer.id) ?? [];
+        const balance = getBalance(customer.id, own);
+        return { customer, balance, oldestUnpaidAt: balance > 0 ? oldestUnpaidSince(own) : null };
+      });
     },
   };
 }

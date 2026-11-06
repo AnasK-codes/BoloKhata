@@ -60,6 +60,8 @@ const envSchema = z
     OPENAI_BASE_URL: optionalString,
     OPENAI_API_KEY: optionalString,
     OPENAI_MODEL: optionalString,
+    // Gemini's OpenAI-compatible API: how long the model may think. Unset leaves the model's default.
+    OPENAI_REASONING_EFFORT: z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional(),
     // 'always' sends every utterance to the model first; 'fallback' only when the rules are unsure.
     LLM_MODE: z.enum(['fallback', 'always']).default('fallback'),
     LLM_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(1200),
@@ -152,7 +154,7 @@ export interface GatewayConfig {
     provider: 'bedrock' | 'openai-compatible' | 'none';
     awsRegion: string;
     bedrockModelId: string | undefined;
-    openai: { baseUrl: string | undefined; apiKey: string | undefined; model: string | undefined };
+    openai: { baseUrl: string | undefined; apiKey: string | undefined; model: string | undefined; reasoningEffort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | undefined };
     timeoutMs: number;
     mode: 'fallback' | 'always';
   };
@@ -223,7 +225,7 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
       provider: e.LLM_PROVIDER,
       awsRegion: e.AWS_REGION,
       bedrockModelId: e.BEDROCK_MODEL_ID,
-      openai: { baseUrl: e.OPENAI_BASE_URL, apiKey: e.OPENAI_API_KEY, model: e.OPENAI_MODEL },
+      openai: { baseUrl: e.OPENAI_BASE_URL, apiKey: e.OPENAI_API_KEY, model: e.OPENAI_MODEL, reasoningEffort: e.OPENAI_REASONING_EFFORT },
       timeoutMs: e.LLM_TIMEOUT_MS,
       mode: e.LLM_MODE,
     },

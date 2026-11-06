@@ -125,7 +125,7 @@ const HONORIFICS = new Set(
   [
     'ji', 'jee', 'uncle', 'ankal', 'aunty', 'auntie', 'bhaiya', 'bhai', 'bhaiyya', 'sir', 'madam',
     'mam', 'didi', 'behen', 'behan', 'sahab', 'sahib', 'saab', 'shri', 'shree', 'mr', 'mrs', 'ms',
-    'bhabhi', 'babu', 'dada', 'chacha', 'mama',
+    'bhabhi', 'babu', 'dada', 'chacha', 'mama', 'bahan', 'bahen',
   ].map(unify),
 );
 

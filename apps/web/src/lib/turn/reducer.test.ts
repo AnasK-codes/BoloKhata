@@ -679,3 +679,72 @@ describe('stock-out and summary drafts', () => {
   });
 });
 
+
+describe('add_customer drafts', () => {
+  const addDraft = (extra = {}) => draftMessage(1, { intent: 'add_customer', bill: undefined, customer: { name: 'Anil Singh', isNew: true }, ...extra });
+
+  it('can be confirmed only for a new customer', () => {
+    expect(isConfirmable(addDraft())).toBe(true);
+    expect(isConfirmable(addDraft({ customer: { id: 'c1', name: 'Sharma ji', isNew: false } }))).toBe(false);
+    expect(isConfirmable(addDraft({ customer: undefined }))).toBe(false);
+  });
+});
+
+describe('add_product drafts', () => {
+  const productDraft = (extra = {}) => draftMessage(1, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Maida', unit: 'kg', pricePerUnit: 40, isNew: true }, ...extra });
+
+  it('can be confirmed only for a new product', () => {
+    expect(isConfirmable(productDraft())).toBe(true);
+    expect(isConfirmable(productDraft({ product: { id: 'p1', name: 'Aata', unit: 'kg', pricePerUnit: 45, isNew: false } }))).toBe(false);
+    expect(isConfirmable(productDraft({ product: undefined }))).toBe(false);
+  });
+});
+
+describe('update_price drafts', () => {
+  const priceDraft = (extra = {}) => draftMessage(1, { intent: 'update_price', bill: undefined, customer: undefined, product: { id: 'p1', name: 'Aata', unit: 'kg', pricePerUnit: 48, previousPrice: 45, isNew: false }, ...extra });
+
+  it('can be confirmed only for a known product with a different rate', () => {
+    expect(isConfirmable(priceDraft())).toBe(true);
+    expect(isConfirmable(priceDraft({ product: { id: 'p1', name: 'Aata', unit: 'kg', pricePerUnit: 45, previousPrice: 45, isNew: false } }))).toBe(false);
+    expect(isConfirmable(priceDraft({ product: { name: 'Aata', unit: 'kg', pricePerUnit: 48, isNew: false } }))).toBe(false);
+    expect(isConfirmable(priceDraft({ product: undefined }))).toBe(false);
+  });
+});
+
+describe('add_products drafts', () => {
+  const row = (name: string, isNew: boolean) => ({ name, unit: 'kg' as const, pricePerUnit: 30, isNew });
+  const listDraft = (products: ReturnType<typeof row>[] | undefined) => draftMessage(1, { intent: 'add_products', bill: undefined, customer: undefined, products });
+
+  it('can be confirmed when at least one product is new', () => {
+    expect(isConfirmable(listDraft([row('Maida', true), row('Aata', false)]))).toBe(true);
+    expect(isConfirmable(listDraft([row('Aata', false)]))).toBe(false);
+    expect(isConfirmable(listDraft([]))).toBe(false);
+    expect(isConfirmable(listDraft(undefined))).toBe(false);
+  });
+});
+
+describe('start_draft (a quick tile starts a bill by hand)', () => {
+  it('shows the new bill and makes it confirmable when nothing else is waiting', () => {
+    const state = initialTurnState();
+    const draft = draftMessage(0, { draftId: 'tile-1' });
+    const { state: next } = reduce(state, { type: 'start_draft', draft });
+    expect(next.draft).toEqual(draft);
+    expect(next.pending).toEqual(draft);
+  });
+
+  it('refuses to replace a draft that is still waiting for confirmation', () => {
+    const waiting = draftMessage(1, { draftId: 'waiting' });
+    const state = { ...initialTurnState(), draft: waiting, pending: waiting };
+    const { state: next } = reduce(state, { type: 'start_draft', draft: draftMessage(0, { draftId: 'tile-2' }) });
+    expect(next.pending?.draftId).toBe('waiting');
+    expect(next.draft?.draftId).toBe('waiting');
+  });
+
+  it('replaces a finished answer such as a balance card', () => {
+    const answer = draftMessage(1, { draftId: 'answer', intent: 'query_balance', bill: undefined, balance: { balance: 100 } });
+    const state = { ...initialTurnState(), draft: answer, pending: null };
+    const { state: next } = reduce(state, { type: 'start_draft', draft: draftMessage(0, { draftId: 'tile-3' }) });
+    expect(next.draft?.draftId).toBe('tile-3');
+    expect(next.pending?.draftId).toBe('tile-3');
+  });
+});

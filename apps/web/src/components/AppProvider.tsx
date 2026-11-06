@@ -9,7 +9,7 @@ import { getGatewayUrl } from '@/lib/env';
 import { createRealtimeSession, type RealtimeSession } from '@/lib/session/createSession';
 import { hydrateSettings, settingsStore } from '@/lib/settings';
 import { attachHandsFree } from '@/lib/voice/handsFree';
-import { saveDraft } from '@/lib/voice/saveDraft';
+import { saveDraft, savedMessage } from '@/lib/voice/saveDraft';
 import { receiptBusiness } from '@bolbill/shared';
 import { useAccount } from './AccountGate';
 
@@ -98,7 +98,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 session.controller.editDraft(draft);
                 toast(outcome.message, 'error');
               }
-              else if (outcome.created) toast(outcome.kind === 'bill' ? 'Bill save ho gaya' : outcome.kind === 'stock' ? 'Stock khatam likh liya' : 'Payment likh liya', 'ok');
+              else {
+                const message = savedMessage(outcome);
+                if (message) toast(message, 'ok');
+              }
             });
           },
         },
