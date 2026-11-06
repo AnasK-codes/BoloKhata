@@ -616,6 +616,17 @@ function customerFactor(customer: string | null, matcher: CatalogMatcher | undef
   return 0.6;
 }
 
+/**
+ * "haan" / "nahi" and a few polite variants, and nothing else: the whole sentence must be answer words.
+ * The AI-only mode uses just this (no other rules), so a bare yes or no is instant and a model can
+ * never save or cancel a bill by itself.
+ */
+export function shortAnswer(transcript: string): 'confirm' | 'cancel' | null {
+  if (typeof transcript !== 'string') return null;
+  const raw = tokenizeSpeech(transcript.slice(0, LIMITS.maxTranscriptLength));
+  return answerIntent(raw.map(fold));
+}
+
 export function parseUtterance(transcript: string, matcher?: CatalogMatcher): ParsedUtterance {
   if (typeof transcript !== 'string') return { ...EMPTY };
   const text = transcript.slice(0, LIMITS.maxTranscriptLength);

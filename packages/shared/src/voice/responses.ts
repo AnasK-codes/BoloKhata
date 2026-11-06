@@ -16,6 +16,8 @@ export const MAX_SENTENCE_CHARS = 160;
 const MAX_NAME_CHARS = 40;
 
 const rupees = (n: number): string => amountToSpokenRupees(n) || `${Math.round(n)} rupaye`;
+/** An amount as spoken Hindi words, for replies a model wrote around a placeholder. */
+export const spokenRupees = rupees;
 
 function clip(s: string): string {
   return s.length <= MAX_SENTENCE_CHARS ? s : `${s.slice(0, MAX_SENTENCE_CHARS - 1).trimEnd()}.`;
