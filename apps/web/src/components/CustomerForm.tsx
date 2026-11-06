@@ -65,11 +65,11 @@ export function CustomerForm({ repo, customerId, initial, onDone, onToast }: Pro
           {errors.address && <p className="text-bad">{errors.address}</p>}
         </div>
         <div className="flex gap-2">
-          <button type="submit" className="min-h-14 flex-1 rounded-xl bg-lime-300 text-lg font-bold text-stone-950">Save</button>
+          <button type="submit" className="min-h-14 flex-1 rounded-xl bg-accent text-lg font-bold text-on-solid">Save</button>
           <button type="button" className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold" onClick={() => onDone(false)}>Raho</button>
         </div>
         {customerId && (confirmDelete ? (
-          <button type="button" className="min-h-14 w-full rounded-xl bg-red-500 text-lg font-bold text-white" onClick={() => void remove()}>Pakka hatao</button>
+          <button type="button" className="min-h-14 w-full rounded-xl bg-bad text-lg font-bold text-on-solid" onClick={() => void remove()}>Pakka hatao</button>
         ) : (
           <button type="button" className="min-h-14 w-full rounded-xl bg-raised text-lg font-semibold text-bad" onClick={() => setConfirmDelete(true)}>Grahak hatao</button>
         ))}

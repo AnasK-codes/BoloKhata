@@ -42,7 +42,7 @@ export function LatencyHud({ turns, connection }: { turns: readonly TurnRecord[]
           {rows.map((r) => (
             <li key={r.key}>
               <div className="flex justify-between"><span>{r.label}</span><span className="num font-bold text-warn">{r.ms === undefined ? '–' : `${Math.round(r.ms)} ms`}</span></div>
-              <div className="h-1.5 rounded bg-raised"><div className="h-full origin-left rounded bg-lime-300" style={{ transform: `scaleX(${r.ms === undefined ? 0 : r.ms / max})`, width: '100%' }} /></div>
+              <div className="h-1.5 rounded bg-raised"><div className="h-full origin-left rounded bg-accent" style={{ transform: `scaleX(${r.ms === undefined ? 0 : r.ms / max})`, width: '100%' }} /></div>
             </li>
           ))}
         </ul>

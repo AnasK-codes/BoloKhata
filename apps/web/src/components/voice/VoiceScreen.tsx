@@ -18,6 +18,7 @@ import { statusText } from '@/lib/voice/statusText';
 import { useApp } from '../AppProvider';
 import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
+import { StateView } from '../StateView';
 import { BillCard } from './BillCard';
 import { BalanceCard, CustomerCard, PaymentCard, ProductCard, ProductListCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
@@ -29,7 +30,7 @@ const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sh
 
 function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: string; tone?: 'warn' | 'error'; action?: { label: string; run(): void } }) {
   return (
-    <div role="alert" className={`rounded-xl border px-4 py-3 ${tone === 'error' ? 'border-red-500/70 bg-red-500/10' : 'border-amber-500/60 bg-amber-500/10'}`}>
+    <div role="alert" className={`rounded-xl border px-4 py-3 ${tone === 'error' ? 'border-bad/70 bg-bad/10' : 'border-warn/60 bg-warn/10'}`}>
       <p className="font-bold">{title}</p>
       <p className="text-ink">{hint}</p>
       {action && <button type="button" onClick={action.run} className="mt-2 min-h-12 rounded-xl bg-control px-4 font-semibold">{action.label}</button>}
@@ -41,14 +42,14 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
   const [code, setCode] = useState('');
   return (
     <form
-      className="rounded-xl border border-amber-500/60 bg-amber-500/10 px-4 py-3"
+      className="rounded-xl border border-warn/60 bg-warn/10 px-4 py-3"
       onSubmit={(e) => { e.preventDefault(); if (code.trim()) onSubmit(code); }}
     >
       <label htmlFor="access-code" className="font-bold">Demo code chahiye</label>
       <p className="text-ink">Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
       <div className="mt-2 flex gap-2">
         <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-12 min-w-0 flex-1 rounded-xl bg-inset px-3 text-lg" />
-        <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-lime-300 px-5 font-bold text-stone-950 disabled:opacity-40">Shuru</button>
+        <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid disabled:opacity-40">Shuru</button>
       </div>
     </form>
   );
@@ -60,7 +61,7 @@ export function VoiceScreen() {
   if (!session || !repo) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center px-4" aria-busy="true">
-        <p className="text-muted">Shuru ho raha hai…</p>
+        <StateView kind="loading" title="Shuru ho raha hai" />
       </main>
     );
   }
@@ -193,8 +194,8 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     <main className="voice-page">
       <header className="voice-header">
         <Link href="/settings" className="shop-profile"><span className="shop-avatar"><Icon name="user" size={22} /></span><span><small>Namaste, welcome back</small><strong>{profile.businessName}</strong></span></Link>
-        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${connection.status === 'ready' ? 'bg-emerald-500/15 text-good' : 'bg-control text-ink'}`}>
-          <span className={`h-2 w-2 rounded-full ${connection.status === 'ready' ? 'bg-emerald-400' : 'bg-stone-400'}`} aria-hidden="true" />
+        <span className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${connection.status === 'ready' ? 'bg-good/15 text-good' : 'bg-control text-ink'}`}>
+          <span className={`h-2 w-2 rounded-full ${connection.status === 'ready' ? 'bg-good' : 'bg-muted'}`} aria-hidden="true" />
           {!online ? 'Offline' : connection.status === 'ready' ? 'Online' : connection.status === 'limited' ? 'Busy' : 'Jud raha hai…'}
         </span>
       </header>
@@ -237,7 +238,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             <label className="text-sm text-dim" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
             <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl bg-raised px-3 text-lg" />
             <div className="mt-2 flex gap-2">
-              <button type="submit" className="min-h-12 flex-1 rounded-xl bg-lime-300 font-bold text-stone-950">Bill dobara banao</button>
+              <button type="submit" className="min-h-12 flex-1 rounded-xl bg-accent font-bold text-on-solid">Bill dobara banao</button>
               <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => setEditing(false)}>Raho</button>
             </div>
           </form>
@@ -273,13 +274,14 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
           </p>
         )}
         <p className="text-lg font-semibold" role="status">{status}</p>
+        {confirmable && <p className="text-sm text-dim">Ya bolo: <strong>&ldquo;haan&rdquo;</strong> save ke liye, <strong>&ldquo;nahi&rdquo;</strong> cancel ke liye</p>}
         {micLive ? (
           <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
               {confirmable && pending && (
-                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl bg-control text-base font-bold active:bg-raised" onClick={() => controller.discard()}>
+                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl border-2 border-line bg-control text-base font-bold active:bg-raised" onClick={() => controller.discard()}>
                   <Icon name="stop" size={20} />
-                  Cancel
+                  Nahi
                 </button>
               )}
             </div>
@@ -294,9 +296,9 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             />
             <div>
               {confirmable && pending && (
-                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl bg-emerald-500 text-base font-extrabold text-stone-950 active:bg-emerald-400" onClick={() => controller.confirm()}>
+                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl bg-good text-base font-extrabold text-on-solid active:brightness-110" onClick={() => controller.confirm()}>
                   <Icon name="check" size={24} />
-                  Confirm
+                  Haan, save
                 </button>
               )}
             </div>
@@ -310,13 +312,13 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
       </div>
       </div>
       <aside className="voice-sidebar">
-        <div className="quick-card"><div className="section-heading"><h2>Dukaan ke shortcuts</h2><span>↗</span></div><div className="quick-links">
-          <Link href="/bills"><span className="shortcut-icon lavender">▤</span><strong>Saved bills</strong><small>Dekho, print aur share karo</small></Link>
-          <Link href="/ledger"><span className="shortcut-icon peach"><Icon name="user" /></span><strong>Customer khata</strong><small>Udhaar aur payments dekho</small></Link>
-          <Link href="/catalog"><span className="shortcut-icon mint">▦</span><strong>Apna samaan</strong><small>Items aur rates manage karo</small></Link>
+        <div className="quick-card"><div className="section-heading"><h2>Dukaan ke shortcuts</h2><Icon name="arrow" size={18} /></div><div className="quick-links">
+          <Link href="/bills"><span className="shortcut-icon"><Icon name="receipt" /></span><strong>Saved bills</strong><small>Dekho, print aur share karo</small></Link>
+          <Link href="/ledger"><span className="shortcut-icon"><Icon name="book" /></span><strong>Customer khata</strong><small>Udhaar aur payments dekho</small></Link>
+          <Link href="/catalog"><span className="shortcut-icon"><Icon name="box" /></span><strong>Apna samaan</strong><small>Items aur rates manage karo</small></Link>
         </div></div>
         <div className="example-card"><p className="eyebrow">BOLKAR DEKHO</p><h2>Ek sentence. Kaam done.</h2><ul>{EXAMPLES.map((example, index) => <li key={example}><span>0{index + 1}</span><p>&ldquo;{example}&rdquo;</p></li>)}</ul></div>
-        <Link href="/settings" className="profile-banner"><Icon name="check" size={26} /><span><strong>Aapki dukaan, aapka bill.</strong><small>Business profile aur receipt details</small></span><span aria-hidden="true">↗</span></Link>
+        <Link href="/settings" className="profile-banner"><Icon name="check" size={26} /><span><strong>Aapki dukaan, aapka bill.</strong><small>Business profile aur receipt details</small></span><Icon name="arrow" size={20} /></Link>
       </aside>
       </div>
 

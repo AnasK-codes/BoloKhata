@@ -88,7 +88,7 @@ export function CatalogScreen() {
             {errors.stock && <p id="e-stock" className="mt-1 text-bad">{errors.stock}</p>}
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="min-h-14 flex-1 rounded-xl bg-lime-300 text-lg font-bold text-stone-950">Save</button>
+            <button type="submit" className="min-h-14 flex-1 rounded-xl bg-accent text-lg font-bold text-on-solid">Save</button>
             <button type="button" className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold" onClick={() => setEditing(null)}>Raho</button>
           </div>
         </form>
@@ -101,7 +101,7 @@ export function CatalogScreen() {
       <OfflineBadge online={online} />
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Samaan</h1>
-        <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-lime-300 px-5 font-bold text-stone-950">+ Naya</button>
+        <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">+ Naya</button>
       </header>
       <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Samaan dhundo (search)" aria-label="Samaan dhundo" className={input} />
       {(outCount > 0 || lowCount > 0 || onlyLow) && (
@@ -117,8 +117,8 @@ export function CatalogScreen() {
       ) : products.error ? (
         <StateView kind="error" title="Samaan nahi khul paya" hint="Page reload karke dekho." />
       ) : shown.length === 0 ? (
-        <StateView kind="empty" title={query ? 'Kuch nahi mila' : 'Abhi koi samaan nahi'} hint={query ? 'Doosra naam try karo.' : 'Bill banane ke liye pehle samaan jodo.'}>
-          {!query && <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-lime-300 px-5 font-bold text-stone-950">+ Samaan jodo</button>}
+        <StateView kind="empty" title={query ? 'Kuch nahi mila' : 'Abhi koi samaan nahi'} hint={query ? 'Doosra naam try karo.' : 'Bill banane ke liye pehle samaan jodo. Ya bolo poori list: "Samaan mein aata 45, cheeni 50, chawal 60 add karo".'}>
+          {!query && <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">+ Samaan jodo</button>}
         </StateView>
       ) : (
         <ul className="divide-y divide-line rounded-2xl bg-card">
@@ -133,7 +133,7 @@ export function CatalogScreen() {
               </button>
               <span className="num whitespace-nowrap text-lg font-bold">{rupees(p.pricePerUnit)}<span className="text-sm font-normal text-muted">/{p.unit}</span></span>
               {confirmDelete === p.id ? (
-                <button type="button" className="min-h-12 rounded-xl bg-red-500 px-3 font-bold text-white" onClick={() => { void repo?.deleteProduct(p.id); setConfirmDelete(null); }}>Pakka hatao</button>
+                <button type="button" className="min-h-12 rounded-xl bg-bad px-3 font-bold text-on-solid" onClick={() => { void repo?.deleteProduct(p.id); setConfirmDelete(null); }}>Pakka hatao</button>
               ) : (
                 <button type="button" aria-label={`${p.name} hatao`} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-raised" onClick={() => setConfirmDelete(p.id)}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Z" /></svg>

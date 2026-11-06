@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { StateView } from './StateView';
 import type { BusinessProfile } from '@bolbill/shared';
 import { accountStateSchema, type AccountState } from '@/lib/auth/schema';
 import { BusinessProfileForm } from './BusinessProfileForm';
@@ -53,7 +54,7 @@ function AuthForm({ onSubmit }: { onSubmit(action: 'login' | 'signup', input: { 
       <label className="block font-semibold">Password<input required type="password" minLength={signup ? 8 : 1} maxLength={128} autoComplete={signup ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl bg-inset px-4 text-base" /></label>
       {signup && <label className="block font-semibold">Password dobara<input required type="password" autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl bg-inset px-4 text-base" /></label>}
       {error && <p role="alert" className="text-bad">{error}</p>}
-      <button disabled={busy} className="min-h-14 w-full rounded-xl bg-lime-300 px-4 text-lg font-bold text-stone-950 disabled:opacity-50">{busy ? 'Ruko…' : signup ? 'Sign up' : 'Login'}</button>
+      <button disabled={busy} className="min-h-14 w-full rounded-xl bg-accent px-4 text-lg font-bold text-on-solid disabled:opacity-50">{busy ? 'Ruko…' : signup ? 'Sign up' : 'Login'}</button>
       <button type="button" disabled={busy} onClick={() => { setSignup(!signup); setError(''); setPassword(''); setConfirmation(''); }} className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold">{signup ? 'Account hai? Login karo' : 'Naye ho? Sign up karo'}</button>
     </form>
   </main>;
@@ -89,11 +90,11 @@ export function AccountGate({ children }: { children: ReactNode }) {
     setState(result);
   };
   const logout = async () => { const result = await requestAccount('logout'); setState(result); broadcast(); };
-  if (loading) return <main className="mx-auto max-w-md px-5 py-12" aria-busy="true">Account khul raha hai…</main>;
+  if (loading) return <main className="mx-auto max-w-md px-5 py-12" aria-busy="true"><StateView kind="loading" title="Account khul raha hai" /></main>;
   if (error) return <main className="mx-auto max-w-md space-y-4 px-5 py-12"><p role="alert">{error}</p><button onClick={() => void load()} className="min-h-12 rounded-xl bg-control px-4">Retry</button></main>;
   if (!state?.configured) return <main className="mx-auto max-w-md space-y-4 px-5 py-12"><h1 className="text-2xl font-bold">Cloud login setup baaki hai</h1><p>Supabase project connect karne ke baad signup aur login khulenge. Setup steps README aur docs/AUTH.md mein hain.</p><button className="min-h-12 rounded-xl bg-control px-4" onClick={() => void load()}>Setup ke baad retry karo</button></main>;
   if (!state.user) return <>
-    {state.confirmationRequired && <p role="status" className="mx-auto max-w-md bg-emerald-500/15 p-4 text-good">Verification email check karo. Email confirm karne ke baad login karo.</p>}
+    {state.confirmationRequired && <p role="status" className="mx-auto max-w-md bg-good/15 p-4 text-good">Verification email check karo. Email confirm karne ke baad login karo.</p>}
     <AuthForm onSubmit={async (action, input) => { const result = await requestAccount(action, input); setState(result); broadcast(); }} />
   </>;
   if (!state.profile) return <><BusinessProfileForm onSave={saveProfile} /><button className="mx-auto block min-h-12 rounded-xl bg-control px-5" onClick={() => void logout().catch(() => setError('Logout nahi hua. Retry karo.'))}>Logout</button></>;

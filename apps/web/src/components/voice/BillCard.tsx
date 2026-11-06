@@ -42,14 +42,14 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
   }, [candidates, products, query]);
 
   return (
-    <div className="rounded-xl border border-amber-500/60 bg-amber-500/10 p-3" role="group" aria-label={`Item chuno: ${spoken}`}>
+    <div className="rounded-xl border border-warn/60 bg-warn/10 p-3" role="group" aria-label={`Item chuno: ${spoken}`}>
       <p className="font-semibold">
         &ldquo;{spoken}&rdquo; kaunsa hai?{' '}
         <span className="font-normal text-dim">{quantity !== undefined ? `${formatQuantity(quantity)} ${unit ?? ''}` : ''}</span>
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((p) => (
-          <button key={p.id} type="button" className="min-h-12 rounded-xl bg-lime-300 px-4 font-semibold text-stone-950" onClick={() => onPick(p)}>
+          <button key={p.id} type="button" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid" onClick={() => onPick(p)}>
             {p.name} · {rupees(p.pricePerUnit)}/{p.unit}
           </button>
         ))}
@@ -96,7 +96,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               className="min-h-12 flex-1 rounded-xl bg-inset px-3 text-base"
             />
             <datalist id="customer-options">{customers.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-            <button type="submit" className="min-h-12 rounded-xl bg-lime-300 px-4 font-semibold text-stone-950">OK</button>
+            <button type="submit" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid">OK</button>
           </form>
         ) : (
           <button
@@ -107,7 +107,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
           >
             <Icon name="user" size={20} />
             {draft.customer ? draft.customer.name : 'Grahak chuno'}
-            {draft.customer?.isNew && <span className="rounded bg-lime-300 px-1.5 text-xs font-bold text-stone-950">NAYA</span>}
+            {draft.customer?.isNew && <span className="rounded bg-accent px-1.5 text-xs font-bold text-on-solid">NAYA</span>}
           </button>
         )}
       </div>
@@ -142,11 +142,11 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
             <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${p.name}`, 'ok'); }); }} />
           </div>
         ) : (
-          <div key={`u${i}${u.spoken}`} className="mt-3 rounded-xl border border-amber-500/60 bg-amber-500/10 p-3">
+          <div key={`u${i}${u.spoken}`} className="mt-3 rounded-xl border border-warn/60 bg-warn/10 p-3">
             <p className="font-semibold">&ldquo;{u.spoken}&rdquo; kaun sa grahak hai?</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {u.candidates.map((c) => (
-                <button key={c.id} type="button" className="min-h-12 rounded-xl bg-lime-300 px-4 font-semibold text-stone-950" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${c.name}`, 'ok'); }); }}>{c.name}</button>
+                <button key={c.id} type="button" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${c.name}`, 'ok'); }); }}>{c.name}</button>
               ))}
             </div>
           </div>
@@ -184,7 +184,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
       {bill && bill.items.length > 0 && <AdjustPanel adjust={bill.adjust} onChange={(next) => onChange(setAdjust(draft, next))} />}
 
       {bill && udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && (
-        <p role="status" className="mt-3 rounded-xl bg-lime-300/15 px-3 py-2 font-semibold text-warn">
+        <p role="status" className="mt-3 rounded-xl bg-warn/15 px-3 py-2 font-semibold text-warn">
           Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
         </p>
       )}
