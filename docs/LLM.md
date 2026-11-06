@@ -14,7 +14,7 @@ The model never sets a price, total or balance. Its Zod schema accepts only inte
 |---|---|---|
 | Who reads the sentence | the rule parser; the model only when the rules are unsure | the model, for every sentence, by calling a tool |
 | Spoken reply | fixed templates | written by the model, checked and filled by code (below) |
-| Typical wait | microseconds, plus up to `LLM_TIMEOUT_MS` on an unsure sentence | one model round trip on every sentence (measured floor about 1.5 s with Gemini free tier); set `LLM_TIMEOUT_MS` to 2500 to 4000 |
+| Typical wait | microseconds, plus up to `LLM_TIMEOUT_MS` on an unsure sentence | one model round trip on every sentence (one measured tool call took 4.2 s, see below); set `LLM_TIMEOUT_MS` to 5000 or more |
 | Model fails or is slow | rules result, review flag | the **rules answer that sentence**, `source: rules`, review flag, "basic result" notice; the breaker skips a failing model for 30 s |
 
 `ai_only` refuses to start with `LLM_PROVIDER=none`. Rules are not removed from the code: they are the fallback, and the same correction commands for an open bill ("teen kilo karo") still run first, as they do in both modes. This is a deliberate exception to "never block a turn on the model": in this mode the model is the parser.
@@ -27,7 +27,7 @@ The model never sets a price, total or balance. Its Zod schema accepts only inte
 
 **Privacy.** Same as `rules_ai`: the model sees the transcript and customer and product names only, never balances, prices or ids; the new tool arguments contain names and spoken amounts that are already in the transcript.
 
-**Unverified.** Tool calling was tested with stub models and a fake HTTP server only. Whether your Gemini model accepts `tools` with `tool_choice: required` on the OpenAI-compatible endpoint, and how fast it is, is not measured: run `pnpm --filter @bolbill/gateway llm:check -- --tools` once (it makes ONE real call and spends a few hundred tokens). A latency and accuracy comparison of the two modes needs real calls too and has not been done; do not quote a number for `ai_only` until it has.
+**Measured once, 2026-11-06 (two real calls, `llm:check -- --tools`, `gemini-3.1-flash-lite`, `OPENAI_REASONING_EFFORT=low`, one laptop and home network, fictional sentence).** The OpenAI-compatible endpoint accepted `tools` with `tool_choice: required`; the model called `create_bill` with correct arguments and the parser accepted them. Latency: the first call hit the 2.5 s budget and timed out; the second, with a 10 s budget, finished in 4.2 s. That is two samples, so it shows the order of magnitude, not a distribution: with a 2.5 s timeout `ai_only` would mostly fall back to the rules, so use `LLM_TIMEOUT_MS` of 5000 or more for it. The tool prompt is larger than the JSON-mode prompt, which probably adds to the time (not isolated). Accuracy of `ai_only` against `rules_ai` has not been measured; do not quote a number for it until `llm:eval` has been extended and run.
 
 ## Providers
 
