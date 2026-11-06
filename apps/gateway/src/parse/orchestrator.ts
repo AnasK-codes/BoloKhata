@@ -40,7 +40,16 @@ export interface OrchestratorOptions {
   timeoutMs: number;
   /** 'always': the model sees every utterance first. 'fallback': only when the rules are unsure. */
   mode?: 'fallback' | 'always';
+  /** Test hook for the circuit breaker's clock. */
+  now?: () => number;
+  /** False only for the manual eval, which must ask the model about every sentence. */
+  breaker?: boolean;
 }
+
+/** Consecutive timeouts or errors that open the breaker, and how long it then skips the model. */
+const BREAKER_FAILURES = 3;
+const BREAKER_COOLDOWN_MS = 30_000;
+const isRateLimited = (detail: string | undefined): boolean => detail === 'HttpError429' || detail === 'ThrottlingException';
 
 const isShortAnswer = (p: ParsedUtterance): boolean => p.intent === 'confirm' || p.intent === 'cancel';
 /** Intents that change stock or read shop-wide numbers: rules only, never from a model. */
@@ -62,7 +71,13 @@ const isRulesOnly = (p: ParsedUtterance): boolean => p.intent === 'out_of_stock'
  * never be able to confirm or cancel a bill.
  */
 export class Orchestrator {
-  constructor(private readonly options: OrchestratorOptions) {}
+  private failures = 0;
+  private openUntil = 0;
+  private readonly now: () => number;
+
+  constructor(private readonly options: OrchestratorOptions) {
+    this.now = options.now ?? Date.now;
+  }
 
   async parse(request: ParseRequest): Promise<ParseOutcome> {
     const rules = parseUtterance(request.transcript, request.index);
@@ -82,6 +97,10 @@ export class Orchestrator {
       return outcome(rules, rulesResolution, 'rules', true, 'skipped');
     }
 
+    // A sick or rate-limited provider would add its whole timebox to every unsure sentence: skip it
+    // for a while (one Orchestrator serves every session, so this is process-wide).
+    if (this.options.breaker !== false && this.now() < this.openUntil) return outcome(rules, rulesResolution, 'rules', !rulesAreSure, 'skipped');
+
     const result = await this.options.llm.generateStructured({
       system: SYSTEM_PROMPT,
       userBlock: buildUserBlock(request.transcript, request.names),
@@ -90,6 +109,7 @@ export class Orchestrator {
       ...(request.signal ? { signal: request.signal } : {}),
     });
     request.mark?.('llm_done');
+    this.track(result);
 
     if (!result.ok) {
       return { ...outcome(rules, rulesResolution, 'rules', !rulesAreSure, result.reason), llmMs: result.ms };
@@ -102,6 +122,17 @@ export class Orchestrator {
     const resolution = resolveUtterance(validated.data, request.index);
     const review = validated.data.confidence < CONFIDENCE_THRESHOLD || (resolution.bill?.needsReview ?? false);
     return { ...outcome(validated.data, resolution, 'llm', review, 'ok'), llmMs: result.ms };
+  }
+
+  /** Timeouts and provider errors count; an interrupted turn or a bad answer says nothing about health. */
+  private track(result: Awaited<ReturnType<LlmAdapter['generateStructured']>>): void {
+    if (result.ok) {
+      this.failures = 0;
+      return;
+    }
+    if (result.reason !== 'timeout' && result.reason !== 'unavailable') return;
+    this.failures = isRateLimited(result.detail) ? BREAKER_FAILURES : this.failures + 1;
+    if (this.failures >= BREAKER_FAILURES) this.openUntil = this.now() + BREAKER_COOLDOWN_MS;
   }
 }
 

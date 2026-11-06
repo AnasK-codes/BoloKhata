@@ -35,8 +35,8 @@ const names = { products: seed.products, customers: seed.customers };
 const GENEROUS_MS = 12_000;
 const budget = config.llm.timeoutMs;
 const rulesOnly = new Orchestrator({ llm: new NoLlm(), timeoutMs: budget, mode: 'fallback' });
-const fallback = new Orchestrator({ llm: adapter, timeoutMs: GENEROUS_MS, mode: 'fallback' });
-const always = new Orchestrator({ llm: adapter, timeoutMs: GENEROUS_MS, mode: 'always' });
+const fallback = new Orchestrator({ llm: adapter, timeoutMs: GENEROUS_MS, mode: 'fallback', breaker: false });
+const always = new Orchestrator({ llm: adapter, timeoutMs: GENEROUS_MS, mode: 'always', breaker: false });
 
 function correct(c: EvalCase, o: ParseOutcome): boolean {
   if (o.parsed.intent !== c.intent) return false;
