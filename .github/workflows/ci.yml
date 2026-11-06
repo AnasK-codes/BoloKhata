@@ -18,3 +18,27 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      # No secrets or server-only imports in the browser bundle (reads the web build above).
+      - run: pnpm check:bundle
+      # Reported, not enforced: a fix may need a dependency change, which is a human decision.
+      - run: pnpm audit --prod
+        continue-on-error: true
+
+  deploy-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Placeholder values only, to check that the compose file and Caddyfile parse.
+      - name: docker compose config
+        env:
+          DOMAIN: ci.example.test
+          ACME_EMAIL: ci@example.test
+          SUPABASE_URL: https://ci.example.test
+          SUPABASE_ANON_KEY: ci-placeholder
+        run: cp .env.example .env && docker compose -f docker-compose.prod.yml --env-file .env config -q
+      - name: caddy validate
+        run: docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" -e DOMAIN=localhost -e ACME_EMAIL=ci@example.test caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: build gateway image
+        run: docker build -f apps/gateway/Dockerfile -t bolbill-gateway:ci .
+      - name: build web image
+        run: docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_GATEWAY_URL=https://ci.example.test -t bolbill-web:ci .
