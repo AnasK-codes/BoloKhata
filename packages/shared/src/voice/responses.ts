@@ -147,6 +147,20 @@ export function customerExists(spoken: string | null | undefined, variant = 0): 
   return [clip(pick([`${who} pehle se customer hain.`, `${who} list mein pehle se hai.`], variant))];
 }
 
+const UNIT_WORDS: Record<string, string> = { kg: 'kilo', g: 'gram', l: 'litre', ml: 'ml', piece: 'piece', packet: 'packet', dozen: 'darjan' };
+
+/** "Samaan mein chawal 40 rupaye kilo": reads the product back with its rate before it is created. */
+export function addProductAsk(productName: string | null | undefined, unit: string, price: number, variant = 0): string[] {
+  const item = name(productName);
+  const per = UNIT_WORDS[unit] ?? unit;
+  return [clip(pick([`${item}, ${rupees(price)} per ${per}. Samaan mein jodun?`, `${item} ${rupees(price)} per ${per}, likh dun?`], variant))];
+}
+
+export function productExists(productName: string | null | undefined, variant = 0): string[] {
+  const item = name(productName);
+  return [clip(pick([`${item} samaan mein pehle se hai.`, `${item} list mein pehle se hai.`], variant))];
+}
+
 /** "haan" or "nahi" with no draft waiting. */
 export function nothingPending(variant = 0): string[] {
   return [pick([`Abhi koi bill pending nahi hai.`, `Save karne ke liye kuch nahi hai.`], variant)];

@@ -107,3 +107,24 @@ export function CustomerCard({ draft, saved }: { draft: DraftMessage; saved: boo
     </article>
   );
 }
+
+const UNIT_LABEL: Record<string, string> = { kg: 'kg', g: 'gram', l: 'litre', ml: 'ml', piece: 'piece', packet: 'packet', dozen: 'darjan' };
+
+/** "Samaan mein chawal 40 rupaye kilo": waits for a tap or a spoken "haan" before the product is created. */
+export function ProductCard({ draft, saved }: { draft: DraftMessage; saved: boolean }) {
+  const product = draft.product;
+  if (!product) return null;
+  const exists = !product.isNew;
+  return (
+    <article className="pop rounded-2xl bg-card p-4" aria-label="Naya samaan">
+      <p className="text-dim">
+        {exists ? <span className="badge">Pehle se hai</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />Samaan jod diya</span> : <span className="badge badge-warn">Confirm karo</span>}
+      </p>
+      <p className="mt-2 text-3xl font-extrabold tracking-tight">{product.name}</p>
+      <p className="num mt-1 text-2xl font-bold">{rupees(product.pricePerUnit)}<span className="text-base font-semibold text-dim"> / {UNIT_LABEL[product.unit] ?? product.unit}</span></p>
+      <p className="mt-1 text-dim">
+        {exists ? 'Ye samaan list mein pehle se hai. Rate badalna ho to Samaan screen kholo.' : saved ? 'Samaan mein dikhega. Ab bill mein bol sakte ho.' : 'Samaan mein jodun? Confirm dabao ya bolo "haan".'}
+      </p>
+    </article>
+  );
+}

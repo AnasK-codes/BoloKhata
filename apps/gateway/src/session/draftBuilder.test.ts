@@ -294,3 +294,41 @@ describe('add_customer', () => {
     expect(r.pendingChange).toEqual({ action: 'clear' });
   });
 });
+
+describe('add_product', () => {
+  const add = (name: string | null, unit: 'kg' | null = 'kg', amount = 40) =>
+    build({
+      intent: 'add_product',
+      items: name ? [{ name, quantity: 1, unit, spokenPrice: { amount, basis: 'unit' as const, unit } }] : [],
+    });
+
+  it('offers a new product with its unit and price for confirmation', () => {
+    const r = add('Maida');
+    expect(r.draft.intent).toBe('add_product');
+    expect(r.draft.product).toEqual({ name: 'Maida', unit: 'kg', pricePerUnit: 40, isNew: true });
+    expect(r.pendingChange).toEqual({ action: 'set', pending: { draftId: 'new-id', intent: 'add_product' } });
+    expect(r.draft.replyText.join(' ')).toContain('Maida');
+  });
+
+  it('defaults to piece when no unit was spoken', () => {
+    expect(add('Rusk', null, 20).draft.product).toMatchObject({ unit: 'piece', pricePerUnit: 20 });
+  });
+
+  it('does not offer a product that already exists', () => {
+    const r = add('aata');
+    expect(r.draft.product).toMatchObject({ id: 'p1', isNew: false });
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+    expect(r.draft.replyText.join(' ')).toContain('pehle se');
+  });
+
+  it('is not understood without a product or a usable price', () => {
+    expect(add(null).draft.intent).toBe('unknown');
+    expect(add('Maida', 'kg', 0).draft.intent).toBe('unknown');
+  });
+
+  it('is saved by a spoken "haan"', () => {
+    const pending: PendingDraft = { draftId: 'd-prod', intent: 'add_product', canConfirm: true };
+    const r = build({ intent: 'confirm' }, pending);
+    expect(r.draft).toMatchObject({ intent: 'confirm', draftId: 'd-prod' });
+  });
+});

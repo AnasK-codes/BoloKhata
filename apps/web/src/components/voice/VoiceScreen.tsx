@@ -19,12 +19,12 @@ import { useApp } from '../AppProvider';
 import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
 import { BillCard } from './BillCard';
-import { BalanceCard, CustomerCard, PaymentCard, StockCard, SummaryCard } from './InfoCards';
+import { BalanceCard, CustomerCard, PaymentCard, ProductCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
 import { MicButton } from './MicButton';
 import { ReplaceDialog } from './ReplaceDialog';
 
-const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye', 'Aaj kitni bikri hui?', 'Ramesh Kumar ko customer mein add karo'];
+const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye', 'Aaj kitni bikri hui?', 'Ramesh Kumar ko customer mein add karo', 'Samaan mein Maida 35 rupaye kilo add karo'];
 
 function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: string; tone?: 'warn' | 'error'; action?: { label: string; run(): void } }) {
   return (
@@ -169,6 +169,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     if (d.intent === 'record_payment') return <PaymentCard draft={d} repo={repo} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'query_summary') return <SummaryCard draft={d} />;
     if (d.intent === 'out_of_stock') return <StockCard draft={d} saved={pending?.draftId !== d.draftId} />;
+    if (d.intent === 'add_product') return <ProductCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'add_customer') return <CustomerCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} repo={repo} onChange={change} />;
     return null;

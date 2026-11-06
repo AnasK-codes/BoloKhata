@@ -1,11 +1,13 @@
 import type { DraftMessage } from '@bolbill/shared';
 import type { Repo } from '../db/repo';
+import { validateProductForm } from '../catalogForm';
 
 export type SaveOutcome =
   | { kind: 'bill'; created: boolean }
   | { kind: 'payment'; created: boolean; balanceAfter: number }
   | { kind: 'stock'; created: boolean }
   | { kind: 'customer'; created: boolean }
+  | { kind: 'product'; created: boolean }
   | { kind: 'error'; message: string };
 
 /**
@@ -41,6 +43,15 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
       if (await repo.findCustomerByName(draft.customer.name)) return { kind: 'customer', created: false };
       const result = await repo.saveCustomer({ name: draft.customer.name, aliases: [] });
       return result.ok ? { kind: 'customer', created: true } : { kind: 'error', message: result.error };
+    }
+    if (draft.intent === 'add_product' && draft.product) {
+      // The same rules as the Samaan form, so a spoken product can never be one the form would refuse.
+      const form = validateProductForm({ name: draft.product.name, price: String(draft.product.pricePerUnit), unit: draft.product.unit, aliases: '' });
+      if (!form.ok) return { kind: 'error', message: Object.values(form.errors)[0] ?? 'Samaan save nahi ho paya.' };
+      // A second confirmation (tap plus "haan") finds the product the first one made.
+      if (await repo.findProductByName(form.value.name)) return { kind: 'product', created: false };
+      await repo.upsertProduct({ name: form.value.name, aliases: [], unit: form.value.unit, pricePerUnit: form.value.pricePerUnit });
+      return { kind: 'product', created: true };
     }
     return { kind: 'error', message: 'Nothing to save.' };
   } catch (error) {

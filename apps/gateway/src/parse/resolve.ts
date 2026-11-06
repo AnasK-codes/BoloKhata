@@ -22,7 +22,7 @@ export interface Resolution {
   customer: ResolvedCustomer | null;
   /** Priced from catalog rates or rules-extracted quotes by shared code. Only for create_bill. */
   bill: BuildBillResult | null;
-  /** For out_of_stock: which product the speaker named. */
+  /** For out_of_stock and add_product: which existing product the speaker named, if any. */
   stockMatch?: MatchResult | null;
 }
 
@@ -44,7 +44,7 @@ export function resolveUtterance(parsed: ParsedUtterance, index: CatalogIndex): 
           ...(parsed.adjust ? { adjust: parsed.adjust } : {}),
         })
       : null;
-  const stockName = parsed.intent === 'out_of_stock' ? parsed.items[0]?.name : undefined;
+  const stockName = parsed.intent === 'out_of_stock' || parsed.intent === 'add_product' ? parsed.items[0]?.name : undefined;
   return { customer, bill, ...(stockName ? { stockMatch: index.matchProduct(stockName) } : {}) };
 }
 

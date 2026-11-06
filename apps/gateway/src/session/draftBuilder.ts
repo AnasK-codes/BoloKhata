@@ -1,6 +1,7 @@
 import {
   LIMITS,
   addCustomerAsk,
+  addProductAsk,
   applyPayment,
   balanceReply,
   billReadback,
@@ -16,6 +17,7 @@ import {
   summaryReply,
   type ShopStats,
   paymentRecorded,
+  productExists,
   saved,
   udhaarNeedsCustomer,
   type CatalogCustomer,
@@ -36,7 +38,7 @@ export interface Catalog {
 /** A draft the user can still confirm by voice. Only one exists at a time. */
 export interface PendingDraft {
   draftId: string;
-  intent: 'create_bill' | 'record_payment' | 'out_of_stock' | 'add_customer';
+  intent: 'create_bill' | 'record_payment' | 'out_of_stock' | 'add_customer' | 'add_product';
   canConfirm?: boolean;
 }
 
@@ -92,6 +94,8 @@ export function buildDraft(input: DraftInput): DraftResult {
       return outOfStock(input, base, variant);
     case 'add_customer':
       return addCustomer(input, base, variant);
+    case 'add_product':
+      return addProduct(input, base, variant);
     case 'confirm':
     case 'cancel':
       return answer(input, base, variant);
@@ -261,6 +265,46 @@ function addCustomer(input: DraftInput, base: Base, variant: number): DraftResul
     unresolved: [],
     warnings: warningsOf([], input.outcome.needsReview),
     replyText: addCustomerAsk(customer.name, variant),
+  };
+  return { draft, cacheReply: false, pendingChange: { action: 'set', pending: { draftId: input.draftId, intent } } };
+}
+
+/**
+ * "Samaan mein chawal 40 rupaye kilo": a new product waits for "haan"; the browser creates it. The
+ * price is the literal one the rules heard, shown on the card, never a model's guess.
+ */
+function addProduct(input: DraftInput, base: Base, variant: number): DraftResult {
+  const item = input.outcome.parsed.items[0];
+  const price = item?.spokenPrice?.amount;
+  const intent = 'add_product' as const;
+  if (!item || price === undefined || !Number.isInteger(price) || price <= 0) {
+    return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
+  }
+  const name = item.name.slice(0, LIMITS.maxNameLength);
+  const unit = item.unit ?? 'piece';
+  const match = input.outcome.resolution.stockMatch;
+  const existing = match && !match.ambiguous ? match.best : undefined;
+  if (existing || match?.ambiguous) {
+    const shown = existing?.name ?? match?.candidates[0]?.name ?? name;
+    const draft: DraftMessage = {
+      ...base,
+      draftId: input.draftId,
+      intent,
+      product: { ...(existing ? { id: existing.id } : {}), name: shown, unit, pricePerUnit: price, isNew: false },
+      unresolved: [],
+      warnings: [],
+      replyText: productExists(shown, variant),
+    };
+    return { draft, cacheReply: false, pendingChange: { action: 'clear' } };
+  }
+  const draft: DraftMessage = {
+    ...base,
+    draftId: input.draftId,
+    intent,
+    product: { name, unit, pricePerUnit: price, isNew: true },
+    unresolved: [],
+    warnings: warningsOf([], input.outcome.needsReview),
+    replyText: addProductAsk(name, unit, price, variant),
   };
   return { draft, cacheReply: false, pendingChange: { action: 'set', pending: { draftId: input.draftId, intent } } };
 }

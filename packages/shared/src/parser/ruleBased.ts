@@ -16,10 +16,11 @@
  * confidence. Only this rules path may attach a literal spoken-price quote.
  */
 import { LIMITS } from '../protocol/constants';
+import type { Unit } from '../protocol/common';
 import type { CatalogMatcher } from '../domain/matching';
 import { extractQuantityAndUnit, normalizeUnit, parseNumber, tokenizeSpeech } from '../domain/numberWords';
 import type { ParsedUtterance, ParsedItemOutput } from './schema';
-import { pricedItems, hasMoneyTail } from './pricedItems';
+import { pricedItems, hasMoneyTail, isMoneyWord } from './pricedItems';
 import { extractAdjust, fold, foldSet, parseStockOut, parseSummaryQuery } from './extras';
 
 /** Rules results at or above this are used directly; below it the LLM may be tried. */
@@ -150,6 +151,90 @@ function parseAddCustomer(raw: readonly string[], f: readonly string[]): ParsedU
   }
   if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
   return { ...EMPTY, intent: 'add_customer', customer: titleCase(name), confidence: 0.9 };
+}
+
+// --- Add a product to Samaan ---------------------------------------------------------------
+
+const SAMAAN_KW = foldSet(['samaan', 'saman', 'saaman', 'सामान', 'catalog', 'catalogue']);
+/** "le lo" only means "add it" when the sentence starts with "samaan mein"; elsewhere it is an order. */
+const TAKE_KW = foldSet(['le', 'lelo', 'lo']);
+/** "do" is the number two in "do kilo" but the verb in "jod do"; it is a particle only after one of these. */
+const GIVE_VERBS = foldSet(['karo', 'kar', 'jod', 'jodo', 'daal', 'daalo', 'dalo', 'add', 'aid', 'le', 'rakh', 'rakho', 'likh', 'likho', 'bana', 'banao']);
+const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali']);
+
+/** The longest number run ending right before, or starting right after, the money word. */
+function priceAround(raw: readonly string[], money: number): { value: number; from: number; to: number } | null {
+  for (let size = Math.min(4, money); size >= 1; size--) {
+    const value = parseNumber(raw.slice(money - size, money).join(' '));
+    if (value !== null) return { value, from: money - size, to: money - 1 };
+  }
+  for (let size = Math.min(4, raw.length - money - 1); size >= 1; size--) {
+    const value = parseNumber(raw.slice(money + 1, money + 1 + size).join(' '));
+    if (value !== null) return { value, from: money + 1, to: money + size };
+  }
+  return null;
+}
+
+/**
+ * "Samaan mein chawal add karo 40 rupaye kilo", "सामान में एक किलो चावल ले लो, चालीस रुपए के एक किलो".
+ * Needs a Samaan word, an add word and a spoken price. The price is per unit, so a count above one
+ * ("do kilo chawal 80 rupaye") is ambiguous and not understood. With no unit spoken the unit stays
+ * null and the gateway shows "piece". The user always confirms the card, so a wrong guess is visible.
+ */
+function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  if (!f.some((t) => SAMAAN_KW.has(t))) return null;
+  const addWord = f.some((t) => ADD_KW.has(t)) || (SAMAAN_KW.has(f[0] ?? '') && f.some((t) => TAKE_KW.has(t)));
+  if (!addWord) return null;
+  if (f.some((t) => CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
+
+  const money = raw.findIndex(isMoneyWord);
+  if (money < 0) return null;
+  const price = priceAround(raw, money);
+  if (!price || price.value <= 0 || !Number.isInteger(price.value)) return null;
+
+  const left: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const t = f[i] ?? '';
+    if (i === money || (i >= price.from && i <= price.to)) continue;
+    if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t)) continue;
+    // "ek" and "do" can be counts ("do kilo"), so they are only particles in "... kar do".
+    const countWord = t === fold('ek') || t === fold('do');
+    if (ADD_PARTICLES.has(t) && (!countWord || (t === fold('do') && GIVE_VERBS.has(f[i - 1] ?? '')))) continue;
+    if (t === fold('ek') && !f.slice(i + 1).some((x) => normalizeUnit(x) !== null)) continue;
+    left.push(raw[i] ?? '');
+  }
+
+  let unit: Unit | null = null;
+  const name: string[] = [];
+  for (let i = 0; i < left.length; i++) {
+    const found = extractQuantityAndUnit(left.slice(i));
+    if (found) {
+      if (found.quantity !== 1 || (unit !== null && found.unit !== null && found.unit !== unit)) return null;
+      unit = unit ?? found.unit;
+      i += found.consumed - 1;
+      continue;
+    }
+    const word = left[i] ?? '';
+    // A lone "g" or "l" is part of a name ("Parle G"), not a unit: people say "gram" and "litre".
+    const asUnit = word.length > 1 ? normalizeUnit(word) : null;
+    if (asUnit) {
+      if (unit !== null && unit !== asUnit) return null;
+      unit = asUnit;
+      continue;
+    }
+    if (isNumeric(word)) {
+      if (parseNumber(word) === 1) continue;
+      return null;
+    }
+    name.push(word);
+  }
+  if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  return {
+    ...EMPTY,
+    intent: 'add_product',
+    items: [{ name: titleCase(name), quantity: 1, unit, spokenPrice: { amount: price.value, basis: 'unit', unit } }],
+    confidence: 0.9,
+  };
 }
 
 // --- Step 2: customer ----------------------------------------------------------------------
@@ -431,6 +516,9 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
 
   const addCustomer = parseAddCustomer(raw, f);
   if (addCustomer) return addCustomer;
+
+  const addProduct = parseAddProduct(raw, f);
+  if (addProduct) return addProduct;
 
   const stockOut = parseStockOut({ raw, f, used: [] }, matcher);
   if (stockOut) {

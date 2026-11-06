@@ -689,3 +689,13 @@ describe('add_customer drafts', () => {
     expect(isConfirmable(addDraft({ customer: undefined }))).toBe(false);
   });
 });
+
+describe('add_product drafts', () => {
+  const productDraft = (extra = {}) => draftMessage(1, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Maida', unit: 'kg', pricePerUnit: 40, isNew: true }, ...extra });
+
+  it('can be confirmed only for a new product', () => {
+    expect(isConfirmable(productDraft())).toBe(true);
+    expect(isConfirmable(productDraft({ product: { id: 'p1', name: 'Aata', unit: 'kg', pricePerUnit: 45, isNew: false } }))).toBe(false);
+    expect(isConfirmable(productDraft({ product: undefined }))).toBe(false);
+  });
+});

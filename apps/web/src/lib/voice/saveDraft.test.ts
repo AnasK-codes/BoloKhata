@@ -58,4 +58,20 @@ describe('saveDraft', () => {
     expect(await saveDraft(repo, draft)).toEqual({ kind: 'customer', created: true });
     expect(await repo.findCustomerByName('अनिल सिंह')).toBeDefined();
   });
+
+  it('adds a spoken product once and the catalog can price it', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(6, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'मैदा', unit: 'kg', pricePerUnit: 40, isNew: true } });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'product', created: true });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'product', created: false });
+    const rows = (await repo.listProducts()).filter((p) => p.name === 'मैदा');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ unit: 'kg', pricePerUnit: 40 });
+  });
+
+  it('refuses a product with no usable price', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(7, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Free', unit: 'kg', pricePerUnit: 1, isNew: true } });
+    expect(await saveDraft(repo, { ...draft, product: { name: '', unit: 'kg', pricePerUnit: 1, isNew: true } })).toMatchObject({ kind: 'error' });
+  });
 });

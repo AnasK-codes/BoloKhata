@@ -92,6 +92,12 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
       await db.products.put(saved);
       return saved;
     },
+    /** The product that already answers to this spoken name (its name or an alias), if any. */
+    async findProductByName(name: string): Promise<Product | undefined> {
+      const key = normalize(name);
+      if (key === '') return undefined;
+      return (await db.products.toArray()).find((p) => [p.name, ...p.aliases].some((n) => normalize(n) === key));
+    },
     deleteProduct: (id: string) => db.products.delete(id),
     async setStock(productId: string, stock: number | undefined): Promise<{ ok: true } | { ok: false; error: string }> {
       if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) return { ok: false, error: 'Stock 0 ya usse zyada ginti hona chahiye.' };
