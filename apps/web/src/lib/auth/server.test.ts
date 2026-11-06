@@ -94,6 +94,14 @@ describe('account API with a mocked Supabase backend', () => {
     expect(await res.json()).toEqual({ token: 'gateway-synthetic-token' });
     expect(m.calls.at(-1)?.init?.headers).toMatchObject({ authorization: 'Bearer synthetic-access' });
   });
+  it('passes the visitor address chain to the gateway so rate limits are per visitor', async () => {
+    const m = mock();
+    const forwarded = new NextRequest('http://localhost:3000/api/account/gateway-session', { method: 'POST', headers: { origin: 'http://localhost:3000', 'content-type': 'application/json', cookie: cookies, 'x-forwarded-for': '203.0.113.7' }, body: '{}' });
+    await handleAccount(forwarded, 'gateway-session', m.fetcher, env);
+    expect(m.calls.at(-1)?.init?.headers).toMatchObject({ 'x-forwarded-for': '203.0.113.7' });
+    const plain = mock(); await handleAccount(request('gateway-session', {}, cookies), 'gateway-session', plain.fetcher, env);
+    expect(plain.calls.at(-1)?.init?.headers).not.toHaveProperty('x-forwarded-for');
+  });
   it('logs out and deletes both cookies', async () => {
     const m = mock(); const res = await handleAccount(request('logout', {}, cookies), 'logout', m.fetcher, env);
     expect(await res.json()).toMatchObject({ user: null });
