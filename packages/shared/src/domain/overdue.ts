@@ -9,21 +9,24 @@ export function daysSince(from: number, now: number): number {
 
 /**
  * The date of the oldest udhaar that is still unpaid, or null when nothing is owed. Payments settle
- * the oldest udhaar first (how a shopkeeper thinks about "purana hisab"). A reversal of an udhaar
- * removes that exact entry; a reversal of a payment is a new debt from the day it was reversed.
- * Entries are for ONE customer; the order they are passed in does not matter.
+ * the oldest udhaar first (how a shopkeeper thinks about "purana hisab"), and money paid beyond what
+ * is owed is an advance that settles the next udhaar. A reversed udhaar and its reversal cancel out,
+ * so a payment that had settled it settles the next one; a reversal of a payment is a new debt from
+ * the day it was reversed. Entries are for ONE customer; the order they are passed in does not matter.
  */
 export function oldestUnpaidSince(entries: readonly LedgerEntry[]): number | null {
-  const ordered = [...entries].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-  const lots: { id: string; createdAt: number; remaining: number }[] = [];
+  const udhaarIds = new Set(entries.filter((e) => e.type === 'udhaar').map((e) => e.id));
+  const reversed = new Set(entries.filter((e) => e.type === 'payment' && e.reversesEntryId && udhaarIds.has(e.reversesEntryId)).map((e) => e.reversesEntryId));
+  const ordered = entries
+    .filter((e) => !(e.type === 'udhaar' && reversed.has(e.id)) && !(e.type === 'payment' && e.reversesEntryId && reversed.has(e.reversesEntryId)))
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  const lots: { createdAt: number; remaining: number }[] = [];
+  let advance = 0;
   for (const entry of ordered) {
     if (entry.type === 'udhaar') {
-      lots.push({ id: entry.id, createdAt: entry.createdAt, remaining: entry.amount });
-      continue;
-    }
-    const target = entry.reversesEntryId ? lots.find((lot) => lot.id === entry.reversesEntryId) : undefined;
-    if (target) {
-      target.remaining = 0;
+      const used = Math.min(advance, entry.amount);
+      advance -= used;
+      lots.push({ createdAt: entry.createdAt, remaining: entry.amount - used });
       continue;
     }
     let left = entry.amount;
@@ -33,6 +36,7 @@ export function oldestUnpaidSince(entries: readonly LedgerEntry[]): number | nul
       lot.remaining -= used;
       left -= used;
     }
+    advance += left;
   }
   return lots.find((lot) => lot.remaining > 0)?.createdAt ?? null;
 }
