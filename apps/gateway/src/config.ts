@@ -64,6 +64,9 @@ const envSchema = z
     OPENAI_REASONING_EFFORT: z.preprocess(blankToUndefined, z.enum(['none', 'minimal', 'low', 'medium', 'high']).optional()),
     // 'always' sends every utterance to the model first; 'fallback' only when the rules are unsure.
     LLM_MODE: z.enum(['fallback', 'always']).default('fallback'),
+    // rules_ai: the rule parser first, the model only when the rules are unsure (today's behaviour).
+    // ai_only: the model reads every sentence and calls tools; rules only as a fallback when it fails.
+    PARSER_MODE: z.preprocess(blankToUndefined, z.enum(['rules_ai', 'ai_only']).default('rules_ai')),
     LLM_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(1200),
 
     ALLOWED_ORIGINS: z
@@ -111,6 +114,9 @@ const envSchema = z
     if (env.ACCOUNT_AUTH_REQUIRED === 'true' || env.SUPABASE_URL || env.SUPABASE_ANON_KEY) {
       if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: 'SUPABASE_URL and SUPABASE_ANON_KEY are both required for account authentication' });
       if (env.SUPABASE_URL && !env.SUPABASE_URL.startsWith('https://') && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(env.SUPABASE_URL)) ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: 'use HTTPS (HTTP is allowed only for local tests)' });
+    }
+    if (env.PARSER_MODE === 'ai_only' && env.LLM_PROVIDER === 'none') {
+      ctx.addIssue({ code: 'custom', path: ['PARSER_MODE'], message: 'ai_only needs a model: set LLM_PROVIDER to openai-compatible or bedrock (or use PARSER_MODE=rules_ai)' });
     }
     if (env.LLM_PROVIDER === 'bedrock' && !env.BEDROCK_MODEL_ID) {
       ctx.addIssue({
@@ -168,6 +174,7 @@ export interface GatewayConfig {
     openai: { baseUrl: string | undefined; apiKey: string | undefined; model: string | undefined; reasoningEffort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | undefined };
     timeoutMs: number;
     mode: 'fallback' | 'always';
+    parserMode: 'rules_ai' | 'ai_only';
   };
   guard: {
     allowedOrigins: string[];
@@ -240,6 +247,7 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
       openai: { baseUrl: e.OPENAI_BASE_URL, apiKey: e.OPENAI_API_KEY, model: e.OPENAI_MODEL, reasoningEffort: e.OPENAI_REASONING_EFFORT },
       timeoutMs: e.LLM_TIMEOUT_MS,
       mode: e.LLM_MODE,
+      parserMode: e.PARSER_MODE,
     },
     guard: {
       allowedOrigins: e.ALLOWED_ORIGINS,

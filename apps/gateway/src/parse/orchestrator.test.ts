@@ -307,3 +307,12 @@ describe('circuit breaker', () => {
     expect((await parse(o, MESSY)).llm).toBe('ok');
   });
 });
+
+describe('add a product without a price', () => {
+  it('stays on the rules and never asks the model', async () => {
+    const { adapter, calls } = stub(() => ok(answer({})));
+    const r = await parse(make(adapter), 'samaan mein rajma add karo');
+    expect(r).toMatchObject({ source: 'rules', llm: 'skipped', parsed: { intent: 'add_product' } });
+    expect(calls).toHaveLength(0);
+  });
+});

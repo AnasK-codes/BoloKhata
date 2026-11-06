@@ -33,8 +33,15 @@ describe('add a product to Samaan by voice', () => {
     expect(product('samaan mein Rusk add karo 20 rupaye')).toMatchObject({ intent: 'add_product', name: 'Rusk', unit: null, price: 20 });
   });
 
-  it('needs a price', () => {
-    expect(parse('samaan mein chawal add karo').intent).not.toBe('add_product');
+  it('without a price it is still an add request, so the app can ask for the rate', () => {
+    for (const text of ['samaan mein rajma add karo', 'राजमा ऐड कर दें लिस्ट में सामान की?', 'सामान में राजमा जोड़ दो']) {
+      const r = parse(text);
+      expect(r.intent, text).toBe('add_product');
+      expect(r.items[0]?.spokenPrice, text).toBeUndefined();
+      expect(r.items).toHaveLength(1);
+    }
+    expect(parse('samaan mein rajma add karo').items[0]?.name).toBe('Rajma');
+    expect(parse('राजमा ऐड कर दें लिस्ट में सामान की?').items[0]?.name).toBe('राजमा');
   });
 
   it('needs a name', () => {

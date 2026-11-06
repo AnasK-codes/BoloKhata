@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { speechFrame, startMockGnani, type MockGnani } from '@bolbill/mock-gnani';
 import { draftSchema, type ParsedUtterance } from '@bolbill/shared';
-import type { LlmAdapter, LlmResult, StructuredRequest } from '../parse/llm/types';
+import type { LlmAdapter, LlmResult, StructuredRequest, ToolCall, ToolRequest } from '../parse/llm/types';
 import { WsTestClient, sleep, type Msg } from '../testing/client';
 import { captureLogs, startGateway, type Harness } from '../testing/harness';
 
@@ -480,4 +480,50 @@ describe('voice corrections with the browser draft context', () => {
     expect(await client.next('draft')).toMatchObject({ intent: 'unknown' });
     await client.next('tts_end');
   });
+});
+
+describe('PARSER_MODE=ai_only: a full turn through the real gateway', () => {
+  /** A model that calls tools, scripted per transcript. Records every request. */
+  function toolModel(respond: (r: ToolRequest) => LlmResult<ToolCall>) {
+    const calls: ToolRequest[] = [];
+    const adapter: LlmAdapter = {
+      name: 'openai-compatible',
+      async generateStructured() {
+        throw new Error('ai_only must use callTool');
+      },
+      async callTool(request) {
+        calls.push(request);
+        return respond(request);
+      },
+    };
+    return { adapter, calls };
+  }
+  const aiEnv = () => ({ ...env(), PARSER_MODE: 'ai_only', LLM_PROVIDER: 'openai-compatible', OPENAI_BASE_URL: 'https://llm.invalid/v1', OPENAI_MODEL: 'stub' });
+
+  it('the model calls a tool, code prices the bill, the voice reads the model reply, and haan skips the model', async () => {
+    const model = toolModel(() => ({
+      ok: true,
+      ms: 5,
+      value: { name: 'create_bill', args: { customer: 'Sharma ji', items: [{ name: 'aata', quantity: 2, unit: 'kg' }], reply: '{customer} ko {total} ka bill. Theek hai?' } },
+    }));
+    gateway = await startGateway(aiEnv(), { llm: model.adapter });
+    const client = await gateway.ready(HELLO);
+    const first = draftSchema.parse(await say(client, 1, 'Sharma ji ko do kilo aata'));
+    expect(first).toMatchObject({ source: 'llm', intent: 'create_bill', bill: { total: 90 }, replyText: ['Sharma ji ko nabbe rupaye ka bill.', 'Theek hai?'] });
+    expect(model.calls).toHaveLength(1);
+    expect(model.calls[0]?.tools.map((t) => t.name)).toContain('create_bill');
+
+    const yes = draftSchema.parse(await say(client, 2, 'haan'));
+    expect(yes).toMatchObject({ intent: 'confirm', draftId: first.draftId });
+    expect(model.calls).toHaveLength(1); // the model was not asked
+  }, 20_000);
+
+  it('when the model fails, the turn still works on the rules and is labelled as rules', async () => {
+    const model = toolModel(() => ({ ok: false, reason: 'timeout', ms: 1200 }));
+    gateway = await startGateway(aiEnv(), { llm: model.adapter });
+    const client = await gateway.ready(HELLO);
+    const draft = draftSchema.parse(await say(client, 1, 'Sharma ji ka kitna udhaar hai'));
+    expect(draft).toMatchObject({ source: 'rules', intent: 'query_balance', balance: { balance: 120 } });
+    expect(client.messages.some((m) => m.type === 'error' && m['code'] === 'LLM_TIMEOUT')).toBe(true);
+  }, 20_000);
 });

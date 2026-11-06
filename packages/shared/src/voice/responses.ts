@@ -16,6 +16,8 @@ export const MAX_SENTENCE_CHARS = 160;
 const MAX_NAME_CHARS = 40;
 
 const rupees = (n: number): string => amountToSpokenRupees(n) || `${Math.round(n)} rupaye`;
+/** An amount as spoken Hindi words, for replies a model wrote around a placeholder. */
+export const spokenRupees = rupees;
 
 function clip(s: string): string {
   return s.length <= MAX_SENTENCE_CHARS ? s : `${s.slice(0, MAX_SENTENCE_CHARS - 1).trimEnd()}.`;
@@ -154,6 +156,12 @@ export function addProductAsk(productName: string | null | undefined, unit: stri
   const item = name(productName);
   const per = UNIT_WORDS[unit] ?? unit;
   return [clip(pick([`${item}, ${rupees(price)} per ${per}. Samaan mein jodun?`, `${item} ${rupees(price)} per ${per}, likh dun?`], variant))];
+}
+
+/** "Samaan mein rajma add karo" with no price: the rate is never guessed, so ask for it. */
+export function addProductNeedsRate(productName: string | null | undefined, variant = 0): string[] {
+  const item = name(productName);
+  return [clip(pick([`${item} ka rate bhi bolo, rupaye aur kilo ke saath.`, `${item} kitne rupaye kilo hai? Rate bhi bolo.`], variant))];
 }
 
 /** "Chawal ka rate 45 karo": reads the change back before it is written. */

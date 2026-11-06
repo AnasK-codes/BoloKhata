@@ -103,6 +103,7 @@ export function buildServer(
     llm: options.llm ?? createLlmAdapter(config.llm),
     timeoutMs: config.llm.timeoutMs,
     mode: config.llm.mode,
+    parserMode: config.llm.parserMode,
   });
 
   const perIp = new RateLimiter(config.guard.sessionRatePerIpPerMin, 60_000);

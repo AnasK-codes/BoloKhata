@@ -29,7 +29,32 @@ export interface StructuredRequest<T> {
   signal?: AbortSignal;
 }
 
+/** One tool the model may call. `parameters` is plain JSON Schema (type, properties, required, enum, items,
+ * description only: the subset every provider accepts); `schema` validates the arguments that come back. */
+export interface ToolSpec {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  schema: z.ZodType<unknown>;
+}
+
+export interface ToolRequest {
+  system: string;
+  userBlock: string;
+  tools: readonly ToolSpec[];
+  timeoutMs: number;
+  signal?: AbortSignal;
+}
+
+/** The tool the model chose, with arguments already validated by that tool's schema. */
+export interface ToolCall {
+  name: string;
+  args: unknown;
+}
+
 export interface LlmAdapter {
   readonly name: 'bedrock' | 'openai-compatible' | 'none';
   generateStructured<T>(request: StructuredRequest<T>): Promise<LlmResult<T>>;
+  /** Tool calling, for PARSER_MODE=ai_only. The model must call exactly one tool. */
+  callTool?(request: ToolRequest): Promise<LlmResult<ToolCall>>;
 }

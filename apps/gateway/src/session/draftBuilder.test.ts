@@ -326,6 +326,14 @@ describe('add_product', () => {
     expect(add('Maida', 'kg', 0).draft.intent).toBe('unknown');
   });
 
+  it('asks for the rate, naming the product, when only the name was spoken', () => {
+    const r = build({ intent: 'add_product', items: [{ name: 'Rajma', quantity: 1, unit: null }] });
+    expect(r.draft.intent).toBe('unknown');
+    expect(r.draft.replyText.join(' ')).toContain('Rajma');
+    expect(r.draft.replyText.join(' ')).toMatch(/rate|daam/i);
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+  });
+
   it('is saved by a spoken "haan"', () => {
     const pending: PendingDraft = { draftId: 'd-prod', intent: 'add_product', canConfirm: true };
     const r = build({ intent: 'confirm' }, pending);

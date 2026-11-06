@@ -2,6 +2,7 @@ import {
   LIMITS,
   addCustomerAsk,
   addProductAsk,
+  addProductNeedsRate,
   addProductsAsk,
   applyPayment,
   balanceReply,
@@ -30,6 +31,7 @@ import {
   type UnresolvedItem,
 } from '@bolbill/shared';
 import type { ParseOutcome } from '../parse/orchestrator';
+import { modelReplyFor } from '../parse/agent/reply';
 
 export interface Catalog {
   version: number;
@@ -75,6 +77,15 @@ const REVIEW_WARNING = 'Please check this draft before saving.';
  * Anything else is shown for correction and cannot be saved by a spoken yes.
  */
 export function buildDraft(input: DraftInput): DraftResult {
+  const result = buildTemplateDraft(input);
+  // ai_only: the model's own reply replaces the template when it is safe to say (see modelReplyFor).
+  const template = input.outcome.modelReply;
+  if (!template) return result;
+  const sentences = modelReplyFor(result.draft, template, input.outcome.parsed.intent === 'unknown');
+  return sentences ? { ...result, draft: { ...result.draft, replyText: sentences }, cacheReply: false } : result;
+}
+
+function buildTemplateDraft(input: DraftInput): DraftResult {
   const { outcome, turnId } = input;
   const variant = turnId;
   const base = {
@@ -284,6 +295,10 @@ function addProduct(input: DraftInput, base: Base, variant: number): DraftResult
   const item = input.outcome.parsed.items[0];
   const price = item?.spokenPrice?.amount;
   const intent = 'add_product' as const;
+  // Name only: ask for the rate. A price is never guessed, and a spoken but unusable one is "not understood".
+  if (item && item.spokenPrice === undefined && item.name.trim() !== '') {
+    return plain(input, base, 'unknown', addProductNeedsRate(item.name.slice(0, LIMITS.maxNameLength), variant), false, { action: 'clear' });
+  }
   if (!item || price === undefined || !Number.isInteger(price) || price <= 0) {
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   }

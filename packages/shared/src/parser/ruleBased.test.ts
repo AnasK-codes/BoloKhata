@@ -296,3 +296,15 @@ describe('speed', () => {
     expect((performance.now() - start) / runs).toBeLessThan(5);
   });
 });
+
+describe('shortAnswer', () => {
+  it('accepts only whole-sentence yes and no', async () => {
+    const { shortAnswer } = await import('./ruleBased');
+    expect(shortAnswer('haan')).toBe('confirm');
+    expect(shortAnswer('हाँ ठीक है')).toBe('confirm');
+    expect(shortAnswer('nahi nahi')).toBe('cancel');
+    expect(shortAnswer('haan Sharma ji ko do kilo aata')).toBeNull();
+    expect(shortAnswer('Sharma ji ka kitna udhaar hai')).toBeNull();
+    expect(shortAnswer('')).toBeNull();
+  });
+});
