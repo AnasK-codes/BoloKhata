@@ -89,6 +89,7 @@ Set these (everything else can stay at the defaults):
 | `DEMO_ACCESS_CODE` | optional; shown to people you invite |
 | `MAX_SESSIONS`, `DAILY_STT_SECONDS_CAP`, `DAILY_TTS_CHARS_CAP` | your credit protection. Start small |
 | `LLM_PROVIDER` | `none` (the app works fully without a model). For Gemini: `openai-compatible` with `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` and optionally `OPENAI_REASONING_EFFORT` (`docs/LLM.md`, measured numbers in `docs/LATENCY.md`) |
+| `PARSER_MODE` | `rules_ai` (default). `ai_only` makes the model read every sentence (`docs/LLM.md`): slower, needs a working provider and a larger `LLM_TIMEOUT_MS` |
 | `LLM_TIMEOUT_MS` | `1200` by default; the Gemini free tier measured a floor of about 1.5 s from a laptop, so `2500` if you use it |
 
 `ALLOWED_ORIGINS`, `PORT`, `TRUST_PROXY`, `GNANI_TTS_CACHE_DIR` and `CREDIT_USAGE_FILE` are set for you by `docker-compose.prod.yml`. The daily credit counters are kept in `/data/tts-cache/credit-usage.json` on the cache volume, so a restart or redeploy does **not** reset the caps (`docker compose down -v` deletes the volume and does).

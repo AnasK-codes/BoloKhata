@@ -8,6 +8,27 @@ What was looked at and not changed: the system prompt is already static (provide
 
 The model never sets a price, total or balance. Its Zod schema accepts only intent, names, quantities and payment/credit amounts. Rules may extract explicit spoken item prices, and shared code computes their totals; otherwise catalog prices apply. A turn with a spoken item-price quote always stays rules-only (also under `LLM_MODE=always`), so the model cannot rewrite or invent that price. Model output is revalidated to strip any injected quote metadata. Invalid spoken prices require review.
 
+## Two modes: `PARSER_MODE`
+
+| | `rules_ai` (default) | `ai_only` |
+|---|---|---|
+| Who reads the sentence | the rule parser; the model only when the rules are unsure | the model, for every sentence, by calling a tool |
+| Spoken reply | fixed templates | written by the model, checked and filled by code (below) |
+| Typical wait | microseconds, plus up to `LLM_TIMEOUT_MS` on an unsure sentence | one model round trip on every sentence (measured floor about 1.5 s with Gemini free tier); set `LLM_TIMEOUT_MS` to 2500 to 4000 |
+| Model fails or is slow | rules result, review flag | the **rules answer that sentence**, `source: rules`, review flag, "basic result" notice; the breaker skips a failing model for 30 s |
+
+`ai_only` refuses to start with `LLM_PROVIDER=none`. Rules are not removed from the code: they are the fallback, and the same correction commands for an open bill ("teen kilo karo") still run first, as they do in both modes. This is a deliberate exception to "never block a turn on the model": in this mode the model is the parser.
+
+**Tools** (`apps/gateway/src/parse/agent/tools.ts`): `create_bill`, `record_payment`, `query_balance`, `query_summary`, `out_of_stock`, `add_customer`, `add_product`, `add_products`, `update_price`, `say` (greetings, unclear sentences, a question back such as the rate of a new product). The model chooses one tool; code maps it to the same parsed shape the rules produce and everything after that is the ordinary code: matching names to the catalog, pricing, totals, balances, the draft, the confirm card. A tool call never carries a price, total or balance. Every rupee amount the model reports (paid, udhaar, a quoted price, a rate, a discount) must be a number the speaker actually said (`spokenNumbers`); otherwise the call is rejected and the rules answer.
+
+**Not tools, on purpose:** confirm and cancel. A bare "haan" or "nahi" is matched by exact words before any model call (instant, and a model can never save or cancel a bill). A longer sentence that also says yes must be said as "haan" on its own.
+
+**Replies.** The model writes the reply with placeholders (`{customer} {total} {paid} {udhaar} {balance} {amount} {product} {rate} {sales} {bills}`); code fills them from the draft in Hindi number words, so a spoken amount always equals the card. The reply is used only if the draft is clean (something the user can simply confirm, or a plain answer) and the reply has no digits, at most two short sentences of at most 160 characters, no claim that something was saved or done, and only placeholders the draft can fill. Otherwise the fixed template is spoken. TTS characters count against the daily cap as before.
+
+**Privacy.** Same as `rules_ai`: the model sees the transcript and customer and product names only, never balances, prices or ids; the new tool arguments contain names and spoken amounts that are already in the transcript.
+
+**Unverified.** Tool calling was tested with stub models and a fake HTTP server only. Whether your Gemini model accepts `tools` with `tool_choice: required` on the OpenAI-compatible endpoint, and how fast it is, is not measured: run `pnpm --filter @bolbill/gateway llm:check -- --tools` once (it makes ONE real call and spends a few hundred tokens). A latency and accuracy comparison of the two modes needs real calls too and has not been done; do not quote a number for `ai_only` until it has.
+
 ## Providers
 
 | `LLM_PROVIDER` | What it does | Needs |
