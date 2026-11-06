@@ -296,6 +296,7 @@ Every turn carries timestamps from the browser (press, release, first frame sent
 | `query_balance` | "Sharma ji ka kitna udhaar hai?" | Answered immediately, spoken |
 | `query_summary` | "Aaj kitni bikri hui?" | Today's sales and total udhaar, spoken (rules only) |
 | `out_of_stock` | "Aata khatam ho gaya" | Draft; "haan" sets that product's stock to 0 (rules only) |
+| `add_customer` | "Ramesh Kumar ko customer mein add karo" | Draft; "haan" creates the customer on the device, name only (rules only). An existing name is not offered again |
 | `confirm` | "haan", "theek hai", "kar do" | Saves the pending draft |
 | `cancel` | "nahi", "rehne do", "cancel" | Discards the pending draft |
 | `unknown` | anything else | Friendly retry prompt |

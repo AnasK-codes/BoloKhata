@@ -255,3 +255,42 @@ describe('out_of_stock', () => {
     expect(r.pendingChange).toEqual({ action: 'clear' });
   });
 });
+
+describe('add_customer', () => {
+  const add = (customer: string | null, pending: PendingDraft | null = null) => build({ intent: 'add_customer', customer }, pending);
+
+  it('offers a new customer for confirmation by voice or tap', () => {
+    const r = add('Anil Singh');
+    expect(r.draft.intent).toBe('add_customer');
+    expect(r.draft.customer).toEqual({ name: 'Anil Singh', isNew: true });
+    expect(r.pendingChange).toEqual({ action: 'set', pending: { draftId: 'new-id', intent: 'add_customer' } });
+    expect(r.draft.replyText.join(' ')).toContain('Anil Singh');
+  });
+
+  it('does not offer a customer that already exists', () => {
+    const r = add('Sharma ji');
+    expect(r.draft.intent).toBe('add_customer');
+    expect(r.draft.customer).toMatchObject({ id: 'c1', isNew: false });
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+    expect(r.draft.replyText.join(' ')).toContain('pehle se');
+  });
+
+  it('asks which one when the name matches two customers', () => {
+    const r = add('Ramesh');
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+    expect(r.draft.unresolved[0]?.kind).toBe('customer');
+  });
+
+  it('is not understood without a name', () => {
+    const r = add(null);
+    expect(r.draft.intent).toBe('unknown');
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+  });
+
+  it('is saved by a spoken "haan"', () => {
+    const pending: PendingDraft = { draftId: 'd-add', intent: 'add_customer', canConfirm: true };
+    const r = build({ intent: 'confirm' }, pending);
+    expect(r.draft).toMatchObject({ intent: 'confirm', draftId: 'd-add' });
+    expect(r.pendingChange).toEqual({ action: 'clear' });
+  });
+});

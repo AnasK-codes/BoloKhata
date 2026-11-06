@@ -5,6 +5,7 @@ export type SaveOutcome =
   | { kind: 'bill'; created: boolean }
   | { kind: 'payment'; created: boolean; balanceAfter: number }
   | { kind: 'stock'; created: boolean }
+  | { kind: 'customer'; created: boolean }
   | { kind: 'error'; message: string };
 
 /**
@@ -34,6 +35,12 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
     if (draft.intent === 'out_of_stock' && draft.stock) {
       const result = await repo.setStock(draft.stock.productId, 0);
       return result.ok ? { kind: 'stock', created: true } : { kind: 'error', message: result.error };
+    }
+    if (draft.intent === 'add_customer' && draft.customer) {
+      // A second confirmation (tap plus "haan") finds the customer the first one made.
+      if (await repo.findCustomerByName(draft.customer.name)) return { kind: 'customer', created: false };
+      const result = await repo.saveCustomer({ name: draft.customer.name, aliases: [] });
+      return result.ok ? { kind: 'customer', created: true } : { kind: 'error', message: result.error };
     }
     return { kind: 'error', message: 'Nothing to save.' };
   } catch (error) {

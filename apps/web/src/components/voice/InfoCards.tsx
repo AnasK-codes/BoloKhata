@@ -90,3 +90,20 @@ export function StockCard({ draft, saved }: { draft: DraftMessage; saved: boolea
     </article>
   );
 }
+
+/** "Anil Singh ko customer mein add karo": waits for a tap or a spoken "haan" before the customer is created. */
+export function CustomerCard({ draft, saved }: { draft: DraftMessage; saved: boolean }) {
+  if (!draft.customer) return null;
+  const exists = !draft.customer.isNew;
+  return (
+    <article className="pop rounded-2xl bg-card p-4" aria-label="Naya customer">
+      <p className="text-dim">
+        {exists ? <span className="badge">Pehle se hai</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />Customer jod diya</span> : <span className="badge badge-warn">Confirm karo</span>}
+      </p>
+      <p className="mt-2 text-3xl font-extrabold tracking-tight">{draft.customer.name}</p>
+      <p className="mt-1 text-dim">
+        {exists ? 'Khata mein ye customer pehle se maujood hai.' : saved ? 'Khata mein dikhega. Udhaar ke liye mobile aur address baad mein bharo.' : 'Naya customer jodun? Confirm dabao ya bolo "haan".'}
+      </p>
+    </article>
+  );
+}

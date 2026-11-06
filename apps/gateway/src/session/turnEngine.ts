@@ -104,10 +104,11 @@ export class TurnEngine {
     if (draftContext !== undefined) {
       this.correctionContext = draftContext;
       const eligible = draftContext && (draftContext.intent === 'record_payment' ||
+        (draftContext.intent === 'add_customer' && draftContext.customer?.isNew === true) ||
         (draftContext.intent === 'out_of_stock' && draftContext.stock !== undefined) ||
         (draftContext.intent === 'create_bill' && draftContext.bill && draftContext.bill.items.length > 0 && draftContext.unresolved.length === 0 &&
           (draftContext.bill.udhaar === 0 || (draftContext.customer && draftContext.customer.creditReady !== false))));
-      this.pending = draftContext ? { draftId: draftContext.draftId, intent: draftContext.intent === 'record_payment' || draftContext.intent === 'out_of_stock' ? draftContext.intent : 'create_bill', canConfirm: !!eligible } : null;
+      this.pending = draftContext ? { draftId: draftContext.draftId, intent: draftContext.intent === 'record_payment' || draftContext.intent === 'out_of_stock' || draftContext.intent === 'add_customer' ? draftContext.intent : 'create_bill', canConfirm: !!eligible } : null;
     }
     this.tts.interruptAll(); // barge-in: pressing the button silences the shop's assistant
     this.supersedeCurrent();

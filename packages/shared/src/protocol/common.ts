@@ -19,6 +19,7 @@ export const INTENTS = [
   'query_balance',
   'query_summary',
   'out_of_stock',
+  'add_customer',
   'confirm',
   'cancel',
   'unknown',

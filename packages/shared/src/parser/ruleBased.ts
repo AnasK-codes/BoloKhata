@@ -43,7 +43,7 @@ const CONFIRM_VOCAB = foldSet([
 
 const BALANCE_KW = foldSet(['kitna', 'kitni', 'kitne', 'hisab', 'balance', 'bakaya', 'outstanding', 'baki', 'pending']);
 const UDHAAR_KW = foldSet(['udhaar', 'udhar', 'udhari', 'credit', 'baki', 'bakaya', 'khata', 'khate']);
-const PAID_KW = foldSet(['diye', 'diya', 'dia', 'jama', 'mile', 'mila', 'paid', 'pay', 'payment', 'chukaye', 'chukaya', 'bhare', 'bhara', 'wapas']);
+const PAID_KW = foldSet(['diye', 'diya', 'dia', 'jama', 'mile', 'mila', 'paid', 'pay', 'payment', 'दिए', 'दिये', 'chukaye', 'chukaya', 'bhare', 'bhara', 'wapas']);
 const MIL_GAYE = foldSet(['gaye', 'gaya', 'gae']);
 const AMOUNT_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'rupaye', 'rupaya', 'rupay', 'rupees', 'rupiya', 'rs', 'de', 'ne', 'hi', 'bhi', 'cash', 'nakad', 'abhi', 'aaj', 'mil', 'gaye', 'gaya', 'kar', 'kiye', 'kiya']);
 const MARKER_ALWAYS = foldSet(['ko', 'ne', 'se']);
@@ -60,6 +60,20 @@ const NOISE = foldSet([
   'toh', 'acha', 'accha', 'yaar', 'dekho', 'suno',
 ]);
 const BALANCE_FILLER = foldSet(['hai', 'hain', 'hua', 'hoga', 'batao', 'bataiye', 'bataye', 'dikhao', 'bolo', 'kya', 'total', 'abhi', 'ab', 'ho', 'gaya', 'gayi', 'gaye', 'tha', 'raha', 'rha']);
+/** "Anil Singh ko customer mein add karo": the words that make a sentence an add-customer request. */
+const CUSTOMER_KW = foldSet(['customer', 'custumer', 'costumer', 'kastamar', 'kastmar', 'grahak', 'कस्टमर', 'कस्टमार', 'ग्राहक']);
+const ADD_KW = foldSet([
+  'add', 'aid', 'ad', 'ऐड', 'एड', 'jodo', 'jod', 'jodna', 'joden', 'जोड़ो', 'जोड़', 'जोड़ना', 'banao', 'bana', 'banado', 'banana',
+  'naya', 'nayi', 'naye', 'नया', 'नई', 'new', 'register', 'darj', 'dalo', 'daalo', 'डालो', 'likho', 'likh', 'shamil',
+]);
+/** Words around the name that are not part of it. */
+const ADD_PARTICLES = foldSet([
+  'ka', 'ki', 'ke', 'ko', 'mein', 'men', 'me', 'mei', 'se', 'naam', 'nam', 'name', 'karo', 'kar', 'do', 'dijiye', 'kijiye',
+  'dena', 'de', 'hai', 'please', 'pls', 'ek', 'mera', 'meri', 'ye', 'is', 'isko', 'bhi', 'list', 'mere', 'apne',
+]);
+const MAX_NAME_TOKENS = 4;
+/** "kul udhaar kitna baaki hai" asks about the whole shop: these words never start a customer name. */
+const SHOP_WIDE = foldSet(['kul', 'total', 'sab', 'saara', 'sara', 'poora', 'pura', 'tak', 'today', 'mera', 'hamara', 'sabka']);
 const DO_AFTER = foldSet(['likh', 'likho', 'jod', 'jodo', 'kar', 'de', 'rehne', 'rahne', 'bhi', 'dijiye']);
 
 const INJECTION =
@@ -116,6 +130,28 @@ function answerIntent(f: readonly string[]): 'confirm' | 'cancel' | null {
   return null;
 }
 
+// --- Add a customer ------------------------------------------------------------------------
+
+/**
+ * "Ramesh Kumar ko customer mein add karo", "naya customer Ramesh Kumar". Needs BOTH a customer word
+ * and an add word, so ordinary bills, payments and balance questions never land here. Whatever is
+ * left after those words and particles is the name; no name, or a number in it, is not understood.
+ */
+function parseAddCustomer(raw: readonly string[], f: readonly string[]): ParsedUtterance | null {
+  if (!f.some((t) => CUSTOMER_KW.has(t)) || !f.some((t) => ADD_KW.has(t))) return null;
+  if (f.some((t) => PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
+  const name: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const t = f[i] ?? '';
+    if (CUSTOMER_KW.has(t) || ADD_KW.has(t) || ADD_PARTICLES.has(t)) continue;
+    const word = raw[i] ?? '';
+    if (isNumeric(word)) return null;
+    name.push(word);
+  }
+  if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  return { ...EMPTY, intent: 'add_customer', customer: titleCase(name), confidence: 0.9 };
+}
+
 // --- Step 2: customer ----------------------------------------------------------------------
 
 function findCustomer(w: Working, matcher: CatalogMatcher | undefined): string | null {
@@ -142,8 +178,31 @@ function findCustomer(w: Working, matcher: CatalogMatcher | undefined): string |
     if (marker === fold('ke') && f[m + 1] === fold('liye')) w.used[m + 1] = true;
     return titleCase(nameTokens);
   }
-  if (!matcher) return null;
-  return findCustomerWithoutMarker(w, matcher) ?? findTrailingCustomer(w, matcher);
+  if (!matcher) return findLeadingNameBeforeQuestion(w, undefined);
+  return findCustomerWithoutMarker(w, matcher) ?? findTrailingCustomer(w, matcher) ?? findLeadingNameBeforeQuestion(w, matcher);
+}
+
+/**
+ * "Mohan Lal ji kitna udhaar hai" / "मोहन लाल जी, क्या कितना उधार है?": no "ka" particle, and the
+ * customer may not exist yet. Everything before the first question word is the name, but only
+ * when the rest of the sentence is nothing but question words, so an item can never become a name.
+ */
+function findLeadingNameBeforeQuestion(w: Working, matcher: CatalogMatcher | undefined): string | null {
+  const { raw, f } = w;
+  const isQuestionWord = (t: string) => BALANCE_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_FILLER.has(t);
+  let first = 0;
+  while (first < f.length && CUSTOMER_FILLER.has(f[first] ?? '')) first++;
+  let end = first;
+  while (end < f.length && !isQuestionWord(f[end] ?? '')) end++;
+  if (end === f.length || end - first < 1 || end - first > MAX_NAME_TOKENS) return null;
+  if (!f.slice(end).every(isQuestionWord) || !f.slice(end).some((t) => BALANCE_KW.has(t) || UDHAAR_KW.has(t))) return null;
+  const name = raw.slice(first, end);
+  const folded = f.slice(first, end);
+  if (name.some(isNumeric) || folded.some((t) => SHOP_WIDE.has(t) || NOISE.has(t) || PAID_KW.has(t) || normalizeUnit(t) !== null)) return null;
+  const joined = name.join(' ');
+  if (matcher && matcher.matchProduct(joined).best && !matcher.matchCustomer(joined).best) return null;
+  markRange(w, first, end - 1);
+  return titleCase(name);
 }
 
 function isProductNotCustomer(matcher: CatalogMatcher, name: string): boolean {
@@ -369,6 +428,9 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
 
   const answer = answerIntent(f);
   if (answer) return { ...EMPTY, intent: answer, confidence: 0.95 };
+
+  const addCustomer = parseAddCustomer(raw, f);
+  if (addCustomer) return addCustomer;
 
   const stockOut = parseStockOut({ raw, f, used: [] }, matcher);
   if (stockOut) {

@@ -43,4 +43,19 @@ describe('saveDraft', () => {
     const repo = createRepo(db);
     expect((await saveDraft(repo, draftMessage(4, { intent: 'query_balance' }))).kind).toBe('error');
   });
+
+  it('adds a spoken customer once, however many times it is confirmed', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(4, { intent: 'add_customer', bill: undefined, customer: { name: 'Mohan Lal', isNew: true } });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'customer', created: true });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'customer', created: false });
+    expect(await repo.findCustomerByName('mohan lal')).toMatchObject({ name: 'Mohan Lal' });
+  });
+
+  it('adds a Devanagari customer that can then be found by that name', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(5, { intent: 'add_customer', bill: undefined, customer: { name: 'अनिल सिंह जी', isNew: true } });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'customer', created: true });
+    expect(await repo.findCustomerByName('अनिल सिंह')).toBeDefined();
+  });
 });

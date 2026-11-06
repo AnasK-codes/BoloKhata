@@ -136,6 +136,17 @@ export function customerNeeded(variant = 0): string[] {
   return [pick([`Udhaar kiska likhun?`, `Yeh udhaar kiske naam hai?`], variant), `Grahak ka naam batao.`];
 }
 
+/** "Anil Singh ko customer mein add karo": asks for the go-ahead before a customer is created. */
+export function addCustomerAsk(spoken: string | null | undefined, variant = 0): string[] {
+  const who = name(spoken);
+  return [clip(pick([`${who} ko customer mein jodun?`, `${who} naya customer jodna hai?`], variant)), `Haan bolo ya confirm dabao.`];
+}
+
+export function customerExists(spoken: string | null | undefined, variant = 0): string[] {
+  const who = name(spoken);
+  return [clip(pick([`${who} pehle se customer hain.`, `${who} list mein pehle se hai.`], variant))];
+}
+
 /** "haan" or "nahi" with no draft waiting. */
 export function nothingPending(variant = 0): string[] {
   return [pick([`Abhi koi bill pending nahi hai.`, `Save karne ke liye kuch nahi hai.`], variant)];

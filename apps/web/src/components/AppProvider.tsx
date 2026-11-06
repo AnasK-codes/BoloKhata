@@ -98,7 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 session.controller.editDraft(draft);
                 toast(outcome.message, 'error');
               }
-              else if (outcome.created) toast(outcome.kind === 'bill' ? 'Bill save ho gaya' : outcome.kind === 'stock' ? 'Stock khatam likh liya' : 'Payment likh liya', 'ok');
+              else if (outcome.created) toast(outcome.kind === 'bill' ? 'Bill save ho gaya' : outcome.kind === 'stock' ? 'Stock khatam likh liya' : outcome.kind === 'customer' ? 'Customer jod diya' : 'Payment likh liya', 'ok');
             });
           },
         },

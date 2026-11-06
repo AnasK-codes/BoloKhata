@@ -679,3 +679,13 @@ describe('stock-out and summary drafts', () => {
   });
 });
 
+
+describe('add_customer drafts', () => {
+  const addDraft = (extra = {}) => draftMessage(1, { intent: 'add_customer', bill: undefined, customer: { name: 'Anil Singh', isNew: true }, ...extra });
+
+  it('can be confirmed only for a new customer', () => {
+    expect(isConfirmable(addDraft())).toBe(true);
+    expect(isConfirmable(addDraft({ customer: { id: 'c1', name: 'Sharma ji', isNew: false } }))).toBe(false);
+    expect(isConfirmable(addDraft({ customer: undefined }))).toBe(false);
+  });
+});
