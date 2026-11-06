@@ -36,6 +36,19 @@ describe('rate limits on POST /session', () => {
     expect((await post(gateway, '203.0.113.2')).status).toBe(200);
   });
 
+  it('counts wrong access codes against the per-IP limit, so the code cannot be guessed at speed', async () => {
+    gateway = await startGateway({ TRUST_PROXY: 'true', SESSION_RATE_PER_IP_PER_MIN: '2', DEMO_ACCESS_CODE: 'right-code' });
+    const guess = (code: string) =>
+      fetch(`${gateway!.baseUrl}/session`, {
+        method: 'POST',
+        headers: { origin: TEST_ORIGIN, 'x-forwarded-for': '203.0.113.9', 'content-type': 'application/json' },
+        body: JSON.stringify({ accessCode: code }),
+      });
+    expect((await guess('wrong-1')).status).toBe(403);
+    expect((await guess('wrong-2')).status).toBe(403);
+    expect((await guess('right-code')).status).toBe(429);
+  });
+
   it('globally: once the whole demo hits its per-minute cap, every IP is refused', async () => {
     gateway = await startGateway({ TRUST_PROXY: 'true', SESSION_RATE_PER_IP_PER_MIN: '100', SESSION_RATE_GLOBAL_PER_MIN: '3' });
     for (const ip of ['203.0.113.11', '203.0.113.12', '203.0.113.13']) expect((await post(gateway, ip)).status).toBe(200);

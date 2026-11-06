@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import { MAX_ANY_MESSAGE_BYTES } from '@bolbill/shared';
 import type { GatewayConfig } from './config';
 import { PhraseCache } from './gnani/phraseCache';
-import { DailyCreditGuard, type CreditGuard } from './guard/creditGuard';
+import { DailyCreditGuard, FileCreditStore, type CreditGuard } from './guard/creditGuard';
 import { RateLimiter } from './guard/rateLimit';
 import { createTokenService, type TokenService } from './guard/token';
 import { Metrics } from './metrics';
@@ -79,10 +79,10 @@ export function buildServer(
 
   const guard =
     options.guard ??
-    new DailyCreditGuard({
-      stt_seconds: config.guard.dailySttSecondsCap,
-      tts_chars: config.guard.dailyTtsCharsCap,
-    });
+    new DailyCreditGuard(
+      { stt_seconds: config.guard.dailySttSecondsCap, tts_chars: config.guard.dailyTtsCharsCap },
+      config.guard.creditUsageFile ? new FileCreditStore(config.guard.creditUsageFile) : undefined,
+    );
   const ctx: GatewayContext = {
     config,
     tokens: createTokenService(config.guard.sessionTokenSecret),
@@ -165,13 +165,7 @@ export function buildServer(
     if (!originAllowed(request.headers.origin)) {
       return reply.code(403).send({ error: 'origin_not_allowed' });
     }
-    const code = config.guard.demoAccessCode;
-    if (code !== undefined) {
-      const given = (request.body as { accessCode?: unknown } | null | undefined)?.accessCode;
-      if (typeof given !== 'string' || !safeEqual(given, code)) {
-        return reply.code(403).send({ error: 'access_code_required' });
-      }
-    }
+    // Rate limit first: every guess at the access code costs the caller one request.
     const ip = perIp.take(request.ip);
     const all = global.take('*');
     if (!ip.ok || !all.ok) {
@@ -179,6 +173,13 @@ export function buildServer(
       return limitReply(reply, 429, 'rate_limited', 'Too many requests. Please wait a moment.', {
         retryAfterSec: Math.max(ip.retryAfterSec, all.retryAfterSec),
       });
+    }
+    const code = config.guard.demoAccessCode;
+    if (code !== undefined) {
+      const given = (request.body as { accessCode?: unknown } | null | undefined)?.accessCode;
+      if (typeof given !== 'string' || !safeEqual(given, code)) {
+        return reply.code(403).send({ error: 'access_code_required' });
+      }
     }
     if (config.accountAuth) {
       const account = await verifyAccount(request.headers.authorization, config.accountAuth, options.accountFetch);
