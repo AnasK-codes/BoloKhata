@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { MAX_GST_PERCENT, type BillAdjust } from '@bolbill/shared';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   adjust: BillAdjust | undefined;
@@ -13,6 +14,7 @@ const digits = (text: string): number => Number(text.replace(/\D/g, '')) || 0;
 
 /** Discount, GST and round-off for the bill on screen. The shared pricing code does the arithmetic. */
 export function AdjustPanel({ adjust, onChange }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(adjust !== undefined);
   const percentMode = adjust?.discountPercent !== undefined;
   const discountValue = adjust?.discountPercent ?? adjust?.discountAmount ?? 0;
@@ -24,14 +26,14 @@ export function AdjustPanel({ adjust, onChange }: Props) {
   };
 
   if (!open) {
-    return <button type="button" className="tool-open" onClick={() => setOpen(true)}>+ Chhoot / GST / Round-off</button>;
+    return <button type="button" className="tool-open" onClick={() => setOpen(true)}>{t('adjust.open')}</button>;
   }
 
   return (
     <fieldset className="tool-panel">
-      <legend>Chhoot, GST, Round-off</legend>
+      <legend>{t('adjust.legend')}</legend>
       <div className="tool-row">
-        <label htmlFor="adj-discount" className="tool-label">Chhoot</label>
+        <label htmlFor="adj-discount" className="tool-label">{t('bill.discount')}</label>
         <input
           id="adj-discount"
           inputMode="numeric"
@@ -43,15 +45,15 @@ export function AdjustPanel({ adjust, onChange }: Props) {
         <button type="button" className="chip" aria-pressed={!percentMode} onClick={() => setDiscount(discountValue, false)}>₹</button>
         <button type="button" className="chip" aria-pressed={percentMode} onClick={() => setDiscount(discountValue, true)}>%</button>
       </div>
-      <div className="tool-row" role="group" aria-label="GST">
-        <span className="tool-label">GST</span>
-        <button type="button" className="chip" aria-pressed={adjust?.gstPercent === undefined} onClick={() => { const { gstPercent: _g, ...rest } = adjust ?? {}; onChange(rest); }}>Nahi</button>
+      <div className="tool-row" role="group" aria-label={t('adjust.gst')}>
+        <span className="tool-label">{t('adjust.gst')}</span>
+        <button type="button" className="chip" aria-pressed={adjust?.gstPercent === undefined} onClick={() => { const { gstPercent: _g, ...rest } = adjust ?? {}; onChange(rest); }}>{t('common.no')}</button>
         {GST_CHOICES.map((rate) => (
           <button key={rate} type="button" className="chip" aria-pressed={adjust?.gstPercent === rate} onClick={() => onChange({ ...adjust, gstPercent: rate })}>{rate}%</button>
         ))}
       </div>
       <label className="flex min-h-12 cursor-pointer items-center justify-between gap-3 font-semibold">
-        <span>Round-off <span className="font-normal text-muted">(nazdeeki ₹5)</span></span>
+        <span>{t('bill.roundOff')} <span className="font-normal text-muted">{t('adjust.roundOffHint')}</span></span>
         <input type="checkbox" role="switch" checked={adjust?.roundOff === true} onChange={(e) => onChange({ ...adjust, roundOff: e.target.checked })} className="h-7 w-7 accent-[var(--c-accent)]" />
       </label>
     </fieldset>

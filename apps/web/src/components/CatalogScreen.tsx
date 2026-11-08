@@ -7,11 +7,14 @@ import { useLive } from '@/lib/db/live';
 import { validateProductForm, type ProductFormInput } from '@/lib/catalogForm';
 import { useOnline } from '@/lib/useOnline';
 import { useApp } from './AppProvider';
+import { useT } from '@/lib/i18n';
+import { unitName } from './voice/units';
 import { OfflineBadge, StateView } from './StateView';
 
 const EMPTY: ProductFormInput = { name: '', price: '', unit: 'kg', aliases: '', stock: '' };
 
 export function CatalogScreen() {
+  const t = useT();
   const { repo, dataError, toast } = useApp();
   const online = useOnline();
   const [query, setQuery] = useState('');
@@ -28,7 +31,7 @@ export function CatalogScreen() {
   const outCount = (products.data ?? []).filter(isOutOfStock).length;
   const lowCount = (products.data ?? []).filter(isLowStock).length;
 
-  if (dataError) return <main className="mx-auto max-w-md px-4 py-6"><StateView kind="error" title="Data nahi khul paya" hint={dataError} /></main>;
+  if (dataError) return <main className="mx-auto max-w-md px-4 py-6"><StateView kind="error" title={t('common.dataError')} hint={dataError} /></main>;
 
   const open = (p?: Product) => {
     setErrors({});
@@ -46,7 +49,7 @@ export function CatalogScreen() {
     // `stock` is replaced, not merged: clearing the field stops tracking the product.
     const { stock: _previousStock, ...kept } = existing ?? ({} as Partial<Product>);
     await repo.upsertProduct({ ...kept, ...(editing.id ? { id: editing.id } : {}), ...result.value });
-    toast(editing.id ? 'Badal diya' : 'Samaan jod diya', 'ok');
+    toast(editing.id ? t('common.updated') : t('info.itemAdded'), 'ok');
     setEditing(null);
   };
 
@@ -57,39 +60,39 @@ export function CatalogScreen() {
   if (editing) {
     return (
       <main className="mx-auto max-w-md px-4 py-5">
-        <h1 className="mb-4 text-2xl font-extrabold">{editing.id ? 'Samaan badlo' : 'Naya samaan'}</h1>
+        <h1 className="mb-4 text-2xl font-extrabold">{editing.id ? t('catalog.editTitle') : t('info.newItem')}</h1>
         <form className="space-y-4" noValidate onSubmit={(e) => { e.preventDefault(); void save(); }}>
           <div>
-            <label htmlFor="p-name" className="font-semibold">Naam</label>
+            <label htmlFor="p-name" className="font-semibold">{t('catalog.name')}</label>
             <input id="p-name" className={input} value={editing.form.name} onChange={field('name')} aria-invalid={!!errors.name} aria-describedby="e-name" />
             {errors.name && <p id="e-name" className="mt-1 text-bad">{errors.name}</p>}
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label htmlFor="p-price" className="font-semibold">Rate (₹)</label>
+              <label htmlFor="p-price" className="font-semibold">{t('catalog.rate')}</label>
               <input id="p-price" inputMode="numeric" className={`${input} num`} value={editing.form.price} onChange={field('price')} aria-invalid={!!errors.price} aria-describedby="e-price" />
             </div>
             <div className="w-32">
-              <label htmlFor="p-unit" className="font-semibold">Unit</label>
+              <label htmlFor="p-unit" className="font-semibold">{t('catalog.unit')}</label>
               <select id="p-unit" className={input} value={editing.form.unit} onChange={field('unit')}>
-                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                {UNITS.map((u) => <option key={u} value={u}>{unitName(t, u)}</option>)}
               </select>
             </div>
           </div>
           {errors.price && <p id="e-price" className="-mt-2 text-bad">{errors.price}</p>}
           <div>
-            <label htmlFor="p-alias" className="font-semibold">Doosre naam (comma se alag)</label>
-            <input id="p-alias" className={input} value={editing.form.aliases} onChange={field('aliases')} placeholder="atta, gehu ka aata" aria-describedby="e-alias" />
+            <label htmlFor="p-alias" className="font-semibold">{t('common.aliases')}</label>
+            <input id="p-alias" className={input} value={editing.form.aliases} onChange={field('aliases')} placeholder={t('catalog.aliasPlaceholder')} aria-describedby="e-alias" />
             {errors.aliases && <p id="e-alias" className="mt-1 text-bad">{errors.aliases}</p>}
           </div>
           <div>
-            <label htmlFor="p-stock" className="font-semibold">Stock (kitna bacha hai, optional)</label>
-            <input id="p-stock" inputMode="decimal" className={`${input} num`} value={editing.form.stock ?? ''} onChange={field('stock')} placeholder="khali = ginti nahi" aria-invalid={!!errors.stock} aria-describedby="e-stock" />
+            <label htmlFor="p-stock" className="font-semibold">{t('catalog.stock')}</label>
+            <input id="p-stock" inputMode="decimal" className={`${input} num`} value={editing.form.stock ?? ''} onChange={field('stock')} placeholder={t('catalog.stockPlaceholder')} aria-invalid={!!errors.stock} aria-describedby="e-stock" />
             {errors.stock && <p id="e-stock" className="mt-1 text-bad">{errors.stock}</p>}
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="min-h-14 flex-1 rounded-xl bg-accent text-lg font-bold text-on-solid">Save</button>
-            <button type="button" className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold" onClick={() => setEditing(null)}>Raho</button>
+            <button type="submit" className="min-h-14 flex-1 rounded-xl bg-accent text-lg font-bold text-on-solid">{t('common.save')}</button>
+            <button type="button" className="min-h-14 rounded-xl bg-control px-6 text-lg font-semibold" onClick={() => setEditing(null)}>{t('common.cancel')}</button>
           </div>
         </form>
       </main>
@@ -100,42 +103,42 @@ export function CatalogScreen() {
     <main className="mx-auto max-w-md space-y-4 px-4 py-5">
       <OfflineBadge online={online} />
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold">Samaan</h1>
-        <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">+ Naya</button>
+        <h1 className="text-2xl font-extrabold">{t('nav.catalog')}</h1>
+        <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">{t('catalog.new')}</button>
       </header>
-      <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Samaan dhundo (search)" aria-label="Samaan dhundo" className={input} />
+      <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('catalog.search')} aria-label={t('catalog.search')} className={input} />
       {(outCount > 0 || lowCount > 0 || onlyLow) && (
-        <div className="stock-filter" role="group" aria-label="Stock filter">
-          <button type="button" className="chip" aria-pressed={!onlyLow} onClick={() => setOnlyLow(false)}>Sab</button>
+        <div className="stock-filter" role="group" aria-label={t('catalog.filter')}>
+          <button type="button" className="chip" aria-pressed={!onlyLow} onClick={() => setOnlyLow(false)}>{t('catalog.all')}</button>
           <button type="button" className="chip" aria-pressed={onlyLow} onClick={() => setOnlyLow(true)}>
-            Kam / khatam{outCount + lowCount > 0 ? ` (${outCount + lowCount})` : ''}
+            {outCount + lowCount > 0 ? t('catalog.lowCount', { count: outCount + lowCount }) : t('catalog.low')}
           </button>
         </div>
       )}
       {products.loading || !repo ? (
-        <StateView kind="loading" title="Samaan khul raha hai" />
+        <StateView kind="loading" title={t('catalog.loading')} />
       ) : products.error ? (
-        <StateView kind="error" title="Samaan nahi khul paya" hint="Page reload karke dekho." />
+        <StateView kind="error" title={t('catalog.error')} hint={t('common.reloadHint')} />
       ) : shown.length === 0 ? (
-        <StateView kind="empty" title={query ? 'Kuch nahi mila' : 'Abhi koi samaan nahi'} hint={query ? 'Doosra naam try karo.' : 'Bill banane ke liye pehle samaan jodo. Ya bolo poori list: "Samaan mein aata 45, cheeni 50, chawal 60 add karo".'}>
-          {!query && <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">+ Samaan jodo</button>}
+        <StateView kind="empty" title={query ? t('catalog.noMatch') : t('catalog.empty')} hint={query ? t('common.tryOtherName') : t('catalog.emptyHint')}>
+          {!query && <button type="button" onClick={() => open()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid">{t('catalog.addFirst')}</button>}
         </StateView>
       ) : (
         <ul className="divide-y divide-line rounded-2xl bg-card">
           {shown.map((p) => (
             <li key={p.id} className="flex items-center gap-2 px-4 py-2">
-              <button type="button" onClick={() => open(p)} className="min-h-14 flex-1 text-left" aria-label={`${p.name} badlo`}>
+              <button type="button" onClick={() => open(p)} className="min-h-14 flex-1 text-left" aria-label={t('common.editName', { name: p.name })}>
                 <span className="block text-lg font-semibold">{p.name}</span>
                 {p.aliases.length > 0 && <span className="block truncate text-sm text-muted">{p.aliases.join(', ')}</span>}
-                {isOutOfStock(p) && <span className="badge badge-bad mt-1">Khatam</span>}
-                {isLowStock(p) && <span className="badge badge-warn mt-1">Kam stock: {p.stock} {p.unit}</span>}
-                {p.stock !== undefined && p.stock > LOW_STOCK_AT && <span className="mt-0.5 block text-sm text-muted">Stock: {p.stock} {p.unit}</span>}
+                {isOutOfStock(p) && <span className="badge badge-bad mt-1">{t('catalog.out')}</span>}
+                {isLowStock(p) && <span className="badge badge-warn mt-1">{t('catalog.lowStock', { stock: p.stock ?? 0, unit: unitName(t, p.unit) })}</span>}
+                {p.stock !== undefined && p.stock > LOW_STOCK_AT && <span className="mt-0.5 block text-sm text-muted">{t('catalog.stockLine', { stock: p.stock, unit: unitName(t, p.unit) })}</span>}
               </button>
-              <span className="num whitespace-nowrap text-lg font-bold">{rupees(p.pricePerUnit)}<span className="text-sm font-normal text-muted">/{p.unit}</span></span>
+              <span className="num whitespace-nowrap text-lg font-bold">{rupees(p.pricePerUnit)}<span className="text-sm font-normal text-muted">/{unitName(t, p.unit)}</span></span>
               {confirmDelete === p.id ? (
-                <button type="button" className="min-h-12 rounded-xl bg-bad px-3 font-bold text-on-solid" onClick={() => { void repo?.deleteProduct(p.id); setConfirmDelete(null); }}>Pakka hatao</button>
+                <button type="button" className="min-h-12 rounded-xl bg-bad px-3 font-bold text-on-solid" onClick={() => { void repo?.deleteProduct(p.id); setConfirmDelete(null); }}>{t('common.confirmDelete')}</button>
               ) : (
-                <button type="button" aria-label={`${p.name} hatao`} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-raised" onClick={() => setConfirmDelete(p.id)}>
+                <button type="button" aria-label={t('common.removeName', { name: p.name })} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-raised" onClick={() => setConfirmDelete(p.id)}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Z" /></svg>
                 </button>
               )}

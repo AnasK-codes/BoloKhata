@@ -15,10 +15,12 @@ import { useTurnStore } from '@/lib/turn/useTurnStore';
 import { addProductToDraft, billFromProduct, draftFromTranscript } from '@/lib/voice/draftEdit';
 import { connectionNotice, friendlyError, micErrorText } from '@/lib/voice/errorText';
 import { statusText } from '@/lib/voice/statusText';
+import { useT, type Translate } from '@/lib/i18n';
 import { useApp } from '../AppProvider';
 import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
 import { StateView } from '../StateView';
+import { LanguageSheet } from '../LanguagePicker';
 import { BillCard } from './BillCard';
 import { BalanceCard, CustomerCard, PaymentCard, ProductCard, ProductListCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
@@ -27,7 +29,6 @@ import { QuickTiles } from './QuickTiles';
 import { ReplaceDialog } from './ReplaceDialog';
 import { Money } from './Money';
 
-const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye', 'Aaj kitni bikri hui?', 'Ramesh Kumar ko customer mein add karo', 'Samaan mein Maida 35 rupaye kilo add karo'];
 
 function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: string; tone?: 'warn' | 'error'; action?: { label: string; run(): void } }) {
   return (
@@ -43,6 +44,7 @@ function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: s
 }
 
 function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
+  const t = useT();
   const [code, setCode] = useState('');
   return (
     <form
@@ -52,11 +54,11 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
     >
       <span className="banner-ico"><Icon name="alert" size={18} /></span>
       <div>
-        <label htmlFor="access-code"><strong>Demo code chahiye</strong></label>
-        <p>Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
+        <label htmlFor="access-code"><strong>{t('voice.accessTitle')}</strong></label>
+        <p>{t('voice.accessHint')}</p>
         <div className="mt-3 flex gap-2">
           <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-11 min-w-0 flex-1 rounded-xl bg-inset px-3 text-lg" />
-          <button type="submit" disabled={!code.trim()} className="btn-pill btn-solid disabled:opacity-40">Shuru</button>
+          <button type="submit" disabled={!code.trim()} className="btn-pill btn-solid disabled:opacity-40">{t('voice.accessSubmit')}</button>
         </div>
       </div>
     </form>
@@ -65,10 +67,14 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
 
 /** Examples are hints to read, not buttons: tapping one would fake a spoken turn. */
 function Examples() {
+  const t = useT();
+  // What to say depends on the speech setting, not the interface language: these stay Hinglish
+  // in English and Hinglish, and are written in Devanagari for the Hindi interface.
+  const examples = [t('voice.example1'), t('voice.example2'), t('voice.example3')];
   return (
-    <div className="vs-examples" aria-label="Aise bolo (examples)">
-      <p>Aise bolkar dekho</p>
-      {EXAMPLES.slice(0, 3).map((example, i) => (
+    <div className="vs-examples">
+      <p>{t('voice.examplesTitle')}</p>
+      {examples.map((example, i) => (
         <span key={example} className="vs-example" style={{ ['--i' as string]: i }}>&ldquo;{example}&rdquo;</span>
       ))}
     </div>
@@ -76,12 +82,13 @@ function Examples() {
 }
 
 function KhataLink({ total, count }: { total: number; count: number }) {
+  const t = useT();
   return (
     <Link href="/ledger" className="vs-khata">
       <span className="vs-tile-ico"><Icon name="book" size={20} /></span>
       <span>
-        <strong>Khata</strong>
-        <small>{count === 0 ? 'Abhi koi udhaar nahi' : `${count} grahak ka udhaar baaki`}</small>
+        <strong>{t('nav.ledger')}</strong>
+        <small>{count === 0 ? t('voice.khataNone') : t('voice.khataOwing', { count })}</small>
       </span>
       {count > 0 && <span className="amt num">{rupees(total)}</span>}
       <span className="chev"><Icon name="chevron" size={20} /></span>
@@ -89,24 +96,25 @@ function KhataLink({ total, count }: { total: number; count: number }) {
   );
 }
 
-function connectionBadge(online: boolean, connection: ConnectionState): { tone: 'ok' | 'wait' | 'bad'; label: string } {
-  if (!online) return { tone: 'bad', label: 'Offline' };
+function connectionBadge(t: Translate, online: boolean, connection: ConnectionState): { tone: 'ok' | 'wait' | 'bad'; label: string } {
+  if (!online) return { tone: 'bad', label: t('conn.offline') };
   switch (connection.status) {
-    case 'ready': return { tone: 'ok', label: 'Online' };
-    case 'limited': return { tone: 'wait', label: 'Busy, thoda ruko' };
-    case 'blocked': return { tone: 'bad', label: 'Code chahiye' };
-    case 'closed': return { tone: 'bad', label: 'Disconnected' };
-    default: return { tone: 'wait', label: 'Jud raha hai…' };
+    case 'ready': return { tone: 'ok', label: t('conn.online') };
+    case 'limited': return { tone: 'wait', label: t('conn.busy') };
+    case 'blocked': return { tone: 'bad', label: t('conn.blocked') };
+    case 'closed': return { tone: 'bad', label: t('conn.closed') };
+    default: return { tone: 'wait', label: t('conn.connecting') };
   }
 }
 
 export function VoiceScreen() {
+  const t = useT();
   const { session, repo, dataError } = useApp();
-  if (dataError) return <main className="mx-auto max-w-md px-4 py-10"><Notice tone="error" title="Data nahi khul paya" hint={dataError} /></main>;
+  if (dataError) return <main className="mx-auto max-w-md px-4 py-10"><Notice tone="error" title={t('common.dataError')} hint={dataError} /></main>;
   if (!session || !repo) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center px-4" aria-busy="true">
-        <StateView kind="loading" title="Shuru ho raha hai" />
+        <StateView kind="loading" title={t('common.starting')} />
       </main>
     );
   }
@@ -114,8 +122,11 @@ export function VoiceScreen() {
 }
 
 function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useApp>['session']>; repo: NonNullable<ReturnType<typeof useApp>['repo']> }) {
+  const t = useT();
   const { toast } = useApp();
   const { profile } = useAccount();
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const closeLanguage = useCallback(() => setLanguageOpen(false), []);
   const controller = session.controller;
   const store = controller.store;
   const phase = useTurnStore(store, (s) => s.phase);
@@ -182,11 +193,11 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     try {
       await session.enableAudio();
     } catch {
-      toast('Mic start nahi hua. Permission check karo.', 'error');
+      toast(t('voice.micFailed'), 'error');
     } finally {
       setAudioStarting(false);
     }
-  }, [session, toast]);
+  }, [session, toast, t]);
 
   const listening = phase === 'listening';
   const busy = phase === 'finishing' || phase === 'transcribing' || phase === 'drafting';
@@ -207,7 +218,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     } else if (pending === null) {
       controller.startDraft(billFromProduct(product, globalThis.crypto.randomUUID(), 0));
     } else {
-      toast('Pehle jo draft hai use confirm ya cancel karo.', 'error');
+      toast(t('voice.finishDraftFirst'), 'error');
     }
   };
 
@@ -216,7 +227,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     const catalogCustomers = (customers.data ?? []).map(({ customer, balance }) => ({ id: customer.id, name: customer.name, aliases: customer.aliases, balance }));
     const rebuilt = draftFromTranscript(draft, editText, productList, catalogCustomers);
     if (rebuilt === null) {
-      toast('Samajh nahi aaya. Doosre shabdon mein likho.', 'error');
+      toast(t('voice.notUnderstood'), 'error');
       return;
     }
     controller.editDraft(rebuilt);
@@ -235,9 +246,9 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     return null;
   };
 
-  const badge = connectionBadge(online, connection);
+  const badge = connectionBadge(t, online, connection);
   // statusText cannot see the link; when the mic is locked because the gateway is not ready, say so instead of "Dabake bolo".
-  const shownStatus = micLive && !canTalk ? 'Connection ka intezaar…' : status;
+  const shownStatus = micLive && !canTalk ? t('voice.waitingConnection') : status;
   const owing = (customers.data ?? []).filter((c) => c.balance > 0);
   const owedTotal = owing.reduce((sum, c) => sum + c.balance, 0);
   const initial = (profile.businessName.trim()[0] ?? 'B').toUpperCase();
@@ -248,7 +259,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     <main className="vs">
       <div className="vs-col">
         <header className="vs-top">
-          <Link href="/settings" className="vs-shop" aria-label={`${profile.businessName}: dukaan profile`}>
+          <Link href="/settings" className="vs-shop" aria-label={t('voice.shopProfile', { name: profile.businessName })}>
             <span className="vs-monogram" aria-hidden="true">{initial}</span>
             <span>
               <strong>{profile.businessName}</strong>
@@ -256,45 +267,46 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             </span>
           </Link>
           <div className="vs-top-actions">
-            <Link href="/ledger" className="vs-icon-btn" aria-label="Khata (ledger)"><Icon name="book" size={20} /></Link>
-            <Link href="/settings" className="vs-icon-btn" aria-label="Settings"><Icon name="gear" size={20} /></Link>
+            <button type="button" className="vs-icon-btn" aria-label={t('lang.button')} aria-haspopup="dialog" onClick={() => setLanguageOpen(true)}><Icon name="globe" size={20} /></button>
+            <Link href="/ledger" className="vs-icon-btn" aria-label={t('nav.ledger')}><Icon name="book" size={20} /></Link>
+            <Link href="/settings" className="vs-icon-btn" aria-label={t('nav.settings')}><Icon name="gear" size={20} /></Link>
           </div>
         </header>
 
         <section className="vs-stage" aria-live="polite">
-          {!online && <Notice title="Internet nahi hai" hint="Bolne ke liye internet chahiye. Khata aur samaan ab bhi khul sakte hain." />}
+          {!online && <Notice title={t('notice.offlineTitle')} hint={t('notice.offlineHint')} />}
           {online && connection.status === 'blocked' && connection.reason === 'access_code_required' ? (
             <AccessCodeForm onSubmit={(code) => { setAccessCode(code); session.client.connect(); }} />
           ) : (
             online && notice && <Notice title={notice.title} hint={notice.hint} />
           )}
-          {mic.status === 'error' && mic.error && <Notice tone="error" {...micErrorText(mic.error)} action={{ label: 'Dobara try karo', run: () => void enable() }} />}
-          {degraded.includes('tts_unavailable') && <Notice title="Awaaz abhi nahi aa rahi" hint="Text mode: jawab neeche screen par hai." />}
-          {degraded.includes('llm_timeout') && <Notice title="Bill dhyaan se dekho" hint="Smart check time par nahi ho paya, isliye bill ek baar check kar lo." />}
+          {mic.status === 'error' && mic.error && <Notice tone="error" {...micErrorText(mic.error)} action={{ label: t('common.retry'), run: () => void enable() }} />}
+          {degraded.includes('tts_unavailable') && <Notice title={t('notice.ttsTitle')} hint={t('notice.ttsHint')} />}
+          {degraded.includes('llm_timeout') && <Notice title={t('notice.llmTitle')} hint={t('notice.llmHint')} />}
           {error && (
             <Notice
               tone="error"
               {...friendlyError(error)}
-              action={{ label: 'Theek hai', run: () => controller.dismissError() }}
+              action={{ label: t('common.ok'), run: () => controller.dismissError() }}
             />
           )}
 
           {idleEmpty && (
             <div className="vs-hello">
-              <h1>Aaj kya bill banana hai?</h1>
-              <p>Mic dabake bolo. Samaan, quantity aur price hum likh lenge.</p>
+              <h1>{t('voice.helloTitle')}</h1>
+              <p>{t('voice.helloHint')}</p>
             </div>
           )}
           {idleEmpty && <div className="hide-wide"><Examples /></div>}
 
           {listening && !transcript && (
-            <span className="bubble-live" role="status" aria-label="Sun raha hoon"><i /><i /><i /></span>
+            <span className="bubble-live" role="status" aria-label={t('voice.listening')}><i /><i /><i /></span>
           )}
 
           {transcript && !editing && (
             <div className="bubble-me">
               {draft && (draft.intent === 'create_bill' || draft.intent === 'record_payment') && (
-                <button type="button" aria-label="Transcript theek karo (edit)" onClick={() => { setEditText(transcript); setEditing(true); }}>
+                <button type="button" aria-label={t('voice.editTranscript')} onClick={() => { setEditText(transcript); setEditing(true); }}>
                   <Icon name="pencil" size={18} />
                 </button>
               )}
@@ -303,17 +315,17 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
           )}
           {editing && (
             <form className="bill" onSubmit={(e) => { e.preventDefault(); applyTranscriptEdit(); }}>
-              <label className="text-sm font-semibold text-muted" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
+              <label className="text-sm font-semibold text-muted" htmlFor="transcript-edit">{t('voice.editLabel')}</label>
               <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl bg-inset px-3 text-lg" />
               <div className="mt-3 flex gap-2">
-                <button type="submit" className="btn-pill btn-solid flex-1">Bill dobara banao</button>
-                <button type="button" className="btn-pill btn-soft" onClick={() => setEditing(false)}>Raho</button>
+                <button type="submit" className="btn-pill btn-solid flex-1">{t('voice.rebuild')}</button>
+                <button type="button" className="btn-pill btn-soft" onClick={() => setEditing(false)}>{t('common.cancel')}</button>
               </div>
             </form>
           )}
 
           {busy && !draft && (
-            <div className="skel" role="status" aria-label="Bill ban raha hai">
+            <div className="skel" role="status" aria-label={t('voice.makingBill')}>
               <i style={{ width: '42%' }} />
               <i style={{ width: '86%' }} />
               <i style={{ width: '70%' }} />
@@ -334,7 +346,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
 
           {!listening && (frequent.data ?? []).length > 0 && (
             <div>
-              <p className="vs-section-title mb-2"><span>Jaldi chuno</span><span className="font-normal">tap = bill mein</span></p>
+              <p className="vs-section-title mb-2"><span>{t('voice.quickTitle')}</span><span className="font-normal">{t('voice.quickHint')}</span></p>
               <QuickTiles products={frequent.data ?? []} disabled={busy} onPick={pickTile} />
             </div>
           )}
@@ -347,14 +359,14 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
         <div className="vs-dock">
           <div className="vs-dock-glass">
             {confirmable && draft?.bill && (
-              <p className="vs-total num"><span>Total</span><strong><Money value={draft.bill.total} /></strong></p>
+              <p className="vs-total num"><span>{t('voice.total')}</span><strong><Money value={draft.bill.total} /></strong></p>
             )}
             <p className="vs-status" role="status">
-              {listening && <span className="rec-pill"><i aria-hidden="true" />REC</span>}
+              {listening && <span className="rec-pill"><i aria-hidden="true" />{t('voice.rec')}</span>}
               <span key={shownStatus}>{shownStatus}</span>
             </p>
             {!confirmable && !draft && !listening && !busy && !error && canTalk && (
-              <p className="vs-hint">Chhodte hi bill banega · ya tap karke bolo</p>
+              <p className="vs-hint">{t('voice.idleHint')}</p>
             )}
             {micLive ? (
               <div className="vs-row">
@@ -362,7 +374,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
                   {confirmable && pending && (
                     <button type="button" className="vs-act vs-act-no" onClick={() => controller.discard()}>
                       <Icon name="close" size={22} />
-                      Nahi
+                      {t('common.no')}
                     </button>
                   )}
                 </div>
@@ -371,7 +383,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
                   busy={busy}
                   speaking={speakingNow}
                   disabled={!canTalk}
-                  label={speakingNow ? 'Microphone: dabao, awaaz ruk jayegi aur aap bol sakte hain' : 'Microphone: dabake bolo, ya tap karke shuru karo'}
+                  label={speakingNow ? t('voice.micInterrupt') : t('voice.micLabel')}
                   level={session.level}
                   buttonProps={buttonProps}
                 />
@@ -379,26 +391,28 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
                   {confirmable && pending && (
                     <button type="button" className="vs-act vs-act-yes" onClick={() => controller.confirm()}>
                       <Icon name="check" size={24} />
-                      Haan, save
+                      {t('voice.yesSave')}
                     </button>
                   )}
                 </div>
               </div>
             ) : (
               <button type="button" disabled={audioStarting} onClick={() => void enable()} className="vs-start">
-                <Icon name="mic" size={22} />{audioStarting ? 'Mic khul raha hai…' : 'Mic chalu karo'}
+                <Icon name="mic" size={22} />{audioStarting ? t('voice.micStarting') : t('voice.micStart')}
               </button>
             )}
-            <p className="vs-credit">Speech: <b>Gnani Prisma</b> STT · <b>Gnani Timbre</b> TTS</p>
+            <p className="vs-credit">{t('voice.credit')}</p>
           </div>
         </div>
       </div>
 
-      <aside className="vs-aside" aria-label="Shortcuts">
+      <aside className="vs-aside" aria-label={t('voice.shortcuts')}>
         <Examples />
         {customers.data && <KhataLink total={owedTotal} count={owing.length} />}
         {hud && <LatencyHud turns={turns} connection={connection} />}
       </aside>
+
+      {languageOpen && <LanguageSheet onClose={closeLanguage} />}
 
       {replacement && pending && (
         <ReplaceDialog current={pending} incoming={replacement} onAccept={() => controller.acceptReplacement()} onKeep={() => controller.keepPending()} />

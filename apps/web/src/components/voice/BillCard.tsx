@@ -9,6 +9,8 @@ import { AdjustPanel } from './AdjustPanel';
 import { Icon } from '../Icon';
 import { formatQuantity, rupees } from '@/lib/format';
 import { Money } from './Money';
+import { unitName } from './units';
+import { t as translate, useT } from '@/lib/i18n';
 import { removeItem, resolveCustomer, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
 
 interface Props {
@@ -22,16 +24,18 @@ interface Props {
 const stepFor = (unit: string) => (unit === 'kg' || unit === 'l' ? 0.5 : 1);
 
 function Stepper({ value, step, label, onChange }: { value: number; step: number; label: string; onChange(v: number): void }) {
+  const t = useT();
   return (
     <div className="stepper" role="group" aria-label={label}>
-      <button type="button" aria-label="Kam karo (less)" onClick={() => onChange(Math.max(step, Math.round((value - step) * 1000) / 1000))}>−</button>
+      <button type="button" aria-label={t('bill.less')} onClick={() => onChange(Math.max(step, Math.round((value - step) * 1000) / 1000))}>−</button>
       <span className="num">{formatQuantity(value)}</span>
-      <button type="button" aria-label="Zyada karo (more)" onClick={() => onChange(Math.round((value + step) * 1000) / 1000)}>+</button>
+      <button type="button" aria-label={t('bill.more')} onClick={() => onChange(Math.round((value + step) * 1000) / 1000)}>+</button>
     </div>
   );
 }
 
 function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }: { spoken: string; quantity: number | undefined; unit: string | undefined; candidates: { id: string; name: string }[]; products: readonly CatalogProduct[]; onPick(p: CatalogProduct): void }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const options = useMemo(() => {
     const byId = new Map(products.map((p) => [p.id, p]));
@@ -42,24 +46,24 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
   }, [candidates, products, query]);
 
   return (
-    <div className="note-pick" role="group" aria-label={`Item chuno: ${spoken}`}>
+    <div className="note-pick" role="group" aria-label={t('bill.pickItemGroup', { spoken })}>
       <p className="font-semibold">
-        &ldquo;{spoken}&rdquo; kaunsa hai?{' '}
-        <span className="font-normal text-dim">{quantity !== undefined ? `${formatQuantity(quantity)} ${unit ?? ''}` : ''}</span>
+        {t('bill.pickItemTitle', { spoken })}{' '}
+        <span className="font-normal text-dim">{quantity !== undefined ? `${formatQuantity(quantity)} ${unit ? unitName(t, unit) : ''}` : ''}</span>
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((p) => (
           <button key={p.id} type="button" className="btn-pill btn-solid" onClick={() => onPick(p)}>
-            {p.name} · {rupees(p.pricePerUnit)}/{p.unit}
+            {p.name} · {rupees(p.pricePerUnit)}/{unitName(t, p.unit)}
           </button>
         ))}
-        {options.length === 0 && <span className="py-3 text-dim">{query ? 'Kuch nahi mila.' : 'Neeche se dhundo.'}</span>}
+        {options.length === 0 && <span className="py-3 text-dim">{query ? t('bill.nothingFound') : t('bill.searchBelow')}</span>}
       </div>
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Samaan dhundo (search)"
-        aria-label="Samaan dhundo"
+        placeholder={t('catalog.search')}
+        aria-label={t('catalog.search')}
         className="mt-2 min-h-11 w-full rounded-xl bg-card px-3 text-base"
       />
     </div>
@@ -67,6 +71,7 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
 }
 
 export function BillCard({ draft, products, customers, repo, onChange }: Props) {
+  const t = useT();
   const bill = draft.bill;
   const { toast } = useApp();
   const totals = bill ? computeTotals(bill.items.reduce((sum, i) => sum + i.lineTotal, 0), bill.adjust) : null;
@@ -82,7 +87,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
   };
 
   return (
-    <article className="bill" aria-label="Bill">
+    <article className="bill" aria-label={t('bill.label')}>
       <div className="bill-head">
         {editingCustomer ? (
           <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); applyCustomer(); }}>
@@ -91,26 +96,26 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               list="customer-options"
               value={customerText}
               onChange={(e) => setCustomerText(e.target.value)}
-              placeholder="Grahak ka naam"
-              aria-label="Grahak ka naam"
+              placeholder={t('bill.customerName')}
+              aria-label={t('bill.customerName')}
               className="min-h-11 flex-1 rounded-xl bg-inset px-3 text-base"
             />
             <datalist id="customer-options">{customers.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-            <button type="submit" className="btn-pill btn-solid">OK</button>
+            <button type="submit" className="btn-pill btn-solid">{t('bill.ok')}</button>
           </form>
         ) : (
           <button
             type="button"
             onClick={() => { setCustomerText(draft.customer?.name ?? ''); setEditingCustomer(true); }}
             className="bill-cust"
-            aria-label="Grahak badlo (change customer)"
+            aria-label={t('bill.changeCustomer')}
           >
             <span className="av"><Icon name="user" size={18} /></span>
-            <span className="lbl">{draft.customer ? draft.customer.name : 'Grahak chuno'}</span>
-            {draft.customer?.isNew && <span className="bill-tag">NAYA</span>}
+            <span className="lbl">{draft.customer ? draft.customer.name : t('bill.pickCustomer')}</span>
+            {draft.customer?.isNew && <span className="bill-tag">{t('bill.newTag')}</span>}
           </button>
         )}
-        {!editingCustomer && bill && bill.items.length > 0 && <span className="bill-count">{bill.items.length} {bill.items.length === 1 ? 'item' : 'items'}</span>}
+        {!editingCustomer && bill && bill.items.length > 0 && <span className="bill-count">{t('bill.items', { count: bill.items.length })}</span>}
       </div>
 
       {bill && bill.items.length > 0 && (
@@ -123,11 +128,11 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               </div>
               <div className="row2">
                 <p className="rate num">{item.spokenPrice
-                  ? `Bola: ${rupees(item.spokenPrice.amount)} / ${formatQuantity(item.spokenPrice.quantity)} ${item.spokenPrice.unit}${item.spokenPrice.basis === 'line' ? ' (total)' : ' (rate)'}`
-                  : item.unitPrice !== null ? `${rupees(item.unitPrice)} / ${item.unit}` : 'Line price'}</p>
+                  ? t(item.spokenPrice.basis === 'line' ? 'bill.spokenLine' : 'bill.spokenRate', { amount: rupees(item.spokenPrice.amount), qty: formatQuantity(item.spokenPrice.quantity), unit: unitName(t, item.spokenPrice.unit) })
+                  : item.unitPrice !== null ? `${rupees(item.unitPrice)} / ${unitName(t, item.unit)}` : t('bill.linePrice')}</p>
                 <div className="flex items-center gap-1">
-                  <Stepper value={item.quantity} step={stepFor(item.unit)} label={`${item.name} quantity`} onChange={(q) => onChange(setItemQuantity(draft, i, q))} />
-                  <button type="button" aria-label={`${item.name} hatao (remove)`} className="bill-del" onClick={() => onChange(removeItem(draft, i))}>
+                  <Stepper value={item.quantity} step={stepFor(item.unit)} label={t('bill.quantity', { name: item.name })} onChange={(q) => onChange(setItemQuantity(draft, i, q))} />
+                  <button type="button" aria-label={t('common.removeName', { name: item.name })} className="bill-del" onClick={() => onChange(removeItem(draft, i))}>
                     <Icon name="trash" size={20} />
                   </button>
                 </div>
@@ -140,14 +145,14 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
       {draft.unresolved.map((u, i) =>
         u.kind === 'item' ? (
           <div key={`u${i}${u.spoken}`} className="mt-3">
-            <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${p.name}`, 'ok'); }); }} />
+            <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(translate('bill.learned', { spoken: u.spoken, name: p.name }), 'ok'); }); }} />
           </div>
         ) : (
           <div key={`u${i}${u.spoken}`} className="note-pick">
-            <p className="font-semibold">&ldquo;{u.spoken}&rdquo; kaun sa grahak hai?</p>
+            <p className="font-semibold">{t('bill.pickCustomerTitle', { spoken: u.spoken })}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {u.candidates.map((c) => (
-                <button key={c.id} type="button" className="btn-pill btn-solid" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${c.name}`, 'ok'); }); }}>{c.name}</button>
+                <button key={c.id} type="button" className="btn-pill btn-solid" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(translate('bill.learned', { spoken: u.spoken, name: c.name }), 'ok'); }); }}>{c.name}</button>
               ))}
             </div>
           </div>
@@ -158,19 +163,19 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
         <dl className="bill-sum num">
           {totals && bill.adjust && (
             <>
-              <div className="sub"><dt>Subtotal</dt><dd>{rupees(totals.subtotal)}</dd></div>
-              {totals.discount > 0 && <div className="text-good"><dt>Chhoot</dt><dd>−{rupees(totals.discount)}</dd></div>}
-              {totals.gst > 0 && <div className="sub"><dt>GST {bill.adjust.gstPercent}%</dt><dd>+{rupees(totals.gst)}</dd></div>}
-              {totals.roundOff !== 0 && <div className="sub"><dt>Round-off</dt><dd>{totals.roundOff > 0 ? '+' : '−'}{rupees(Math.abs(totals.roundOff))}</dd></div>}
+              <div className="sub"><dt>{t('bill.subtotal')}</dt><dd>{rupees(totals.subtotal)}</dd></div>
+              {totals.discount > 0 && <div className="text-good"><dt>{t('bill.discount')}</dt><dd>−{rupees(totals.discount)}</dd></div>}
+              {totals.gst > 0 && <div className="sub"><dt>{t('bill.gst', { rate: bill.adjust.gstPercent ?? 0 })}</dt><dd>+{rupees(totals.gst)}</dd></div>}
+              {totals.roundOff !== 0 && <div className="sub"><dt>{t('bill.roundOff')}</dt><dd>{totals.roundOff > 0 ? '+' : '−'}{rupees(Math.abs(totals.roundOff))}</dd></div>}
             </>
           )}
-          <div className="bill-total"><dt>Total</dt><dd><Money value={bill.total} /></dd></div>
+          <div className="bill-total"><dt>{t('voice.total')}</dt><dd><Money value={bill.total} /></dd></div>
           <div className="bill-paid">
-            <dt>Abhi diye (paid)</dt>
+            <dt>{t('bill.paid')}</dt>
             <dd>
               <input
                 inputMode="numeric"
-                aria-label="Abhi diye (paid now)"
+                aria-label={t('bill.paid')}
                 value={bill.paid === 0 ? '' : bill.paid}
                 placeholder="0"
                 onChange={(e) => onChange(setPaid(draft, Number(e.target.value.replace(/\D/g, '')) || 0))}
@@ -178,7 +183,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               />
             </dd>
           </div>
-          <div className="bill-udhaar" data-owed={bill.udhaar > 0}><dt>{bill.udhaar > 0 ? 'Udhaar (baaki)' : 'Udhaar nahi · poora paid'}</dt><dd><Money value={bill.udhaar} /></dd></div>
+          <div className="bill-udhaar" data-owed={bill.udhaar > 0}><dt>{bill.udhaar > 0 ? t('bill.udhaarOwed') : t('bill.udhaarNone')}</dt><dd><Money value={bill.udhaar} /></dd></div>
         </dl>
       )}
 
@@ -186,7 +191,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
 
       {bill && udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && (
         <p role="status" className="note mt-3 font-semibold" data-tone="warn">
-          Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
+          {t('bill.needCustomer')}
         </p>
       )}
       {bill && bill.udhaar > 0 && !hasCreditDetails(customers.find((c) => c.id === draft.customer?.id)) && (

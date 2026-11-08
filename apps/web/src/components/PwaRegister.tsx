@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/i18n';
 
 /**
  * Registers the service worker (production builds only: in development a cache-first shell
@@ -8,6 +9,7 @@ import { useEffect, useState } from 'react';
  * installed and is waiting.
  */
 export function PwaRegister() {
+  const t = useT();
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
 
   useEffect(() => {
@@ -39,9 +41,9 @@ export function PwaRegister() {
   if (!waiting) return null;
   return (
     <div role="status" className="rise fixed inset-x-4 bottom-24 z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-raised px-4 py-3 text-ink shadow-xl">
-      <span className="font-semibold">Naya version aaya hai</span>
+      <span className="font-semibold">{t('pwa.newVersion')}</span>
       <button type="button" className="min-h-12 rounded-xl bg-accent px-4 font-bold text-on-solid" onClick={() => waiting.postMessage({ type: 'SKIP_WAITING' })}>
-        Update karo
+        {t('pwa.update')}
       </button>
     </div>
   );

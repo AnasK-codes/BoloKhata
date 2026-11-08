@@ -1,4 +1,7 @@
+'use client';
+
 import type { ReactNode } from 'react';
+import { useT } from '@/lib/i18n';
 
 /** One consistent look for loading, empty and error states, so no screen is ever blank. */
 export function StateView({ kind, title, hint, children }: { kind: 'loading' | 'empty' | 'error'; title: string; hint?: string; children?: ReactNode }) {
@@ -15,6 +18,7 @@ export function StateView({ kind, title, hint, children }: { kind: 'loading' | '
 }
 
 export function OfflineBadge({ online }: { online: boolean }) {
+  const t = useT();
   if (online) return null;
-  return <p className="rounded-xl bg-raised px-3 py-2 text-sm text-ink" role="status">Offline: yeh screen bina internet ke chalti hai. Bolna band hai.</p>;
+  return <p className="rounded-xl bg-raised px-3 py-2 text-sm text-ink" role="status">{t('common.offlineBadge')}</p>;
 }

@@ -1,4 +1,5 @@
 import type { Phase } from '../turn/types';
+import { t } from '../i18n';
 
 export interface StatusInput {
   phase: Phase;
@@ -8,25 +9,25 @@ export interface StatusInput {
   micLive: boolean;
 }
 
-/** One short line for what the app is doing, in simple Hinglish. */
+/** One short line for what the app is doing, in the chosen interface language. */
 export function statusText(s: StatusInput): string {
-  if (!s.micLive) return 'Pehle mic chalu karo';
+  if (!s.micLive) return t('status.micOff');
   switch (s.phase) {
     case 'listening':
-      if (s.mode === 'latched') return 'Sun raha hoon… bolke tap karo';
-      return s.heard ? 'Sun raha hoon…' : 'Boliye, main sun raha hoon…';
+      if (s.mode === 'latched') return t('status.latched');
+      return s.heard ? t('status.listening') : t('status.speakNow');
     case 'finishing':
     case 'transcribing':
-      return 'Samajh raha hoon…';
+      return t('status.understanding');
     case 'drafting':
-      return 'Bill bana raha hoon…';
+      return t('status.drafting');
     case 'speaking':
-      return 'Bol raha hoon…';
+      return t('status.speaking');
     case 'reviewing':
-      return 'Confirm karo ya "haan" bolo';
+      return t('status.confirm');
     case 'error':
-      return 'Dobara try karo';
+      return t('common.retry');
     case 'idle':
-      return s.hasPending ? 'Confirm karo ya "haan" bolo' : 'Dabake bolo';
+      return s.hasPending ? t('status.confirm') : t('status.idle');
   }
 }

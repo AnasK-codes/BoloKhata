@@ -1,6 +1,7 @@
 import type { ConnectionState } from '../realtime/types';
 import type { MicErrorKind } from '../audio/micCapture';
 import type { TurnError } from '../turn/types';
+import { t } from '../i18n';
 
 export interface FriendlyError {
   title: string;
@@ -8,54 +9,55 @@ export interface FriendlyError {
   hint: string;
 }
 
-/** Simple Hinglish with an English fallback; every message says what to do next. */
+/** In the chosen interface language; every message says what to do next. */
 export function friendlyError(error: TurnError): FriendlyError {
   switch (error.code) {
     case 'NO_TRANSCRIPT':
-      return { title: 'Kuch sunai nahi diya', hint: 'Mic ke paas bolo aur dobara try karo. (No speech was detected.)' };
+      return { title: t('err.noTranscriptTitle'), hint: t('err.noTranscriptHint') };
     case 'OFFLINE':
     case 'DISCONNECTED':
-      return { title: 'Internet nahi hai', hint: 'Bolne ke liye internet chahiye. Connection aate hi dobara try karo. Khata aur samaan phir bhi khul sakte hain.' };
+      return { title: t('notice.offlineTitle'), hint: t('err.offlineHint') };
     case 'MIC_UNAVAILABLE':
-      return { title: 'Mic ready nahi hai', hint: 'Mic ki permission allow karo, phir dobara dabao. (Allow the microphone.)' };
+      return { title: t('err.micTitle'), hint: t('err.micHint') };
     case 'STT_ERROR':
     case 'STT_UNAVAILABLE':
-      return { title: 'Awaaz samajhne wali service busy hai', hint: 'Thodi der baad dobara bolo. (The speech service had a problem.)' };
+      return { title: t('err.sttTitle'), hint: t('err.sttHint') };
     case 'UTTERANCE_TOO_LONG':
-      return { title: 'Bahut lamba bol diya', hint: 'Ek baar mein ek bill bolo, chhote vaakya mein.' };
+      return { title: t('err.tooLongTitle'), hint: t('err.tooLongHint') };
     case 'TIMEOUT':
-      return { title: 'Jawab nahi aaya', hint: 'Dobara try karo. (The server did not answer in time.)' };
+      return { title: t('err.timeoutTitle'), hint: t('err.timeoutHint') };
     case 'RATE_LIMITED':
-      return { title: 'Bahut tez, thoda ruko', hint: 'Kuch second baad dobara try karo.' };
+      return { title: t('err.rateTitle'), hint: t('err.rateHint') };
     default:
-      return { title: 'Kuch gadbad hui', hint: 'Dobara try karo. (Something went wrong.)' };
+      return { title: t('err.genericTitle'), hint: t('err.genericHint') };
   }
 }
 
 export function micErrorText(kind: MicErrorKind): FriendlyError {
   switch (kind) {
     case 'denied':
-      return { title: 'Mic ki permission band hai', hint: 'Browser ya phone settings mein is site ke liye Microphone allow karo, phir page reload karo.' };
+      return { title: t('micErr.deniedTitle'), hint: t('micErr.deniedHint') };
     case 'no_device':
-      return { title: 'Mic nahi mila', hint: 'Mic jodo ya phone ka mic check karo, phir dobara try karo.' };
+      return { title: t('micErr.noDeviceTitle'), hint: t('micErr.noDeviceHint') };
     case 'unsupported':
-      return { title: 'Yeh browser mic support nahi karta', hint: 'Chrome ya Safari ka naya version use karo, aur HTTPS par kholo.' };
+      return { title: t('micErr.unsupportedTitle'), hint: t('micErr.unsupportedHint') };
     default:
-      return { title: 'Mic shuru nahi hua', hint: 'Dobara try karo.' };
+      return { title: t('micErr.failedTitle'), hint: t('common.retry') };
   }
 }
 
+/** `message` comes from the gateway (English); it is shown as is inside the translated sentence. */
 export function connectionNotice(state: ConnectionState): FriendlyError | null {
   switch (state.status) {
     case 'limited':
       return {
-        title: state.reason === 'budget' ? 'Aaj ka demo budget khatam' : 'Demo abhi busy hai',
-        hint: `${state.message} Khud dobara try karega. Khata aur samaan chal rahe hain.`,
+        title: state.reason === 'budget' ? t('connNotice.budgetTitle') : t('connNotice.busyTitle'),
+        hint: t('connNotice.limitedHint', { message: state.message }),
       };
     case 'blocked':
-      return { title: 'Demo access band hai', hint: state.message };
+      return { title: t('connNotice.blockedTitle'), hint: state.message };
     case 'reconnecting':
-      return { title: 'Connection ja raha hai', hint: 'Dobara jud raha hai…' };
+      return { title: t('connNotice.reconnectingTitle'), hint: t('connNotice.reconnectingHint') };
     default:
       return null;
   }

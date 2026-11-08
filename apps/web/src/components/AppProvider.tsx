@@ -12,6 +12,7 @@ import { attachHandsFree } from '@/lib/voice/handsFree';
 import { saveDraft, savedMessage } from '@/lib/voice/saveDraft';
 import { receiptBusiness } from '@bolbill/shared';
 import { useAccount } from './AccountGate';
+import { t, useT } from '@/lib/i18n';
 
 export interface Toast {
   id: number;
@@ -71,7 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Ask the browser not to evict the ledger when storage is tight (iOS Safari is the main risk).
         void navigator.storage?.persist?.().catch(() => undefined);
       } catch {
-        if (!disposed) setParts((p) => ({ ...p, dataError: 'Is browser mein data save nahi ho sakta. Local storage is blocked.' }));
+        if (!disposed) setParts((p) => ({ ...p, dataError: t('common.storageBlocked') }));
         return;
       }
       if (disposed) return;
@@ -131,12 +132,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [toast, user.id]);
 
+  const tr = useT();
   const value = useMemo<AppContext>(() => ({ ...parts, toast }), [parts, toast]);
   return (
     <Ctx.Provider value={value}>
       {synthetic && (
         <p className="relative z-50 bg-warn px-3 pb-1 pt-[max(4px,env(safe-area-inset-top))] text-center text-sm font-bold text-on-solid">
-          SYNTHETIC TEST TONE (dev only): not a real voice
+          {tr('dev.toneBanner')}
         </p>
       )}
       {children}

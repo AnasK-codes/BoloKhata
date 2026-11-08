@@ -6,12 +6,14 @@ import { turnMetrics } from '@/lib/turn/timing';
 import type { TurnRecord } from '@/lib/turn/types';
 import { Icon } from '../Icon';
 import { hudRows, hudExport } from '@/lib/voice/hud';
+import { useT } from '@/lib/i18n';
 
 /**
  * Measured spans for the latest turns. It only shows what was recorded: a span that did not
  * happen (no voice reply, no interrupt) shows a dash, never an estimate.
  */
 export function LatencyHud({ turns, connection }: { turns: readonly TurnRecord[]; connection: ConnectionState }) {
+  const t = useT();
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
   const rtt = connection.status === 'ready' ? connection.rttMs : null;
   const latest = turns.at(-1);
@@ -30,13 +32,13 @@ export function LatencyHud({ turns, connection }: { turns: readonly TurnRecord[]
   };
 
   return (
-    <section aria-label="Latency" className="hud">
+    <section aria-label={t('hud.title')} className="hud">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-base font-semibold"><span className="text-brand"><Icon name="bolt" size={18} /></span>Latency <span className="font-normal text-muted">measured</span></h2>
-        <span className="num text-sm text-muted">RTT {rtt === null ? '–' : `${Math.round(rtt)} ms`}{metrics?.parseSource ? ` · ${metrics.parseSource}` : ''}</span>
+        <h2 className="flex items-center gap-1.5 text-base font-semibold"><span className="text-brand"><Icon name="bolt" size={18} /></span>{t('hud.title')} <span className="font-normal text-muted">{t('hud.measured')}</span></h2>
+        <span className="num text-sm text-muted">{t('hud.rtt', { value: rtt === null ? '–' : `${Math.round(rtt)} ms` })}{metrics?.parseSource ? ` · ${metrics.parseSource}` : ''}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="mt-2 text-muted">Ek turn bolo, phir yahan timing dikhegi.</p>
+        <p className="mt-2 text-muted">{t('hud.empty')}</p>
       ) : (
         <ul className="mt-3 space-y-2.5">
           {rows.map((r) => (
@@ -48,7 +50,7 @@ export function LatencyHud({ turns, connection }: { turns: readonly TurnRecord[]
         </ul>
       )}
       <button type="button" onClick={() => void copy()} className="btn-pill btn-soft mt-4 w-full">
-        {copied === 'ok' ? 'Copy ho gaya' : copied === 'fail' ? 'Copy nahi hua' : 'Copy timings as JSON'}
+        {copied === 'ok' ? t('hud.copied') : copied === 'fail' ? t('hud.copyFailed') : t('hud.copy')}
       </button>
     </section>
   );

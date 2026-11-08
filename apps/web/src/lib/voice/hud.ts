@@ -1,6 +1,7 @@
 import type { TurnMetrics } from '../turn/timing';
 import { turnMetrics } from '../turn/timing';
 import type { TurnRecord } from '../turn/types';
+import { t } from '../i18n';
 
 export interface HudRow {
   key: string;
@@ -11,12 +12,12 @@ export interface HudRow {
 /** The rows of the timeline, in the order a turn happens. Interrupt time is shown only when it was measured. */
 export function hudRows(m: TurnMetrics): HudRow[] {
   const rows: HudRow[] = [
-    { key: 'releaseToProcessing', label: 'Release → processing', ms: m.releaseToProcessing },
-    { key: 'releaseToTranscript', label: 'Release → transcript', ms: m.releaseToTranscript },
-    { key: 'releaseToDraft', label: 'Release → bill', ms: m.releaseToDraft },
-    { key: 'releaseToFirstAudible', label: 'Release → first sound', ms: m.releaseToFirstAudible },
+    { key: 'releaseToProcessing', label: t('hud.releaseToProcessing'), ms: m.releaseToProcessing },
+    { key: 'releaseToTranscript', label: t('hud.releaseToTranscript'), ms: m.releaseToTranscript },
+    { key: 'releaseToDraft', label: t('hud.releaseToDraft'), ms: m.releaseToDraft },
+    { key: 'releaseToFirstAudible', label: t('hud.releaseToFirstAudible'), ms: m.releaseToFirstAudible },
   ];
-  if (m.pressToSilence !== undefined) rows.push({ key: 'pressToSilence', label: 'Interrupt → silence', ms: m.pressToSilence });
+  if (m.pressToSilence !== undefined) rows.push({ key: 'pressToSilence', label: t('hud.pressToSilence'), ms: m.pressToSilence });
   return rows;
 }
 

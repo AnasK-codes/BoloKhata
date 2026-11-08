@@ -1,6 +1,7 @@
 import type { DraftMessage } from '@bolbill/shared';
 import type { Repo } from '../db/repo';
 import { validateProductForm } from '../catalogForm';
+import { t } from '../i18n';
 
 export type SaveOutcome =
   | { kind: 'bill'; created: boolean }
@@ -49,7 +50,7 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
     if (draft.intent === 'add_product' && draft.product) {
       // The same rules as the Samaan form, so a spoken product can never be one the form would refuse.
       const form = validateProductForm({ name: draft.product.name, price: String(draft.product.pricePerUnit), unit: draft.product.unit, aliases: '' });
-      if (!form.ok) return { kind: 'error', message: Object.values(form.errors)[0] ?? 'Samaan save nahi ho paya.' };
+      if (!form.ok) return { kind: 'error', message: Object.values(form.errors)[0] ?? t('save.itemFailed') };
       // A second confirmation (tap plus "haan") finds the product the first one made.
       if (await repo.findProductByName(form.value.name)) return { kind: 'product', created: false };
       await repo.upsertProduct({ name: form.value.name, aliases: [], unit: form.value.unit, pricePerUnit: form.value.pricePerUnit });
@@ -59,7 +60,7 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
       // Validate every new row first so a bad one never leaves the list half saved.
       const rows = draft.products.filter((p) => p.isNew).map((p) => validateProductForm({ name: p.name, price: String(p.pricePerUnit), unit: p.unit, aliases: '' }));
       const bad = rows.find((r) => !r.ok);
-      if (bad && !bad.ok) return { kind: 'error', message: Object.values(bad.errors)[0] ?? 'Samaan save nahi ho paya.' };
+      if (bad && !bad.ok) return { kind: 'error', message: Object.values(bad.errors)[0] ?? t('save.itemFailed') };
       let created = 0;
       for (const row of rows) {
         if (!row.ok || (await repo.findProductByName(row.value.name))) continue;
@@ -72,25 +73,25 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
       const result = await repo.setProductPrice(draft.product.id, draft.product.pricePerUnit);
       return result.ok ? { kind: 'price', created: result.changed } : { kind: 'error', message: result.error };
     }
-    return { kind: 'error', message: 'Nothing to save.' };
+    return { kind: 'error', message: t('save.nothing') };
   } catch (error) {
     if (error instanceof Error && error.message === 'CREDIT_DETAILS_REQUIRED') {
-      return { kind: 'error', message: 'Udhaar save karne se pehle grahak ka naam, mobile aur address bharo.' };
+      return { kind: 'error', message: t('save.creditDetails') };
     }
-    return { kind: 'error', message: 'Save nahi ho paya. Please try again.' };
+    return { kind: 'error', message: t('save.failed') };
   }
 }
 
 /** The toast for a save that wrote something, or null when there is nothing to announce. */
 export function savedMessage(outcome: SaveOutcome): string | null {
   switch (outcome.kind) {
-    case 'bill': return outcome.created ? 'Bill save ho gaya' : null;
-    case 'payment': return outcome.created ? 'Payment likh liya' : null;
-    case 'stock': return outcome.created ? 'Stock khatam likh liya' : null;
-    case 'customer': return outcome.created ? 'Customer jod diya' : null;
-    case 'product': return outcome.created ? 'Samaan jod diya' : null;
-    case 'price': return outcome.created ? 'Rate badal diya' : null;
-    case 'products': return outcome.created > 0 ? `${outcome.created} samaan jod diye` : null;
+    case 'bill': return outcome.created ? t('saved.bill') : null;
+    case 'payment': return outcome.created ? t('saved.payment') : null;
+    case 'stock': return outcome.created ? t('saved.stock') : null;
+    case 'customer': return outcome.created ? t('info.customerAdded') : null;
+    case 'product': return outcome.created ? t('info.itemAdded') : null;
+    case 'price': return outcome.created ? t('info.rateChanged') : null;
+    case 'products': return outcome.created > 0 ? t('info.itemsAdded', { count: outcome.created }) : null;
     case 'error': return null;
   }
 }
