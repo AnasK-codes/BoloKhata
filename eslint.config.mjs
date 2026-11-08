@@ -29,4 +29,15 @@ export default tseslint.config(
     files: ['scripts/**', 'tools/**/src/cli.ts', 'apps/gateway/src/main.ts'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // Node.js scripts that run directly under Node; declare built-in globals so
+    // no-undef does not flag `process`, `console`, `URL`, etc.
+    files: ['scripts/**'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        URL: 'readonly',
+      },
+    },
+  },
 );

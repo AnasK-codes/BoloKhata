@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon, type IconName } from './Icon';
@@ -18,7 +19,7 @@ export function BottomNav() {
   const path = usePathname();
   return (
     <nav aria-label={t('nav.main')} className="app-nav">
-      <Link href="/" className="nav-brand"><span className="vs-monogram" aria-hidden="true">B</span>{t('app.name')}</Link>
+      <Link href="/" className="nav-brand"><Image src="/icons/logo.png" alt={t('app.name')} width={28} height={28} className="rounded-md" />{t('app.name')}</Link>
       <ul>
         {ITEMS.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);

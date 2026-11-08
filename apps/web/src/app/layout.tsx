@@ -8,11 +8,11 @@ import { LocaleSync } from '@/components/LocaleSync';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Bol-Bill',
+  title: 'BoloKhata',
   description: 'Bolkar bill banao: realtime Hinglish voice billing for kirana stores.', // i18n-ignore: static build-time metadata, not on-screen UI
-  applicationName: 'Bol-Bill',
+  applicationName: 'BoloKhata',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'Bol-Bill', statusBarStyle: 'black-translucent' },
+  appleWebApp: { capable: true, title: 'BoloKhata', statusBarStyle: 'black-translucent' },
   icons: { icon: '/icons/icon-192.png', apple: '/icons/apple-touch-icon.png' },
 };
 

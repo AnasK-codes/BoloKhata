@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StateView } from './StateView';
 import type { BusinessProfile } from '@bolbill/shared';
@@ -21,9 +22,14 @@ export function useAccount(): AccountContext {
 }
 
 async function requestAccount(action = '', input?: unknown): Promise<AccountState> {
+  // ngrok free tier shows an HTML interstitial to browser User-Agents; this header bypasses it.
+  const baseHeaders: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
   const response = await fetch(`/api/account${action ? `/${action}` : ''}`, {
     method: action ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
-    ...(action ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(input ?? {}) } : {}),
+    headers: action
+      ? { ...baseHeaders, 'content-type': 'application/json' }
+      : baseHeaders,
+    ...(action ? { body: JSON.stringify(input ?? {}) } : {}),
   });
   const body: unknown = await response.json();
   const parsed = accountStateSchema.safeParse(body);
@@ -48,7 +54,7 @@ function AuthForm({ onSubmit }: { onSubmit(action: 'login' | 'signup', input: { 
     finally { setBusy(false); }
   };
   return <main className="auth-card mx-auto max-w-md space-y-6 px-5 py-10">
-    <header><p className="text-3xl font-extrabold">{tr('app.name')}</p>
+    <header><Image src="/icons/logo.png" alt={tr('app.name')} width={72} height={72} className="rounded-2xl" /><p className="mt-3 text-3xl font-extrabold">{tr('app.name')}</p>
       <h1 className="mt-6 text-2xl font-bold">{signup ? tr('auth.signupTitle') : tr('auth.loginTitle')}</h1>
       <p className="mt-2 text-dim">{signup ? tr('auth.signupHint') : tr('auth.loginHint')}</p></header>
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>

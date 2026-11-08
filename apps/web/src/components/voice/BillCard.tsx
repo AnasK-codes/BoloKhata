@@ -75,7 +75,7 @@ function FallbackNote() {
   return (
     <p role="status" className="mb-3 flex gap-2 rounded-xl bg-warn/15 px-3 py-2 font-semibold text-warn">
       <Icon name="alert" size={18} />
-      Yahan tap karke chuniye. (Tap to pick; no need to say it again.)
+      Yahan tap karke chuniye. (Tap to pick; no need to say it again.) {/* i18n-ignore: Hinglish fallback instruction — intentionally in the app's interaction language */}
     </p>
   );
 }
@@ -83,11 +83,11 @@ function FallbackNote() {
 /** "kitna chahiye?" as taps, under the line in question. */
 function QuantityChips({ unit, onPick, onDrop }: { unit: string; onPick(q: number): void; onDrop(): void }) {
   return (
-    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Kitna chahiye? (How much?)">
+    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Kitna chahiye? (How much?)"> {/* i18n-ignore: Hinglish quantity prompt, intentional */}
       {quantityChoices(unit as Parameters<typeof quantityChoices>[0]).map((q) => (
         <button key={q} type="button" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid" onClick={() => onPick(q)}>{formatQuantity(q)} {unit}</button>
       ))}
-      <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={onDrop}>Hatao</button>
+      <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={onDrop}>Hatao</button> {/* i18n-ignore: Hinglish for "remove/dismiss", intentional */}
     </div>
   );
 }
@@ -166,7 +166,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               </div>
               {askLine === i && (
                 <>
-                  <p className="mt-2 font-semibold text-warn">{item.name} kitna chahiye?</p>
+                  <p className="mt-2 font-semibold text-warn">{item.name} kitna chahiye?</p> {/* i18n-ignore: Hinglish quantity question, intentional */}
                   <QuantityChips unit={item.unit} onPick={(q) => onChange(setItemQuantity(draft, i, q))} onDrop={() => onChange(dismissQuestion(draft))} />
                 </>
               )}
@@ -178,7 +178,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
       {ask?.slot === 'item' && ask.spoken === undefined && (
         <div className="mt-3 rounded-xl ring-2 ring-warn" aria-current="step">
           <ProductPicker spoken={ask.quantity !== undefined ? `${formatQuantity(ask.quantity)} ${ask.unit ?? ''}`.trim() : '?'} quantity={undefined} unit={undefined} candidates={[]} products={products} onPick={(p) => onChange(answerMissingItem(draft, p))} />
-          <button type="button" className="m-3 mt-0 min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>Hatao</button>
+          <button type="button" className="m-3 mt-0 min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>Hatao</button> {/* i18n-ignore: Hinglish for dismiss, intentional */}
         </div>
       )}
 
@@ -186,7 +186,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
         u.kind === 'item' ? (
           <div key={`u${i}${u.spoken}`} className={`mt-3${askSpoken === u.spoken ? ' ring-2 ring-warn' : ''}`} {...(askSpoken === u.spoken ? { 'aria-current': 'step' as const } : {})}>
             <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(translate('bill.learned', { spoken: u.spoken, name: p.name }), 'ok'); }); }} />
-            {askSpoken === u.spoken && <button type="button" className="m-3 mt-0 min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>Hatao</button>}
+            {askSpoken === u.spoken && <button type="button" className="m-3 mt-0 min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>Hatao</button>} {/* i18n-ignore: Hinglish for dismiss, intentional */}
           </div>
         ) : (
           <div key={`u${i}${u.spoken}`} className="note-pick">

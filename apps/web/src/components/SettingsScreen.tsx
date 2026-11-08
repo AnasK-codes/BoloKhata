@@ -99,7 +99,7 @@ export function SettingsScreen() {
         <Toggle label={t('settings.handsFree')} hint={t('settings.handsFreeHint')} checked={handsFree} onChange={(v) => set({ handsFree: v })} />
       </Section>
 
-      <Section title="Boli (how you speak)">
+      <Section title="Boli (how you speak)"> {/* i18n-ignore: dialect section header is itself a Hinglish/dialect term */}
         <DialectPicker value={dialect} onChange={(d) => set({ dialect: d })} />
       </Section>
 
@@ -143,21 +143,21 @@ export function SettingsScreen() {
 }
 
 const LEVEL_TEXT: Record<DialectSupport['level'], string> = {
-  full: 'Poora support',
-  lexicon: 'Word list (not yet checked)',
-  none: 'Support nahi',
+  full: 'Poora support', // i18n-ignore: dialect support level label, Hinglish intentional
+  lexicon: 'Word list (not yet checked)', // i18n-ignore: dialect support level label
+  none: 'Support nahi', // i18n-ignore: dialect support level label, Hinglish intentional
 };
 
 /** Dialect choice with what it really gives: only Hindi/Hinglish is a Gnani model. */
 function DialectPicker({ value, onChange }: { value: Dialect; onChange(d: Dialect): void }) {
   return (
     <div className="space-y-2 p-4">
-      <label htmlFor="dialect" className="font-semibold">Boli / dialect</label>
+      <label htmlFor="dialect" className="font-semibold">Boli / dialect</label> {/* i18n-ignore: label is itself a dialect/language name blend */}
       <select id="dialect" value={value} onChange={(e) => onChange(e.target.value as Dialect)} className="min-h-12 w-full rounded-xl bg-control px-3 text-base">
         {DIALECTS.map((d) => <option key={d} value={d}>{DIALECT_SUPPORT[d].label} · {LEVEL_TEXT[DIALECT_SUPPORT[d].level]}</option>)}
       </select>
       <p className="text-sm text-dim">{DIALECT_SUPPORT[value].note}</p>
-      <p className="text-sm text-muted">Speech is recognised by Gnani&apos;s Hindi model in every case. Malwi, Nimadi, Bundeli and Bagheli only add a small word list, not checked by a native speaker yet. {UNSUPPORTED_SPEECH.join(', ')}: not supported.</p>
+      <p className="text-sm text-muted">Speech is recognised by Gnani&apos;s Hindi model in every case. Malwi, Nimadi, Bundeli and Bagheli only add a small word list, not checked by a native speaker yet. {UNSUPPORTED_SPEECH.join(', ')}: not supported.</p> {/* i18n-ignore: technical note about Gnani model; dialect names are proper nouns */}
     </div>
   );
 }
