@@ -33,6 +33,8 @@ export interface ParsedItem {
   unit: Unit | null;
   /** Rules-extracted only; never accepted from a model. */
   spokenPrice?: { amount: number; basis: 'line' | 'unit'; unit: Unit | null; quantity?: number };
+  /** Rules only: the amount was vague ("thoda aata"); the line is priced at a placeholder and asked about. */
+  quantityUnclear?: true;
 }
 
 export interface BuildBillInput {
@@ -52,6 +54,8 @@ export interface BuildBillResult {
   warnings: string[];
   /** True when anything needs a human look (unresolved items, impossible conversions, mismatches). */
   needsReview: boolean;
+  /** Indexes into `bill.items` whose amount was vague and must be asked for. */
+  unclearQuantity: number[];
 }
 
 /** Quantity of `from` in `to` units, in thousandths, or null if the units cannot convert. */
@@ -117,6 +121,7 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
   const warnings: string[] = [];
   const unresolvedItems: UnresolvedItem[] = [];
   const items: BillItem[] = [];
+  const unclearQuantity: number[] = [];
   let needsReview = false;
 
   const parsed = input.parsedItems.slice(0, LIMITS.maxBillItems);
@@ -142,7 +147,11 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
         name: product?.name ?? item.name, quantity: item.quantity, unit, unitPrice,
         lineTotal: 0, spokenPrice: quote.data,
       }, item.quantity) : null;
-      if (priced && item.name.trim()) { items.push(priced); continue; }
+      if (priced && item.name.trim()) {
+        if (item.quantityUnclear) unclearQuantity.push(items.length);
+        items.push(priced);
+        continue;
+      }
       warnings.push(`"${item.name}" ki boli gayi price ya unit valid nahi hai. Poore rupaye aur sahi unit bolo.`);
       unresolvedItems.push(unresolved(item, candidatesOf(match))); needsReview = true; continue;
     }
@@ -164,6 +173,7 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
       needsReview = true;
       continue;
     }
+    if (item.quantityUnclear) unclearQuantity.push(items.length);
     items.push({
       productId: product.id,
       name: product.name,
@@ -187,6 +197,7 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
     unresolvedItems,
     warnings,
     needsReview,
+    unclearQuantity,
   };
 }
 

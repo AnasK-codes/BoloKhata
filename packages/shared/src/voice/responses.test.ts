@@ -3,6 +3,7 @@ import {
   MAX_SENTENCE_CHARS,
   balanceReply,
   billReadback,
+  clarifyAsk,
   cancelled,
   customerAmbiguous,
   customerNotFound,
@@ -160,5 +161,24 @@ describe('customerAmbiguous and nothingPending', () => {
   it('says nothing is waiting', () => {
     expect(nothingPending(0)).toHaveLength(1);
     expect(nothingPending(0)[0]).toContain('pending');
+  });
+});
+
+describe('clarifyAsk', () => {
+  const base = { attempts: 1, fallback: false, transcript: 'x' } as const;
+  it('asks only for the missing piece', () => {
+    expect(clarifyAsk({ ...base, slot: 'item', quantity: 2, unit: 'kg' }, undefined)).toEqual(['do kilo kya chahiye?', 'Samaan ka naam boliye.']);
+    expect(clarifyAsk({ ...base, slot: 'item', quantity: 0.5, unit: 'kg' }, undefined)[0]).toBe('aadha kilo kya chahiye?');
+    expect(clarifyAsk({ ...base, slot: 'item', quantity: 1.3, unit: 'kg' }, undefined)[0]).toBe('Aur kya chahiye?');
+    expect(clarifyAsk({ ...base, slot: 'item', spoken: 'kesar' }, undefined)[0]).toBe('kesar list mein nahi mila.');
+    expect(clarifyAsk({ ...base, slot: 'quantity', itemIndex: 1 }, 'Aata')[0]).toBe('Aata kitna chahiye?');
+    expect(clarifyAsk({ ...base, slot: 'customer', spoken: 'Ramesh' }, undefined)[0]).toBe('Ramesh kaun hain?');
+  });
+  it('stops asking after the cap and points at the screen', () => {
+    for (const v of VARIANTS) {
+      const reply = clarifyAsk({ ...base, slot: 'quantity', itemIndex: 0, attempts: 2, fallback: true }, 'Aata', v);
+      expect(reply).toHaveLength(1);
+      expect(reply[0]).not.toMatch(/\?/);
+    }
   });
 });

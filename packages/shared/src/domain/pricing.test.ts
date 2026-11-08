@@ -216,3 +216,14 @@ describe('buildBill: paid and udhaar reconciliation (total = 90)', () => {
     }
   });
 });
+
+describe('vague amounts', () => {
+  it('reports which bill lines had a vague amount, by their index in the bill', () => {
+    const r = buildBill({
+      parsedItems: [{ name: 'kesar', quantity: 1, unit: null }, { name: 'cheeni', quantity: 1, unit: 'kg' }, { name: 'aata', quantity: 1, unit: null, quantityUnclear: true }],
+      products: seedIndex(),
+    });
+    expect(r.bill.items.map((i) => i.name)).toEqual(['Cheeni', 'Aata']);
+    expect(r.unclearQuantity).toEqual([1]);
+  });
+});
