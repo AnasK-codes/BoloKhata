@@ -87,6 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         gatewayUrl: getGatewayUrl(),
         sessionUrl: '/api/account/gateway-session',
         getCatalog: () => sync.snapshotForHello(),
+        getDialect: () => settingsStore.getState().dialect,
         getAccessCode,
         micSettings: settingsStore.getState().mic,
         ...(ToneMic ? { createMic: (onFrame: (frame: ArrayBuffer) => void) => new ToneMic(onFrame) } : {}),
@@ -112,6 +113,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         () => sync.stop(),
         () => session.dispose(),
         attachHandsFree(session.controller, () => settingsStore.getState().handsFree),
+      );
+      let lastDialect = settingsStore.getState().dialect;
+      cleanups.push(
+        settingsStore.subscribe((s) => {
+          if (s.dialect === lastDialect) return;
+          lastDialect = s.dialect;
+          // Version 0 carries no catalog change; the gateway applies the dialect regardless.
+          session.client.send({ type: 'context_update', catalog: { version: 0 }, dialect: s.dialect });
+        }),
       );
       let lastMic = JSON.stringify(settingsStore.getState().mic);
       cleanups.push(

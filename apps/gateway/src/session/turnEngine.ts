@@ -4,12 +4,14 @@ import {
   CatalogIndex,
   TTS_PCM_FORMAT,
   answerFollowUp,
+  applyDialect,
   buildBill,
   cancelled,
   clarifyAsk,
   correctDraft,
   isConfirmable,
   repeatClarification,
+  type Dialect,
   type DraftMessage,
   type ErrorCode,
 } from '@bolbill/shared';
@@ -74,6 +76,8 @@ export class TurnEngine {
   private readonly newDraftId: () => string;
 
   private catalog: Catalog | null = null;
+  /** The shopkeeper's dialect setting: which regional word lists the parser folds in. */
+  private dialect: Dialect = 'auto';
   private index: CatalogIndex | null = null;
   /** The press being captured or transcribed (frames are accepted only while this is set). */
   private activeTurn: number | null = null;
@@ -104,6 +108,10 @@ export class TurnEngine {
   setCatalog(catalog: Catalog): void {
     this.catalog = catalog;
     this.index = new CatalogIndex(catalog.products, catalog.customers);
+  }
+
+  setDialect(dialect: Dialect): void {
+    this.dialect = dialect;
   }
 
   /** Hot path: one call per microphone frame. No allocation, no logging. */
@@ -238,8 +246,10 @@ export class TurnEngine {
   }
 
   /** Parse, build the draft, send it, and start speaking it. Never throws. */
-  private async respond(ctx: TurnContext, transcript: string): Promise<void> {
+  private async respond(ctx: TurnContext, heard: string): Promise<void> {
     try {
+      // Regional words become canonical Hinglish for the parser; the user still sees what was heard.
+      const transcript = applyDialect(heard, this.dialect);
       const catalog = this.catalog;
       const index = this.index;
       if (!catalog || !index) return;

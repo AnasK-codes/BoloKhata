@@ -2,6 +2,7 @@ import { getAudioContext, unlockAudio } from '../audio/audioContext';
 import { MicCapture, type MicSettings, type MicState } from '../audio/micCapture';
 import { PlaybackEngine, type PlaybackStats } from '../audio/playbackEngine';
 import { RealtimeClient } from '../realtime/client';
+import type { Dialect } from '@bolbill/shared';
 import type { CatalogSnapshot } from '../realtime/types';
 import { TurnController, type TurnHandlers } from '../turn/controller';
 
@@ -20,6 +21,7 @@ export interface SessionOptions {
   gatewayUrl: string;
   sessionUrl?: string;
   getCatalog: () => CatalogSnapshot | Promise<CatalogSnapshot>;
+  getDialect?: () => Dialect;
   /** The demo access code, if the gateway asks for one. */
   getAccessCode?: () => string | undefined;
   handlers?: TurnHandlers;
@@ -77,6 +79,7 @@ export function createRealtimeSession(options: SessionOptions): RealtimeSession 
       gatewayUrl: options.gatewayUrl,
       ...(options.sessionUrl ? { sessionUrl: options.sessionUrl } : {}),
       getCatalog: options.getCatalog,
+      ...(options.getDialect ? { getDialect: options.getDialect } : {}),
       ...(options.getAccessCode ? { accessCode: options.getAccessCode } : {}),
     },
     {

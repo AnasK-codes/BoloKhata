@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { useStore } from 'zustand';
+import { DIALECTS, type Dialect } from '@bolbill/shared';
 import { DEFAULT_MIC_SETTINGS, type MicSettings } from './audio/micCapture';
 
 export interface Settings {
@@ -8,11 +9,13 @@ export interface Settings {
   /** After the readback, listen briefly for "haan" / "nahi" without a tap. Off by default. */
   handsFree: boolean;
   mic: MicSettings;
+  /** How the shopkeeper speaks. Picks the parser's regional word list on the gateway. */
+  dialect: Dialect;
 }
 
 const KEY = 'bolbill.settings.v1';
 
-export const DEFAULT_SETTINGS: Settings = { hud: false, handsFree: false, mic: DEFAULT_MIC_SETTINGS };
+export const DEFAULT_SETTINGS: Settings = { hud: false, handsFree: false, mic: DEFAULT_MIC_SETTINGS, dialect: 'auto' };
 
 /** Reads saved settings; anything missing or malformed falls back to the default. */
 export function parseSettings(raw: string | null): Settings {
@@ -28,6 +31,7 @@ export function parseSettings(raw: string | null): Settings {
         noiseSuppression: bool(value.mic?.noiseSuppression, DEFAULT_MIC_SETTINGS.noiseSuppression),
         autoGainControl: bool(value.mic?.autoGainControl, DEFAULT_MIC_SETTINGS.autoGainControl),
       },
+      dialect: (DIALECTS as readonly unknown[]).includes(value.dialect) ? (value.dialect as Dialect) : DEFAULT_SETTINGS.dialect,
     };
   } catch {
     return DEFAULT_SETTINGS;

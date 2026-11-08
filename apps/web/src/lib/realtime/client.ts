@@ -3,6 +3,7 @@ import {
   decodeTtsFrame,
   parseServerMessage,
   type ClientMessage,
+  type Dialect,
   type ServerMessage,
 } from '@bolbill/shared';
 import { backoffDelay, type BackoffOptions } from './backoff';
@@ -16,6 +17,8 @@ export interface RealtimeConfig {
   /** Read at every (re)connect, so a reconnect sends current prices and balances. */
   getCatalog: () => CatalogSnapshot | Promise<CatalogSnapshot>;
   lang?: string;
+  /** The dialect setting, read at every (re)connect so the gateway always has the current one. */
+  getDialect?: () => Dialect;
   /** Demo access code, when the gateway requires one. */
   accessCode?: () => string | undefined;
   heartbeatMs?: number;
@@ -270,6 +273,7 @@ export class RealtimeClient {
           v: PROTOCOL_VERSION,
           clientTime: Date.now(),
           lang: this.config.lang ?? 'hi-IN',
+          ...(this.config.getDialect ? { dialect: this.config.getDialect() } : {}),
           catalog,
         }),
       );

@@ -233,6 +233,7 @@ export class Session {
       ...(message.catalog.shop ? { shop: message.catalog.shop } : {}),
     };
     this.onCatalogReady();
+    this.engine?.setDialect(message.dialect ?? 'auto');
     const ready: ServerMessage = {
       type: 'ready',
       v: PROTOCOL_VERSION,
@@ -280,6 +281,7 @@ export class Session {
   private onContextUpdate(message: Extract<ClientMessage, { type: 'context_update' }>): void {
     const current = this.catalog;
     if (!current) return;
+    if (message.dialect) this.engine?.setDialect(message.dialect); // a setting, not catalog data: always applied
     if (message.catalog.version < current.version) return; // out-of-order update: keep the newer one
     this.catalog = {
       version: message.catalog.version,

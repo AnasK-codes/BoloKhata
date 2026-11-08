@@ -135,4 +135,21 @@ describe('a partly understood bill', () => {
     const answer = await say(again, 1, 'aata', first);
     expect(lines(answer)).toEqual([['Cheeni', 1], ['Aata', 2]]);
   }, 30_000);
+
+  it('a regional "yes" confirms only when that dialect is chosen, never on Auto', async () => {
+    const bundeli = await gateway!.ready({ ...HELLO, dialect: 'bundeli' });
+    const bill = await say(bundeli, 1, 'do kilo aata');
+    expect(await say(bundeli, 2, 'hau', bill)).toMatchObject({ intent: 'confirm', draftId: bill['draftId'] });
+
+    const auto = await gateway!.ready(HELLO);
+    const other = await say(auto, 1, 'do kilo aata');
+    expect((await say(auto, 2, 'hau', other))['intent']).not.toBe('confirm');
+  }, 30_000);
+
+  it('the dialect can change mid-session with context_update', async () => {
+    const client = await gateway!.ready(HELLO);
+    client.sendJson({ type: 'context_update', catalog: { version: 1 }, dialect: 'bundeli' });
+    const bill = await say(client, 1, 'do kilo aata');
+    expect(await say(client, 2, 'hau', bill)).toMatchObject({ intent: 'confirm' });
+  }, 30_000);
 });

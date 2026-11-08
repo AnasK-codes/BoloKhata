@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { DIALECTS, DIALECT_SUPPORT, UNSUPPORTED_SPEECH, type Dialect, type DialectSupport } from '@bolbill/shared';
 import { useSettings } from '@/lib/settings';
 import { useApp } from './AppProvider';
 import { useAccount } from './AccountGate';
@@ -34,6 +35,7 @@ export function SettingsScreen() {
   const handsFree = useSettings((s) => s.handsFree);
   const mic = useSettings((s) => s.mic);
   const set = useSettings((s) => s.set);
+  const dialect = useSettings((s) => s.dialect);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -87,6 +89,10 @@ export function SettingsScreen() {
         <Toggle label="Hands-free confirm" hint="Bill sunane ke baad 4 second khud sunega: 'haan' ya 'nahi'. Abhi band." checked={handsFree} onChange={(v) => set({ handsFree: v })} />
       </Section>
 
+      <Section title="Boli (how you speak)">
+        <DialectPicker value={dialect} onChange={(d) => set({ dialect: d })} />
+      </Section>
+
       <Section title="Mic processing">
         <Toggle label="Echo cancellation" hint="Speaker ki awaaz mic mein wapas aane se rokta hai." checked={mic.echoCancellation} onChange={(v) => set({ mic: { ...mic, echoCancellation: v } })} />
         <Toggle label="Noise suppression" hint="Shor kam karta hai. Kabhi awaaz bhi dabata hai: phone par test karo." checked={mic.noiseSuppression} onChange={(v) => set({ mic: { ...mic, noiseSuppression: v } })} />
@@ -123,5 +129,25 @@ export function SettingsScreen() {
         </div>
       </Section>
     </main>
+  );
+}
+
+const LEVEL_TEXT: Record<DialectSupport['level'], string> = {
+  full: 'Poora support',
+  lexicon: 'Word list (not yet checked)',
+  none: 'Support nahi',
+};
+
+/** Dialect choice with what it really gives: only Hindi/Hinglish is a Gnani model. */
+function DialectPicker({ value, onChange }: { value: Dialect; onChange(d: Dialect): void }) {
+  return (
+    <div className="space-y-2 p-4">
+      <label htmlFor="dialect" className="font-semibold">Boli / dialect</label>
+      <select id="dialect" value={value} onChange={(e) => onChange(e.target.value as Dialect)} className="min-h-12 w-full rounded-xl bg-control px-3 text-base">
+        {DIALECTS.map((d) => <option key={d} value={d}>{DIALECT_SUPPORT[d].label} · {LEVEL_TEXT[DIALECT_SUPPORT[d].level]}</option>)}
+      </select>
+      <p className="text-sm text-dim">{DIALECT_SUPPORT[value].note}</p>
+      <p className="text-sm text-muted">Speech is recognised by Gnani&apos;s Hindi model in every case. Malwi, Nimadi, Bundeli and Bagheli only add a small word list, not checked by a native speaker yet. {UNSUPPORTED_SPEECH.join(', ')}: not supported.</p>
+    </div>
   );
 }
