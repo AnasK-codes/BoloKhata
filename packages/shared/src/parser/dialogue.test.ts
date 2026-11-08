@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Clarification, DraftMessage } from '../protocol/server';
 import { seedIndex } from '../testing/seed';
-import { answerFollowUp, nextClarification, type FollowUp } from './dialogue';
+import { answerFollowUp, nextClarification, repeatClarification, type FollowUp } from './dialogue';
 
 const index = seedIndex();
 
@@ -91,10 +91,15 @@ describe('something that is clearly not an answer', () => {
   it.each([
     ['a balance question', 'Ramesh Sharma ka kitna udhaar hai'],
     ['a payment', 'Suresh Verma ne do sau rupaye diye'],
-    ['a premature yes', 'haan'],
     ['a new bill', 'naya bill do kilo chawal'],
+    ['a bill for someone else', 'Ramesh Gupta ko do kilo aata'],
   ])('%s is handled as a new command', (_, t) => {
     expect(answerFollowUp(withAata(), t, index).kind).toBe('command');
+  });
+
+  it('a premature "haan" repeats the question instead of saving or refusing', () => {
+    const f = answerFollowUp(withAata(), 'haan', index);
+    expect(f).toEqual({ kind: 'missed', transcript: askQuantity.transcript });
   });
 
   it('a full phrase for a different item during a quantity question is a new command', () => {
@@ -126,6 +131,18 @@ describe('nextClarification: one question at a time, at most two spoken attempts
     const third = nextClarification({ ...base, previous: second })!;
     expect(third).toMatchObject({ attempts: 2, fallback: true });
     expect(nextClarification({ ...base, previous: third })).toMatchObject({ attempts: 2, fallback: true });
+  });
+
+  it('an unknown name answered with another unknown name counts as the same question', () => {
+    const first = nextClarification({ ...base, unclearQuantity: [], unresolved: [{ kind: 'item', spoken: 'kesar', candidates: [] }] })!;
+    const again = nextClarification({ ...base, unclearQuantity: [], unresolved: [{ kind: 'item', spoken: 'kesariya', candidates: [] }], previous: first })!;
+    expect(again).toMatchObject({ spoken: 'kesariya', attempts: 2, fallback: false });
+  });
+
+  it('repeatClarification bumps the attempt, then falls back', () => {
+    const once = repeatClarification(askQuantity, 'a');
+    expect(once).toMatchObject({ attempts: 2, fallback: false, transcript: 'a' });
+    expect(repeatClarification(once, 'b')).toMatchObject({ attempts: 2, fallback: true });
   });
 
   it('starts again at one for a different slot', () => {

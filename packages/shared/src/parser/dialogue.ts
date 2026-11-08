@@ -65,12 +65,19 @@ export function answerFollowUp(context: DraftMessage, text: string, matcher: Cat
   if (ask.slot !== 'customer' && (f.some((t) => REMOVE_WORDS.has(t)) || isBareNegation(f))) {
     return { kind: 'answer', parsed: withoutTarget(base, context, ask), transcript };
   }
+  // A premature "haan" while a question is open: ask the question again rather than refuse.
+  if (shortAnswer(said) === 'confirm') return { kind: 'missed', transcript: ask.transcript };
   if (shortAnswer(said) !== null) return { kind: 'command' };
 
   // "nahi, do kilo": the correction is what follows the negation.
   const answerText = stripLeadingNegation(tokens, f);
   const parsed = parseUtterance(answerText, matcher);
   if (OTHER_COMMANDS.has(parsed.intent) && parsed.confidence >= CONFIDENCE_THRESHOLD) return { kind: 'command' };
+
+  // A sentence that names a different customer is a new bill, not an answer about this one.
+  if (ask.slot !== 'customer' && parsed.customer !== null && parsed.items.length > 0 && !sameCustomer(parsed.customer, base.customer, matcher)) {
+    return { kind: 'command' };
+  }
 
   const filled = fillSlot(base, context, ask, answerText, parsed, matcher);
   if (filled === 'command') return { kind: 'command' };
@@ -140,18 +147,42 @@ export function nextClarification(input: ClarifyInput): Clarification | undefine
   if (!ask) return undefined;
 
   const prev = input.previous;
-  const same = prev !== undefined && prev.slot === ask.slot && prev.spoken === ask.spoken && prev.itemIndex === ask.itemIndex;
-  if (!same) return { ...ask, attempts: 1, fallback: false };
+  if (!prev || !sameQuestion(prev, ask)) return { ...ask, attempts: 1, fallback: false };
   const asked = prev.attempts + 1;
   return prev.fallback || asked > MAX_CLARIFY_ATTEMPTS ? { ...ask, attempts: MAX_CLARIFY_ATTEMPTS, fallback: true } : { ...ask, attempts: asked, fallback: false };
 }
 
+/** The same question asked again after a miss: one more attempt, or the tap fallback. */
+export function repeatClarification(prev: Clarification, transcript: string): Clarification {
+  const asked = prev.attempts + 1;
+  const next = { ...prev, transcript: transcript.slice(0, LIMITS.maxTranscriptLength) };
+  return prev.fallback || asked > MAX_CLARIFY_ATTEMPTS ? { ...next, attempts: MAX_CLARIFY_ATTEMPTS, fallback: true } : { ...next, attempts: asked };
+}
+
 // ---- helpers ------------------------------------------------------------------------------
+
+/**
+ * Whether two questions are "the same slot" for the attempt cap. An unknown item answered with
+ * another unknown name is the same question (otherwise the loop could go on forever); a vague
+ * amount is the same question only for the same bill line.
+ */
+function sameQuestion(prev: Clarification, next: Omit<Clarification, 'attempts' | 'fallback'>): boolean {
+  if (prev.slot !== next.slot) return false;
+  if (next.slot === 'quantity') return prev.itemIndex === next.itemIndex;
+  if (next.slot === 'item') return (prev.spoken === undefined) === (next.spoken === undefined);
+  return true;
+}
 
 function joinTranscript(before: string, now: string): string {
   const said = now.trim();
   const joined = before && said ? `${before}${JOIN}${said}` : before || said;
   return joined.slice(0, LIMITS.maxTranscriptLength);
+}
+
+function sameCustomer(spoken: string, current: string | null, matcher: CatalogMatcher): boolean {
+  if (current === null) return false;
+  const a = matcher.matchCustomer(spoken).best?.id;
+  return a !== undefined ? a === matcher.matchCustomer(current).best?.id : fold(spoken) === fold(current);
 }
 
 function isBareNegation(f: readonly string[]): boolean {

@@ -8,6 +8,9 @@ import {
   balanceReply,
   billReadback,
   cancelled,
+  clarifyAsk,
+  nextClarification,
+  type Clarification,
   customerAmbiguous,
   customerExists,
   customerNeeded,
@@ -56,6 +59,10 @@ export interface DraftInput {
   pending: PendingDraft | null;
   /** Used for a new draft. A confirm or cancel reuses the pending draft's id instead. */
   draftId: string;
+  /** What was said for this bill so far (this turn, plus earlier turns when answering a question). */
+  transcript?: string;
+  /** The question this turn answered, so asking it again counts as another attempt. */
+  previous?: Clarification;
 }
 
 export interface DraftResult {
@@ -132,10 +139,20 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
 
   const unresolved: UnresolvedItem[] = [...result.unresolvedItems];
   if (customer?.ambiguous) unresolved.push(customer.ambiguous);
+  const missing = outcome.parsed.missingItems ?? [];
 
-  if (result.bill.items.length === 0 && unresolved.length === 0) {
+  if (result.bill.items.length === 0 && unresolved.length === 0 && missing.length === 0) {
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   }
+
+  // One question at a time, about only the piece that is missing. Everything understood stays on the bill.
+  const clarification = nextClarification({
+    transcript: input.transcript ?? '',
+    missing,
+    unresolved,
+    unclearQuantity: result.unclearQuantity,
+    ...(input.previous ? { previous: input.previous } : {}),
+  });
 
   // Udhaar with nobody to owe it would be stored with no ledger entry: do not offer to save it.
   const missingCustomer = udhaarNeedsCustomer(result.bill.udhaar, customer !== undefined && customer !== null);
@@ -143,10 +160,11 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
   const missingDetails = result.bill.udhaar > 0 && creditReady === false;
   let reply: string[];
   let cacheReply = false;
-  if (customer?.ambiguous) {
+  if (clarification && clarification.slot === 'customer' && !clarification.fallback && customer?.ambiguous) {
     reply = customerAmbiguous(customer.ambiguous.candidates.map((c) => c.name), variant);
-  } else if (result.unresolvedItems.length > 0) {
-    reply = itemNotFound(result.unresolvedItems[0]?.spoken, variant);
+  } else if (clarification) {
+    const line = clarification.itemIndex !== undefined ? result.bill.items[clarification.itemIndex] : undefined;
+    reply = clarifyAsk(clarification, line?.name, variant);
   } else if (missingCustomer) {
     reply = customerNeeded(variant);
   } else if (missingDetails) {
@@ -162,7 +180,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     cacheReply = true;
   }
 
-  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !missingCustomer && !missingDetails;
+  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !clarification && !missingCustomer && !missingDetails;
   const draftId = input.draftId;
   const draft: DraftMessage = {
     ...base,
@@ -173,6 +191,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
       : {}),
     bill: result.bill,
     unresolved: unresolved.slice(0, LIMITS.maxUnresolved),
+    ...(clarification ? { clarification } : {}),
     warnings: warningsOf([...result.warnings, ...(outcome.parsed.adjustWarnings ?? []), ...(missingCustomer ? [MISSING_CUSTOMER_WARNING] : [])], outcome.needsReview || (outcome.parsed.adjustWarnings?.length ?? 0) > 0),
     replyText: reply,
   };

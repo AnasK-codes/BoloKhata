@@ -191,11 +191,13 @@ describe('a full turn on the rules path', () => {
     const client = await gateway.ready(HELLO);
     const unknownItem = await say(client, 1, 'Sharma ji ko do kilo laptop');
     expect(unknownItem['unresolved']).toMatchObject([{ kind: 'item' }]);
-    expect((await say(client, 2, 'haan'))['intent']).toBe('unknown');
+    // A "haan" with a question open repeats the question about the same bill; it never confirms.
+    const yes = await say(client, 2, 'haan');
+    expect(yes).toMatchObject({ intent: 'create_bill', draftId: unknownItem['draftId'], clarification: { slot: 'item', attempts: 2 } });
 
     const ambiguous = await say(client, 3, 'Ramesh ko do kilo aata');
     expect((ambiguous['unresolved'] as { kind: string }[]).some((u) => u.kind === 'customer')).toBe(true);
-    expect((await say(client, 4, 'haan'))['intent']).toBe('unknown');
+    expect((await say(client, 4, 'haan'))['intent']).not.toBe('confirm');
   }, 30_000);
 
   it('runs two turns back to back with no state leaking between them', async () => {
