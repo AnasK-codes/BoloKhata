@@ -8,6 +8,7 @@ import { useApp } from '../AppProvider';
 import { AdjustPanel } from './AdjustPanel';
 import { Icon } from '../Icon';
 import { formatQuantity, rupees } from '@/lib/format';
+import { Money } from './Money';
 import { removeItem, resolveCustomer, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
 
 interface Props {
@@ -21,12 +22,11 @@ interface Props {
 const stepFor = (unit: string) => (unit === 'kg' || unit === 'l' ? 0.5 : 1);
 
 function Stepper({ value, step, label, onChange }: { value: number; step: number; label: string; onChange(v: number): void }) {
-  const btn = 'flex h-12 w-12 items-center justify-center rounded-xl bg-control text-2xl font-bold active:bg-control';
   return (
-    <div className="flex items-center gap-1" role="group" aria-label={label}>
-      <button type="button" className={btn} aria-label="Kam karo (less)" onClick={() => onChange(Math.max(step, Math.round((value - step) * 1000) / 1000))}>−</button>
-      <span className="num min-w-10 text-center text-lg font-semibold">{formatQuantity(value)}</span>
-      <button type="button" className={btn} aria-label="Zyada karo (more)" onClick={() => onChange(Math.round((value + step) * 1000) / 1000)}>+</button>
+    <div className="stepper" role="group" aria-label={label}>
+      <button type="button" aria-label="Kam karo (less)" onClick={() => onChange(Math.max(step, Math.round((value - step) * 1000) / 1000))}>−</button>
+      <span className="num">{formatQuantity(value)}</span>
+      <button type="button" aria-label="Zyada karo (more)" onClick={() => onChange(Math.round((value + step) * 1000) / 1000)}>+</button>
     </div>
   );
 }
@@ -42,14 +42,14 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
   }, [candidates, products, query]);
 
   return (
-    <div className="rounded-xl border border-warn/60 bg-warn/10 p-3" role="group" aria-label={`Item chuno: ${spoken}`}>
+    <div className="note-pick" role="group" aria-label={`Item chuno: ${spoken}`}>
       <p className="font-semibold">
         &ldquo;{spoken}&rdquo; kaunsa hai?{' '}
         <span className="font-normal text-dim">{quantity !== undefined ? `${formatQuantity(quantity)} ${unit ?? ''}` : ''}</span>
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         {options.map((p) => (
-          <button key={p.id} type="button" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid" onClick={() => onPick(p)}>
+          <button key={p.id} type="button" className="btn-pill btn-solid" onClick={() => onPick(p)}>
             {p.name} · {rupees(p.pricePerUnit)}/{p.unit}
           </button>
         ))}
@@ -60,7 +60,7 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Samaan dhundo (search)"
         aria-label="Samaan dhundo"
-        className="mt-2 min-h-12 w-full rounded-xl bg-inset px-3 text-base"
+        className="mt-2 min-h-11 w-full rounded-xl bg-card px-3 text-base"
       />
     </div>
   );
@@ -82,8 +82,8 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
   };
 
   return (
-    <article className="pop rounded-2xl bg-card p-4" aria-label="Bill">
-      <div className="flex items-center justify-between gap-2">
+    <article className="bill" aria-label="Bill">
+      <div className="bill-head">
         {editingCustomer ? (
           <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); applyCustomer(); }}>
             <input
@@ -93,41 +93,42 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
               onChange={(e) => setCustomerText(e.target.value)}
               placeholder="Grahak ka naam"
               aria-label="Grahak ka naam"
-              className="min-h-12 flex-1 rounded-xl bg-inset px-3 text-base"
+              className="min-h-11 flex-1 rounded-xl bg-inset px-3 text-base"
             />
             <datalist id="customer-options">{customers.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-            <button type="submit" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid">OK</button>
+            <button type="submit" className="btn-pill btn-solid">OK</button>
           </form>
         ) : (
           <button
             type="button"
             onClick={() => { setCustomerText(draft.customer?.name ?? ''); setEditingCustomer(true); }}
-            className="flex min-h-12 items-center gap-2 rounded-full bg-control px-4 text-lg font-semibold"
+            className="bill-cust"
             aria-label="Grahak badlo (change customer)"
           >
-            <Icon name="user" size={20} />
-            {draft.customer ? draft.customer.name : 'Grahak chuno'}
-            {draft.customer?.isNew && <span className="rounded bg-accent px-1.5 text-xs font-bold text-on-solid">NAYA</span>}
+            <span className="av"><Icon name="user" size={18} /></span>
+            <span className="lbl">{draft.customer ? draft.customer.name : 'Grahak chuno'}</span>
+            {draft.customer?.isNew && <span className="bill-tag">NAYA</span>}
           </button>
         )}
+        {!editingCustomer && bill && bill.items.length > 0 && <span className="bill-count">{bill.items.length} {bill.items.length === 1 ? 'item' : 'items'}</span>}
       </div>
 
       {bill && bill.items.length > 0 && (
-        <ul className="mt-3 divide-y divide-line">
+        <ul className="bill-lines">
           {bill.items.map((item, i) => (
-            <li key={`${draft.draftId}:${item.productId}`} className="rise py-3" style={{ ['--i' as string]: i }}>
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-lg font-semibold">{item.name}</p>
-                <p className="num text-xl font-bold">{rupees(item.lineTotal)}</p>
+            <li key={`${draft.draftId}:${item.productId}`} className="bill-line" style={{ ['--i' as string]: i }}>
+              <div className="row1">
+                <p className="name">{item.name}</p>
+                <p className="amt num"><Money value={item.lineTotal} /></p>
               </div>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="num text-sm text-dim">{item.spokenPrice
+              <div className="row2">
+                <p className="rate num">{item.spokenPrice
                   ? `Bola: ${rupees(item.spokenPrice.amount)} / ${formatQuantity(item.spokenPrice.quantity)} ${item.spokenPrice.unit}${item.spokenPrice.basis === 'line' ? ' (total)' : ' (rate)'}`
                   : item.unitPrice !== null ? `${rupees(item.unitPrice)} / ${item.unit}` : 'Line price'}</p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <Stepper value={item.quantity} step={stepFor(item.unit)} label={`${item.name} quantity`} onChange={(q) => onChange(setItemQuantity(draft, i, q))} />
-                  <button type="button" aria-label={`${item.name} hatao (remove)`} className="flex h-12 w-12 items-center justify-center rounded-xl text-bad active:bg-control" onClick={() => onChange(removeItem(draft, i))}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Z" /></svg>
+                  <button type="button" aria-label={`${item.name} hatao (remove)`} className="bill-del" onClick={() => onChange(removeItem(draft, i))}>
+                    <Icon name="trash" size={20} />
                   </button>
                 </div>
               </div>
@@ -142,11 +143,11 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
             <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${p.name}`, 'ok'); }); }} />
           </div>
         ) : (
-          <div key={`u${i}${u.spoken}`} className="mt-3 rounded-xl border border-warn/60 bg-warn/10 p-3">
+          <div key={`u${i}${u.spoken}`} className="note-pick">
             <p className="font-semibold">&ldquo;{u.spoken}&rdquo; kaun sa grahak hai?</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {u.candidates.map((c) => (
-                <button key={c.id} type="button" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${c.name}`, 'ok'); }); }}>{c.name}</button>
+                <button key={c.id} type="button" className="btn-pill btn-solid" onClick={() => { onChange(resolveCustomer(draft, i, c)); void repo.learnCustomerAlias(c.id, u.spoken).then((learned) => { if (learned) toast(`Yaad rakh liya: ${u.spoken} = ${c.name}`, 'ok'); }); }}>{c.name}</button>
               ))}
             </div>
           </div>
@@ -154,17 +155,17 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
       )}
 
       {bill && (
-        <dl className="num mt-3 space-y-1 border-t border-line pt-3 text-lg">
+        <dl className="bill-sum num">
           {totals && bill.adjust && (
             <>
-              <div className="flex justify-between text-dim"><dt>Subtotal</dt><dd>{rupees(totals.subtotal)}</dd></div>
-              {totals.discount > 0 && <div className="flex justify-between text-good"><dt>Chhoot</dt><dd>−{rupees(totals.discount)}</dd></div>}
-              {totals.gst > 0 && <div className="flex justify-between text-dim"><dt>GST {bill.adjust.gstPercent}%</dt><dd>+{rupees(totals.gst)}</dd></div>}
-              {totals.roundOff !== 0 && <div className="flex justify-between text-dim"><dt>Round-off</dt><dd>{totals.roundOff > 0 ? '+' : '−'}{rupees(Math.abs(totals.roundOff))}</dd></div>}
+              <div className="sub"><dt>Subtotal</dt><dd>{rupees(totals.subtotal)}</dd></div>
+              {totals.discount > 0 && <div className="text-good"><dt>Chhoot</dt><dd>−{rupees(totals.discount)}</dd></div>}
+              {totals.gst > 0 && <div className="sub"><dt>GST {bill.adjust.gstPercent}%</dt><dd>+{rupees(totals.gst)}</dd></div>}
+              {totals.roundOff !== 0 && <div className="sub"><dt>Round-off</dt><dd>{totals.roundOff > 0 ? '+' : '−'}{rupees(Math.abs(totals.roundOff))}</dd></div>}
             </>
           )}
-          <div className="flex justify-between text-2xl font-extrabold"><dt>Total</dt><dd>{rupees(bill.total)}</dd></div>
-          <div className="flex items-center justify-between">
+          <div className="bill-total"><dt>Total</dt><dd><Money value={bill.total} /></dd></div>
+          <div className="bill-paid">
             <dt>Abhi diye (paid)</dt>
             <dd>
               <input
@@ -173,18 +174,18 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
                 value={bill.paid === 0 ? '' : bill.paid}
                 placeholder="0"
                 onChange={(e) => onChange(setPaid(draft, Number(e.target.value.replace(/\D/g, '')) || 0))}
-                className="num min-h-12 w-28 rounded-xl bg-inset px-3 text-right text-lg"
+                className="num"
               />
             </dd>
           </div>
-          <div className={`flex justify-between font-bold ${bill.udhaar > 0 ? 'text-warn' : 'text-good'}`}><dt>Udhaar</dt><dd>{rupees(bill.udhaar)}</dd></div>
+          <div className="bill-udhaar" data-owed={bill.udhaar > 0}><dt>{bill.udhaar > 0 ? 'Udhaar (baaki)' : 'Udhaar nahi · poora paid'}</dt><dd><Money value={bill.udhaar} /></dd></div>
         </dl>
       )}
 
       {bill && bill.items.length > 0 && <AdjustPanel adjust={bill.adjust} onChange={(next) => onChange(setAdjust(draft, next))} />}
 
       {bill && udhaarNeedsCustomer(bill.udhaar, draft.customer !== undefined) && (
-        <p role="status" className="mt-3 rounded-xl bg-warn/15 px-3 py-2 font-semibold text-warn">
+        <p role="status" className="note mt-3 font-semibold" data-tone="warn">
           Udhaar ke liye upar se grahak chuno. (Pick a customer for the udhaar.)
         </p>
       )}

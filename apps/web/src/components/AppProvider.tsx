@@ -135,20 +135,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {synthetic && (
-        <p className="fixed inset-x-0 top-0 z-50 bg-warn px-3 py-1 text-center text-sm font-bold text-on-solid">
+        <p className="fixed inset-x-0 top-0 z-50 bg-warn px-3 pb-1 pt-[max(4px,env(safe-area-inset-top))] text-center text-sm font-bold text-on-solid">
           SYNTHETIC TEST TONE (dev only): not a real voice
         </p>
       )}
       {children}
-      <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4" aria-live="polite">
+      <div className="pointer-events-none fixed inset-x-0 top-[calc(10px+env(safe-area-inset-top))] z-50 flex flex-col items-center gap-2 px-4" aria-live="polite">
         {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`rise pointer-events-auto rounded-xl px-4 py-3 text-base font-semibold shadow-lg ${
-              t.kind === 'ok' ? 'bg-good text-on-solid' : t.kind === 'error' ? 'bg-bad text-on-solid' : 'bg-raised text-ink'
-            }`}
-          >
-            {t.message}
+          <div key={t.id} className="toast pointer-events-auto" data-kind={t.kind} role={t.kind === 'error' ? 'alert' : 'status'}>
+            <span className="toast-ico" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d={t.kind === 'ok' ? 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z' : t.kind === 'error' ? 'M11 6h2v8h-2zm0 10h2v2h-2z' : 'M11 10h2v8h-2zm0-4h2v2h-2z'} /></svg>
+            </span>
+            <span>{t.message}</span>
           </div>
         ))}
       </div>

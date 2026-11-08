@@ -25,15 +25,19 @@ import { LatencyHud } from './LatencyHud';
 import { MicButton } from './MicButton';
 import { QuickTiles } from './QuickTiles';
 import { ReplaceDialog } from './ReplaceDialog';
+import { Money } from './Money';
 
 const EXAMPLES = ['Do kilo chawal 110 rupaye aur do packet Maggi 28 rupaye', 'Sharma ji ka kitna udhaar hai?', 'Verma ji ne do sau de diye', 'Aaj kitni bikri hui?', 'Ramesh Kumar ko customer mein add karo', 'Samaan mein Maida 35 rupaye kilo add karo'];
 
 function Notice({ title, hint, tone = 'warn', action }: { title: string; hint: string; tone?: 'warn' | 'error'; action?: { label: string; run(): void } }) {
   return (
-    <div role="alert" className={`rounded-xl border px-4 py-3 ${tone === 'error' ? 'border-bad/70 bg-bad/10' : 'border-warn/60 bg-warn/10'}`}>
-      <p className="font-bold">{title}</p>
-      <p className="text-ink">{hint}</p>
-      {action && <button type="button" onClick={action.run} className="mt-2 min-h-12 rounded-xl bg-control px-4 font-semibold">{action.label}</button>}
+    <div role="alert" className="banner" data-tone={tone}>
+      <span className="banner-ico"><Icon name="alert" size={18} /></span>
+      <div>
+        <strong>{title}</strong>
+        <p>{hint}</p>
+        {action && <button type="button" onClick={action.run} className="btn-pill btn-soft">{action.label}</button>}
+      </div>
     </div>
   );
 }
@@ -42,17 +46,58 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
   const [code, setCode] = useState('');
   return (
     <form
-      className="rounded-xl border border-warn/60 bg-warn/10 px-4 py-3"
+      className="banner"
+      data-tone="warn"
       onSubmit={(e) => { e.preventDefault(); if (code.trim()) onSubmit(code); }}
     >
-      <label htmlFor="access-code" className="font-bold">Demo code chahiye</label>
-      <p className="text-ink">Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
-      <div className="mt-2 flex gap-2">
-        <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-12 min-w-0 flex-1 rounded-xl bg-inset px-3 text-lg" />
-        <button type="submit" disabled={!code.trim()} className="min-h-12 rounded-xl bg-accent px-5 font-bold text-on-solid disabled:opacity-40">Shuru</button>
+      <span className="banner-ico"><Icon name="alert" size={18} /></span>
+      <div>
+        <label htmlFor="access-code"><strong>Demo code chahiye</strong></label>
+        <p>Post ya README mein diya gaya code likho. (Enter the demo access code.)</p>
+        <div className="mt-3 flex gap-2">
+          <input id="access-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" className="min-h-11 min-w-0 flex-1 rounded-xl bg-inset px-3 text-lg" />
+          <button type="submit" disabled={!code.trim()} className="btn-pill btn-solid disabled:opacity-40">Shuru</button>
+        </div>
       </div>
     </form>
   );
+}
+
+/** Examples are hints to read, not buttons: tapping one would fake a spoken turn. */
+function Examples() {
+  return (
+    <div className="vs-examples" aria-label="Aise bolo (examples)">
+      <p>Aise bolkar dekho</p>
+      {EXAMPLES.slice(0, 3).map((example, i) => (
+        <span key={example} className="vs-example" style={{ ['--i' as string]: i }}>&ldquo;{example}&rdquo;</span>
+      ))}
+    </div>
+  );
+}
+
+function KhataLink({ total, count }: { total: number; count: number }) {
+  return (
+    <Link href="/ledger" className="vs-khata">
+      <span className="vs-tile-ico"><Icon name="book" size={20} /></span>
+      <span>
+        <strong>Khata</strong>
+        <small>{count === 0 ? 'Abhi koi udhaar nahi' : `${count} grahak ka udhaar baaki`}</small>
+      </span>
+      {count > 0 && <span className="amt num">{rupees(total)}</span>}
+      <span className="chev"><Icon name="chevron" size={20} /></span>
+    </Link>
+  );
+}
+
+function connectionBadge(online: boolean, connection: ConnectionState): { tone: 'ok' | 'wait' | 'bad'; label: string } {
+  if (!online) return { tone: 'bad', label: 'Offline' };
+  switch (connection.status) {
+    case 'ready': return { tone: 'ok', label: 'Online' };
+    case 'limited': return { tone: 'wait', label: 'Busy, thoda ruko' };
+    case 'blocked': return { tone: 'bad', label: 'Code chahiye' };
+    case 'closed': return { tone: 'bad', label: 'Disconnected' };
+    default: return { tone: 'wait', label: 'Jud raha hai…' };
+  }
 }
 
 export function VoiceScreen() {
@@ -190,139 +235,167 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     return null;
   };
 
+  const badge = connectionBadge(online, connection);
+  const owing = (customers.data ?? []).filter((c) => c.balance > 0);
+  const owedTotal = owing.reduce((sum, c) => sum + c.balance, 0);
+  const initial = (profile.businessName.trim()[0] ?? 'B').toUpperCase();
+  const idleEmpty = !draft && !transcript && !busy && !listening && !error;
+  const speakingNow = phase === 'speaking';
+
   return (
-    <main className="voice-page">
-      <header className="voice-header">
-        <Link href="/settings" className="shop-profile"><span className="shop-avatar"><Icon name="user" size={22} /></span><span><small>Namaste, welcome back</small><strong>{profile.businessName}</strong></span></Link>
-        <span className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${connection.status === 'ready' ? 'bg-good/15 text-good' : 'bg-control text-ink'}`}>
-          <span className={`h-2 w-2 rounded-full ${connection.status === 'ready' ? 'bg-good' : 'bg-muted'}`} aria-hidden="true" />
-          {!online ? 'Offline' : connection.status === 'ready' ? 'Online' : connection.status === 'limited' ? 'Busy' : 'Jud raha hai…'}
-        </span>
-      </header>
-      <div className="voice-heading"><p className="eyebrow">YOUR EVERYDAY BILLING ASSISTANT</p><h1>Aaj kya bill<br className="sm:hidden" /> banana hai?</h1><p>Bas bolo. Samaan, quantity aur price hum likh lenge.</p></div>
-      {pending?.bill && <p className="text-sm text-muted">Badalna hai? Bolo: “Aata teen kilo karo”, “Maggi hata do”, “Ek Maggi aur jodo”.</p>}
+    <main className="vs">
+      <div className="vs-col">
+        <header className="vs-top">
+          <Link href="/settings" className="vs-shop" aria-label={`${profile.businessName}: dukaan profile`}>
+            <span className="vs-monogram" aria-hidden="true">{initial}</span>
+            <span>
+              <strong>{profile.businessName}</strong>
+              <span className="vs-conn" data-tone={badge.tone}><i aria-hidden="true" />{badge.label}</span>
+            </span>
+          </Link>
+          <div className="vs-top-actions">
+            <Link href="/ledger" className="vs-icon-btn" aria-label="Khata (ledger)"><Icon name="book" size={20} /></Link>
+            <Link href="/settings" className="vs-icon-btn" aria-label="Settings"><Icon name="gear" size={20} /></Link>
+          </div>
+        </header>
 
-      {!online && <Notice title="Internet nahi hai" hint="Bolne ke liye internet chahiye. Khata aur samaan ab bhi khul sakte hain." />}
-      {online && connection.status === 'blocked' && connection.reason === 'access_code_required' ? (
-        <AccessCodeForm onSubmit={(code) => { setAccessCode(code); session.client.connect(); }} />
-      ) : (
-        online && notice && <Notice title={notice.title} hint={notice.hint} />
-      )}
-      {mic.status === 'error' && mic.error && <Notice tone="error" {...micErrorText(mic.error)} action={{ label: 'Dobara try karo', run: () => void enable() }} />}
-      {degraded.includes('tts_unavailable') && <Notice title="Awaaz abhi nahi aa rahi" hint="Text mode: jawab neeche screen par hai." />}
-      {degraded.includes('llm_timeout') && <Notice title="Bill dhyaan se dekho" hint="Smart check time par nahi ho paya, isliye bill ek baar check kar lo." />}
-      {error && (
-        <Notice
-          tone="error"
-          {...friendlyError(error)}
-          action={{ label: 'Theek hai', run: () => controller.dismissError() }}
-        />
-      )}
+        <section className="vs-stage" aria-live="polite">
+          {!online && <Notice title="Internet nahi hai" hint="Bolne ke liye internet chahiye. Khata aur samaan ab bhi khul sakte hain." />}
+          {online && connection.status === 'blocked' && connection.reason === 'access_code_required' ? (
+            <AccessCodeForm onSubmit={(code) => { setAccessCode(code); session.client.connect(); }} />
+          ) : (
+            online && notice && <Notice title={notice.title} hint={notice.hint} />
+          )}
+          {mic.status === 'error' && mic.error && <Notice tone="error" {...micErrorText(mic.error)} action={{ label: 'Dobara try karo', run: () => void enable() }} />}
+          {degraded.includes('tts_unavailable') && <Notice title="Awaaz abhi nahi aa rahi" hint="Text mode: jawab neeche screen par hai." />}
+          {degraded.includes('llm_timeout') && <Notice title="Bill dhyaan se dekho" hint="Smart check time par nahi ho paya, isliye bill ek baar check kar lo." />}
+          {error && (
+            <Notice
+              tone="error"
+              {...friendlyError(error)}
+              action={{ label: 'Theek hai', run: () => controller.dismissError() }}
+            />
+          )}
 
-      <div className="voice-workspace">
-      <div className="voice-main">
-      <div className="workspace-caption"><strong>Naya bill / New bill</strong><span>VOICE WORKSPACE</span></div>
-      <section className="voice-results" aria-live="polite">
-        {transcript && !editing && (
-          <div className="flex items-start justify-between gap-2 rounded-xl bg-inset px-4 py-3">
-            <p className="text-lg text-ink">&ldquo;{transcript}&rdquo;</p>
-            {draft && (draft.intent === 'create_bill' || draft.intent === 'record_payment') && (
-              <button type="button" aria-label="Transcript theek karo (edit)" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-control" onClick={() => { setEditText(transcript); setEditing(true); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.3V21h3.7L17.8 9.9l-3.7-3.7L3 17.3ZM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.7L20.7 7Z" /></svg>
+          {idleEmpty && (
+            <div className="vs-hello">
+              <h1>Aaj kya bill banana hai?</h1>
+              <p>Mic dabake bolo. Samaan, quantity aur price hum likh lenge.</p>
+            </div>
+          )}
+          {idleEmpty && <div className="hide-wide"><Examples /></div>}
+
+          {listening && !transcript && (
+            <span className="bubble-live" role="status" aria-label="Sun raha hoon"><i /><i /><i /></span>
+          )}
+
+          {transcript && !editing && (
+            <div className="bubble-me">
+              {draft && (draft.intent === 'create_bill' || draft.intent === 'record_payment') && (
+                <button type="button" aria-label="Transcript theek karo (edit)" onClick={() => { setEditText(transcript); setEditing(true); }}>
+                  <Icon name="pencil" size={18} />
+                </button>
+              )}
+              <p>&ldquo;{transcript}&rdquo;</p>
+            </div>
+          )}
+          {editing && (
+            <form className="bill" onSubmit={(e) => { e.preventDefault(); applyTranscriptEdit(); }}>
+              <label className="text-sm font-semibold text-muted" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
+              <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-2 min-h-12 w-full rounded-xl bg-inset px-3 text-lg" />
+              <div className="mt-3 flex gap-2">
+                <button type="submit" className="btn-pill btn-solid flex-1">Bill dobara banao</button>
+                <button type="button" className="btn-pill btn-soft" onClick={() => setEditing(false)}>Raho</button>
+              </div>
+            </form>
+          )}
+
+          {busy && !draft && (
+            <div className="skel" role="status" aria-label="Bill ban raha hai">
+              <i style={{ width: '42%' }} />
+              <i style={{ width: '86%' }} />
+              <i style={{ width: '70%' }} />
+            </div>
+          )}
+
+          {draft ? showCard(draft) : null}
+
+          {draft && draft.replyText.length > 0 && (
+            <p className="bubble-bot">
+              <Icon name="speaker" size={18} />
+              <span>
+                {draft.replyText.join(' ')}
+                {speakingNow && <span className="speak-wave" aria-hidden="true"><i /><i /><i /><i /></span>}
+              </span>
+            </p>
+          )}
+
+          {!listening && (frequent.data ?? []).length > 0 && (
+            <div>
+              <p className="vs-section-title mb-2"><span>Jaldi chuno</span><span className="font-normal">tap = bill mein</span></p>
+              <QuickTiles products={frequent.data ?? []} disabled={busy} onPick={pickTile} />
+            </div>
+          )}
+
+          {!draft && !listening && customers.data && <div className="hide-wide"><KhataLink total={owedTotal} count={owing.length} /></div>}
+
+          {hud && <div className="hide-wide"><LatencyHud turns={turns} connection={connection} /></div>}
+        </section>
+
+        <div className="vs-dock">
+          <div className="vs-dock-glass">
+            {confirmable && draft?.bill && (
+              <p className="vs-total num"><span>Total</span><strong><Money value={draft.bill.total} /></strong></p>
+            )}
+            <p className="vs-status" role="status"><span key={status}>{status}</span></p>
+            <p className="vs-hint">
+              {confirmable ? <>Ya bolo <b>&ldquo;haan&rdquo;</b> save ke liye, <b>&ldquo;nahi&rdquo;</b> cancel ke liye</>
+                : !draft && !listening && !busy && micLive ? 'Dabake bolo, chhodo to bhej dega · ya tap karke shuru'
+                : ''}
+            </p>
+            {micLive ? (
+              <div className="vs-row">
+                <div className="flex justify-end">
+                  {confirmable && pending && (
+                    <button type="button" className="vs-act vs-act-no" onClick={() => controller.discard()}>
+                      <Icon name="close" size={22} />
+                      Nahi
+                    </button>
+                  )}
+                </div>
+                <MicButton
+                  listening={listening}
+                  busy={busy}
+                  speaking={speakingNow}
+                  disabled={!canTalk}
+                  label={speakingNow ? 'Microphone: dabao, awaaz ruk jayegi aur aap bol sakte hain' : 'Microphone: dabake bolo, ya tap karke shuru karo'}
+                  level={session.level}
+                  buttonProps={buttonProps}
+                />
+                <div className="flex justify-start">
+                  {confirmable && pending && (
+                    <button type="button" className="vs-act vs-act-yes" onClick={() => controller.confirm()}>
+                      <Icon name="check" size={24} />
+                      Haan, save
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button type="button" disabled={audioStarting} onClick={() => void enable()} className="vs-start">
+                <Icon name="mic" size={22} />{audioStarting ? 'Mic khul raha hai…' : 'Mic chalu karo'}
               </button>
             )}
+            <p className="vs-credit">Awaaz se text: <b>Gnani Prisma</b> · Bolne wali awaaz: <b>Gnani Timbre</b></p>
           </div>
-        )}
-        {editing && (
-          <form className="rounded-xl bg-inset p-3" onSubmit={(e) => { e.preventDefault(); applyTranscriptEdit(); }}>
-            <label className="text-sm text-dim" htmlFor="transcript-edit">Jo bola tha, theek karo (bill dobara banega)</label>
-            <input id="transcript-edit" autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} className="mt-1 min-h-12 w-full rounded-xl bg-raised px-3 text-lg" />
-            <div className="mt-2 flex gap-2">
-              <button type="submit" className="min-h-12 flex-1 rounded-xl bg-accent font-bold text-on-solid">Bill dobara banao</button>
-              <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => setEditing(false)}>Raho</button>
-            </div>
-          </form>
-        )}
-
-        <QuickTiles products={frequent.data ?? []} disabled={listening || busy} onPick={pickTile} />
-
-        {draft ? showCard(draft) : null}
-
-        {draft && (
-          <p className="flex items-start gap-2 rounded-xl bg-inset/70 px-4 py-3 text-ink">
-            <Icon name="speaker" size={22} />
-            <span>{draft.replyText.join(' ')}</span>
-          </p>
-        )}
-
-        {!draft && !transcript && !busy && !listening && !error && (
-          <div className="voice-welcome">
-            <span className="assistant-emblem"><Icon name="mic" size={34} /></span>
-            <p className="eyebrow">BOL-BILL, AAPKE SAATH</p>
-            <h2>Aap bolo,<br />bill taiyaar.</h2>
-            <p>Item ki price bhi bol sakte ho.<br />Save karne se pehle bill check kar lena.</p>
-            <div className="welcome-tags"><span>Voice billing</span><span>Khata</span><span>Print & share</span></div>
-          </div>
-        )}
-      </section>
-
-      <div className={`voice-controls ${draft ? 'has-draft' : ''}`}>
-        {confirmable && draft?.bill && (
-          <p className="num flex w-full items-baseline justify-between text-2xl font-extrabold">
-            <span>Total</span>
-            <span>{rupees(draft.bill.total)}</span>
-          </p>
-        )}
-        <p className="text-lg font-semibold" role="status">{status}</p>
-        {confirmable && <p className="text-sm text-dim">Ya bolo: <strong>&ldquo;haan&rdquo;</strong> save ke liye, <strong>&ldquo;nahi&rdquo;</strong> cancel ke liye</p>}
-        {micLive ? (
-          <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <div>
-              {confirmable && pending && (
-                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl border-2 border-line bg-control text-base font-bold active:bg-raised" onClick={() => controller.discard()}>
-                  <Icon name="stop" size={20} />
-                  Nahi
-                </button>
-              )}
-            </div>
-            <MicButton
-              listening={listening}
-              busy={busy}
-              speaking={phase === 'speaking'}
-              disabled={!canTalk}
-              label={phase === 'speaking' ? 'Microphone: dabao, awaaz ruk jayegi aur aap bol sakte hain' : 'Microphone: dabake bolo, ya tap karke shuru karo'}
-              level={session.level}
-              buttonProps={buttonProps}
-            />
-            <div>
-              {confirmable && pending && (
-                <button type="button" className="flex min-h-16 w-full flex-col items-center justify-center rounded-2xl bg-good text-base font-extrabold text-on-solid active:brightness-110" onClick={() => controller.confirm()}>
-                  <Icon name="check" size={24} />
-                  Haan, save
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <button type="button" disabled={audioStarting} onClick={() => void enable()} className="voice-start">
-            <span className="flex items-center gap-2"><Icon name="mic" size={24} />{audioStarting ? 'Mic khul raha hai…' : 'Mic chalu karo'}</span>
-          </button>
-        )}
-        {!draft && !listening && !busy && <p className="text-center text-sm text-muted">Dabake bolo, chhodo to bhej dega · ya ek tap se shuru, doosre tap se band</p>}
+        </div>
       </div>
-      </div>
-      <aside className="voice-sidebar">
-        <div className="quick-card"><div className="section-heading"><h2>Dukaan ke shortcuts</h2><Icon name="arrow" size={18} /></div><div className="quick-links">
-          <Link href="/bills"><span className="shortcut-icon"><Icon name="receipt" /></span><strong>Saved bills</strong><small>Dekho, print aur share karo</small></Link>
-          <Link href="/ledger"><span className="shortcut-icon"><Icon name="book" /></span><strong>Customer khata</strong><small>Udhaar aur payments dekho</small></Link>
-          <Link href="/catalog"><span className="shortcut-icon"><Icon name="box" /></span><strong>Apna samaan</strong><small>Items aur rates manage karo</small></Link>
-        </div></div>
-        <div className="example-card"><p className="eyebrow">BOLKAR DEKHO</p><h2>Ek sentence. Kaam done.</h2><ul>{EXAMPLES.map((example, index) => <li key={example}><span>0{index + 1}</span><p>&ldquo;{example}&rdquo;</p></li>)}</ul></div>
-        <Link href="/settings" className="profile-banner"><Icon name="check" size={26} /><span><strong>Aapki dukaan, aapka bill.</strong><small>Business profile aur receipt details</small></span><Icon name="arrow" size={20} /></Link>
+
+      <aside className="vs-aside" aria-label="Shortcuts">
+        <Examples />
+        {customers.data && <KhataLink total={owedTotal} count={owing.length} />}
+        {hud && <LatencyHud turns={turns} connection={connection} />}
       </aside>
-      </div>
-
-      {hud && <LatencyHud turns={turns} connection={connection} />}
 
       {replacement && pending && (
         <ReplaceDialog current={pending} incoming={replacement} onAccept={() => controller.acceptReplacement()} onKeep={() => controller.keepPending()} />

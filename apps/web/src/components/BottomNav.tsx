@@ -16,7 +16,7 @@ export function BottomNav() {
   const path = usePathname();
   return (
     <nav aria-label="Main" className="app-nav">
-      <Link href="/" className="nav-brand">Bol<span>Bill.</span><small>Aapki dukaan ka voice assistant</small></Link>
+      <Link href="/" className="nav-brand"><span className="vs-monogram" aria-hidden="true">B</span>Bol-Bill</Link>
       <ul>
         {ITEMS.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
@@ -35,7 +35,7 @@ export function BottomNav() {
           );
         })}
       </ul>
-      <div className="nav-note"><strong>Bolkar kaam aasaan.</strong><p>Bill, khata aur samaan — sab ek jagah.</p></div>
+      <div className="nav-note"><strong>Bolkar kaam aasaan.</strong><p>Voice by Gnani Prisma (STT) and Gnani Timbre (TTS).</p></div>
     </nav>
   );
 }
