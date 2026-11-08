@@ -483,3 +483,16 @@ describe('header contract', () => {
     expect(first.byteLength).toBeGreaterThan(TTS_HEADER_BYTES);
   });
 });
+
+describe('Gnani sends complete twice per request (observed 2026-11-08)', () => {
+  it.each([0, 200])('speaks every sentence of a reply, each with its own audio (duplicate after %i ms)', async (delay) => {
+    mock = await startMockTts({ chunkBytes: 4800, duplicateCompleteDelayMs: delay, firstChunkDelayMs: 40 });
+    const r = makeLink(mock.url);
+    expect(r.link.speak(1, ['Bill do sau rupaye ka hai.', 'Save kar dun?'])).toBe(true);
+    await until(() => r.ends.length === 1);
+    expect(mock.requests.map((q) => q.text)).toEqual(['Bill do sau rupaye ka hai.', 'Save kar dun?']);
+    const total = r.chunks.reduce((sum, c) => sum + c.pcmBytes, 0);
+    expect(total).toBe(pcmBytesFor('Bill do sau rupaye ka hai.'.length) + pcmBytesFor('Save kar dun?'.length));
+    expect(r.failures).toEqual([]);
+  });
+});

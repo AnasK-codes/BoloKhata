@@ -87,6 +87,12 @@ interface Job {
   ws: WebSocket | null;
   reserved: number;
   sawAudio: boolean;
+  /**
+   * Set by this request's `start`. Gnani sends `complete` twice per request (observed, not in the
+   * docs); the second can arrive after the next request was sent. A `complete` before this
+   * request's own `start` belongs to the previous request and is ignored.
+   */
+  sawStart: boolean;
   /** A trailing odd byte from the previous chunk, joined to the next (samples are 2 bytes). */
   carry: number;
   parts: Uint8Array[];
@@ -186,6 +192,7 @@ export class TtsLink extends TypedEmitter<TtsEvents> {
         ws: null,
         reserved: 0,
         sawAudio: false,
+        sawStart: false,
         carry: -1,
         parts: [],
         bytes: 0,
@@ -393,9 +400,12 @@ export class TtsLink extends TypedEmitter<TtsEvents> {
     const parsed = upstreamSchema.safeParse(json);
     if (!parsed.success) return;
     const { type, data } = parsed.data;
-    if (type === 'audio' && data?.audio !== undefined) {
-      this.onAudio(job, data.audio);
+    if (type === 'start') {
+      job.sawStart = true;
+    } else if (type === 'audio' && data?.audio !== undefined) {
+      if (job.sawStart) this.onAudio(job, data.audio);
     } else if (type === 'complete') {
+      if (!job.sawStart) return; // the previous request's trailing duplicate `complete`
       this.completeJob(job);
     } else if (type === 'error') {
       // The message text is not logged. Per the docs the connection stays usable.
