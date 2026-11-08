@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   agentRules: false,
   // The shared package ships TypeScript source.
   transpilePackages: ['@bolbill/shared'],
+  // Allow the ngrok tunnel to reach HMR in development without a cross-origin block.
+  allowedDevOrigins: ['lasso-harpist-richly.ngrok-free.dev'],
 };
 
 export default nextConfig;

@@ -54,7 +54,7 @@ function AuthForm({ onSubmit }: { onSubmit(action: 'login' | 'signup', input: { 
     finally { setBusy(false); }
   };
   return <main className="auth-card mx-auto max-w-md space-y-6 px-5 py-10">
-    <header><Image src="/icons/logo.png" alt={tr('app.name')} width={72} height={72} className="rounded-2xl" /><p className="mt-3 text-3xl font-extrabold">{tr('app.name')}</p>
+    <header><Image src="/icons/logo.png" alt={tr('app.name')} width={72} height={72} loading="eager" className="rounded-2xl" /><p className="mt-3 text-3xl font-extrabold">{tr('app.name')}</p>
       <h1 className="mt-6 text-2xl font-bold">{signup ? tr('auth.signupTitle') : tr('auth.loginTitle')}</h1>
       <p className="mt-2 text-dim">{signup ? tr('auth.signupHint') : tr('auth.loginHint')}</p></header>
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
