@@ -19,7 +19,7 @@ import { LIMITS } from '../protocol/constants';
 import type { Unit } from '../protocol/common';
 import type { CatalogMatcher } from '../domain/matching';
 import { extractQuantityAndUnit, normalizeUnit, parseNumber, tokenizeSpeech } from '../domain/numberWords';
-import type { ParsedUtterance, ParsedItemOutput } from './schema';
+import type { MissingItem, ParsedUtterance, ParsedItemOutput } from './schema';
 import { pricedItems, hasMoneyTail, isMoneyWord } from './pricedItems';
 import { extractAdjust, fold, foldSet, parseStockOut, parseSummaryQuery } from './extras';
 
@@ -31,14 +31,14 @@ const NEGATIVE = foldSet(['hata', 'nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'm
 const CANCEL_VOCAB = foldSet([
   'hata', 'nahi', 'nahin', 'na', 'nai', 'nope', 'no', 'mat', 'cancel', 'rehne', 'rahne', 'hatao', 'ruko', 'do',
   'karo', 'kar', 'kardo', 'ji', 'bas', 'bilkul', 'abhi', 'hai', 'bhai', 'yaar', 'ye', 'wo', 'bill',
-  'chhodo', 'chodo', 'dijiye', 'galat', 'नहीं', 'नही', 'रहने', 'दो',
+  'chhodo', 'chodo', 'dijiye', 'galat', 'chahiye', 'chaiye', 'नहीं', 'नही', 'रहने', 'दो', 'चाहिए',
 ]);
 const CONFIRM_CORE = foldSet([
   'haan', 'ha', 'haa', 'han', 'theek', 'thik', 'save', 'confirm', 'ok', 'okay', 'yes', 'sahi', 'bilkul',
-  'done', 'kardo', 'kar', 'karo', 'हाँ', 'हां', 'हा', 'ठीक',
+  'done', 'kardo', 'kar', 'karo', 'gaya', 'gya', 'हाँ', 'हां', 'हा', 'ठीक', 'गया',
 ]);
 const CONFIRM_VOCAB = foldSet([
-  'ji', 'hai', 'do', 'dijiye', 'dena', 'bhi', 'ye', 'wahi', 'sahi', 'ठीक', 'है', 'दो', 'कर',
+  'ji', 'hai', 'ho', 'हो', 'do', 'dijiye', 'dena', 'bhi', 'ye', 'wahi', 'sahi', 'ठीक', 'है', 'दो', 'कर',
   ...CONFIRM_CORE,
 ]);
 
@@ -58,8 +58,15 @@ const NOISE = foldSet([
   'likh', 'likho', 'jod', 'jodo', 'kar', 'karo', 'dena', 'de', 'dijiye', 'chahiye', 'bill', 'bana', 'banao',
   'banado', 'hai', 'hain', 'ka', 'ki', 'ke', 'ko', 'ne', 'se', 'ye', 'wo', 'please', 'pls', 'bhi', 'bas',
   'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab', 'haan',
-  'toh', 'acha', 'accha', 'yaar', 'dekho', 'suno',
+  'toh', 'acha', 'accha', 'yaar', 'dekho', 'suno', 'add', 'aid', 'kardo', 'kardijiye', 'daalo', 'dalo', 'dedo',
+  'dijie', 'ऐड', 'एड', 'करो', 'कर', 'दीजिए', 'चाहिए',
 ]);
+/** "aata do kilo, cheeni nahi": a negation drops the item just named, and is never an item itself. */
+const ITEM_NEGATION = foldSet(['nahi', 'nahin', 'nai', 'नहीं', 'नही']);
+/** "thoda aata": an amount that was not given. The item is kept and the amount is asked for. */
+const VAGUE_AMOUNT = foldSet(['thoda', 'thodi', 'thode', 'thora', 'thori', 'kuch', 'kuchh', 'zara', 'jara', 'थोड़ा', 'थोड़ी', 'कुछ']);
+/** A name heard after "aur" that the catalog does not know is kept (and asked about) only if it is this short. */
+const MAX_UNKNOWN_NAME_TOKENS = 3;
 const BALANCE_FILLER = foldSet(['hai', 'hain', 'hua', 'hoga', 'batao', 'bataiye', 'bataye', 'dikhao', 'bolo', 'kya', 'total', 'abhi', 'ab', 'ho', 'gaya', 'gayi', 'gaye', 'tha', 'raha', 'rha']);
 /** "Anil Singh ko customer mein add karo": the words that make a sentence an add-customer request. */
 const CUSTOMER_KW = foldSet(['customer', 'custumer', 'costumer', 'kastamar', 'kastmar', 'grahak', 'कस्टमर', 'कस्टमार', 'ग्राहक']);
@@ -524,7 +531,19 @@ function startsQuantity(pieces: readonly Piece[], at: number): boolean {
   return extractQuantityAndUnit(pieces.slice(at, at + MAX_AMOUNT_TOKENS + 1).map((p) => p.raw)) !== null;
 }
 
-function itemsInSegment(w: Working, pieces: readonly Piece[], matcher: CatalogMatcher | undefined, out: ParsedItemOutput[]): void {
+function itemsInSegment(
+  w: Working,
+  input: readonly Piece[],
+  matcher: CatalogMatcher | undefined,
+  out: ParsedItemOutput[],
+  missing: MissingItem[],
+  listed: boolean,
+): void {
+  // "thoda aata": drop the vague word, keep the item, and flag its amount for a question.
+  let pieces = input.filter((p) => !VAGUE_AMOUNT.has(fold(p.raw)));
+  const vague = pieces.length < input.length;
+  for (const p of input) if (VAGUE_AMOUNT.has(fold(p.raw))) w.used[p.index] = true;
+  const mark = (item: ParsedItemOutput): ParsedItemOutput => (vague ? { ...item, quantityUnclear: true } : item);
   const priced = pricedItems(pieces);
   if (priced.consumed > 0) {
     out.push(...priced.items);
@@ -550,37 +569,53 @@ function itemsInSegment(w: Working, pieces: readonly Piece[], matcher: CatalogMa
       out.push({ name: nameParts.map((p) => p.raw).join(' ').slice(0, LIMITS.maxNameLength), quantity: ext.quantity, unit: ext.unit });
       for (let q = i; q < afterQuantity; q++) w.used[pieces[q]?.index ?? 0] = true;
       for (const p of nameParts) w.used[p.index] = true;
+    } else if (ext.quantity > 0) {
+      // "... aur do kilo": the amount was heard but the item was not. Keep it so it can be asked for.
+      missing.push({ quantity: ext.quantity, unit: ext.unit });
+      for (let q = i; q < afterQuantity; q++) w.used[pieces[q]?.index ?? 0] = true;
     }
     pending = [];
     i = k;
   }
-  if (pending.length > 0 && matcher && out.length === 0) {
-    // A bare product name with no number: "Maggi" means one.
-    const name = pending.map((p) => p.raw).join(' ');
-    if (matcher.matchProduct(name).best) {
-      out.push({ name: name.slice(0, LIMITS.maxNameLength), quantity: 1, unit: null });
-      for (const p of pending) w.used[p.index] = true;
-    }
+  if (pending.length === 0 || !matcher) return;
+  // A bare product name with no number: "Maggi" means one. The first one must be in the catalog (so
+  // filler never becomes an item); one listed after "aur" is kept even if unknown, so it is asked
+  // about instead of disappearing.
+  const name = pending.map((p) => p.raw).join(' ');
+  const known = matcher.matchProduct(name).best !== null;
+  const shortUnknown = listed && pending.length <= MAX_UNKNOWN_NAME_TOKENS && !pending.some((p) => isNumeric(p.raw));
+  if ((out.length === 0 || listed) && (known || shortUnknown)) {
+    out.push(mark({ name: name.slice(0, LIMITS.maxNameLength), quantity: 1, unit: null }));
+    for (const p of pending) w.used[p.index] = true;
   }
 }
 
-function findItems(w: Working, matcher: CatalogMatcher | undefined): ParsedItemOutput[] {
+function findItems(w: Working, matcher: CatalogMatcher | undefined, missing: MissingItem[]): ParsedItemOutput[] {
   for (let i = 1; i < w.f.length; i++) {
     if (!w.used[i] && w.f[i] === fold('do') && DO_AFTER.has(w.f[i - 1] ?? '')) w.used[i] = true;
   }
   const items: ParsedItemOutput[] = [];
   let segment: Piece[] = [];
+  /** True for a segment that follows "aur": the speaker is listing items. */
+  let listed = false;
   const flush = (): void => {
-    if (segment.length > 0) itemsInSegment(w, segment, matcher, items);
+    if (segment.length > 0) itemsInSegment(w, segment, matcher, items, missing, listed);
     segment = [];
   };
   for (let i = 0; i < w.raw.length; i++) {
     const t = w.f[i] ?? '';
     if (w.used[i]) {
       flush();
+      listed = false;
     } else if (SEPARATORS.has(t)) {
       w.used[i] = true;
       flush();
+      listed = true;
+    } else if (ITEM_NEGATION.has(t)) {
+      // "cheeni nahi": whatever was just named is not wanted. "nahi, do kilo": a correction follows.
+      w.used[i] = true;
+      for (const p of segment) w.used[p.index] = true;
+      segment = [];
     } else if (['ke', 'ka', 'ki', 'के', 'का', 'की'].includes(w.raw[i] ?? '') && parseNumber(w.raw[i - 1] ?? '') !== null && !hasMoneyTail(segment)) {
       segment.push({ raw: 'rupaye', index: i });
     } else if (NOISE.has(t)) {
@@ -660,7 +695,8 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
   const customer = findCustomer(w, matcher);
   const { adjust, warnings: adjustWarnings } = extractAdjust(w);
   const amounts = findAmounts(w);
-  const items = findItems(w, matcher);
+  const missingItems: MissingItem[] = [];
+  const items = findItems(w, matcher, missingItems);
 
   const hasBalanceKw = f.some((t) => BALANCE_KW.has(t));
   const isBalanceQuery =
@@ -685,6 +721,7 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
 
   if (adjust) result.adjust = adjust;
   if (adjustWarnings.length > 0) result.adjustWarnings = adjustWarnings;
+  if (missingItems.length > 0) result.missingItems = missingItems.slice(0, LIMITS.maxUnresolved);
 
   if (items.length > 0) {
     result.intent = 'create_bill';
@@ -713,5 +750,5 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
     result.confidence = 0.35;
     return result;
   }
-  return { ...EMPTY, confidence: 0.1 };
+  return { ...EMPTY, confidence: 0.1, ...(result.missingItems ? { missingItems: result.missingItems } : {}) };
 }
