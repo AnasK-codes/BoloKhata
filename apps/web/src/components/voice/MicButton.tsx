@@ -58,7 +58,7 @@ export function MicButton({ listening, busy, speaking, disabled, label, level, b
   }, [listening, level]);
 
   return (
-    <div ref={root} className="mic" data-state={disabled ? 'idle' : state}>
+    <div ref={root} className="mic" data-state={disabled && !listening ? 'disabled' : state}>
       <span className="mic-halo" aria-hidden="true" />
       <span className="mic-ring r1" aria-hidden="true" />
       <span className="mic-ring r2" aria-hidden="true" />
@@ -78,12 +78,6 @@ export function MicButton({ listening, busy, speaking, disabled, label, level, b
         <span className="mic-shimmer" aria-hidden="true" />
         <Icon name={speaking && !listening ? 'speaker' : 'mic'} size={40} />
       </button>
-      {listening && (
-        <span className="mic-badge">
-          <i aria-hidden="true" />
-          REC
-        </span>
-      )}
     </div>
   );
 }

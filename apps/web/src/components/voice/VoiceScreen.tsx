@@ -236,6 +236,8 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   };
 
   const badge = connectionBadge(online, connection);
+  // statusText cannot see the link; when the mic is locked because the gateway is not ready, say so instead of "Dabake bolo".
+  const shownStatus = micLive && !canTalk ? 'Connection ka intezaar…' : status;
   const owing = (customers.data ?? []).filter((c) => c.balance > 0);
   const owedTotal = owing.reduce((sum, c) => sum + c.balance, 0);
   const initial = (profile.businessName.trim()[0] ?? 'B').toUpperCase();
@@ -337,7 +339,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             </div>
           )}
 
-          {!draft && !listening && customers.data && <div className="hide-wide"><KhataLink total={owedTotal} count={owing.length} /></div>}
+          {!draft && !listening && !busy && customers.data && <div className="hide-wide"><KhataLink total={owedTotal} count={owing.length} /></div>}
 
           {hud && <div className="hide-wide"><LatencyHud turns={turns} connection={connection} /></div>}
         </section>
@@ -347,12 +349,13 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             {confirmable && draft?.bill && (
               <p className="vs-total num"><span>Total</span><strong><Money value={draft.bill.total} /></strong></p>
             )}
-            <p className="vs-status" role="status"><span key={status}>{status}</span></p>
-            <p className="vs-hint">
-              {confirmable ? <>Ya bolo <b>&ldquo;haan&rdquo;</b> save ke liye, <b>&ldquo;nahi&rdquo;</b> cancel ke liye</>
-                : !draft && !listening && !busy && micLive ? 'Dabake bolo, chhodo to bhej dega · ya tap karke shuru'
-                : ''}
+            <p className="vs-status" role="status">
+              {listening && <span className="rec-pill"><i aria-hidden="true" />REC</span>}
+              <span key={shownStatus}>{shownStatus}</span>
             </p>
+            {!confirmable && !draft && !listening && !busy && !error && canTalk && (
+              <p className="vs-hint">Chhodte hi bill banega · ya tap karke bolo</p>
+            )}
             {micLive ? (
               <div className="vs-row">
                 <div className="flex justify-end">
@@ -386,7 +389,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
                 <Icon name="mic" size={22} />{audioStarting ? 'Mic khul raha hai…' : 'Mic chalu karo'}
               </button>
             )}
-            <p className="vs-credit">Awaaz se text: <b>Gnani Prisma</b> · Bolne wali awaaz: <b>Gnani Timbre</b></p>
+            <p className="vs-credit">Speech: <b>Gnani Prisma</b> STT · <b>Gnani Timbre</b> TTS</p>
           </div>
         </div>
       </div>

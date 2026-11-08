@@ -135,7 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {synthetic && (
-        <p className="fixed inset-x-0 top-0 z-50 bg-warn px-3 pb-1 pt-[max(4px,env(safe-area-inset-top))] text-center text-sm font-bold text-on-solid">
+        <p className="relative z-50 bg-warn px-3 pb-1 pt-[max(4px,env(safe-area-inset-top))] text-center text-sm font-bold text-on-solid">
           SYNTHETIC TEST TONE (dev only): not a real voice
         </p>
       )}

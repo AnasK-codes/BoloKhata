@@ -234,13 +234,13 @@ input, select, textarea { max-width: 100%; }
 .qt small { display: block; font-size: 13px; color: var(--c-muted); }
 
 /* Conversation bubbles */
-.bubble-me { align-self: flex-end; display: flex; align-items: flex-end; gap: 6px; max-width: 92%; animation: bubble-in 460ms var(--spring) both; transform-origin: bottom right; }
+.bubble-me { align-self: flex-end; display: flex; align-items: flex-end; gap: 6px; max-width: 92%; animation: bubble-in 460ms var(--spring-soft) both; transform-origin: bottom right; }
 .bubble-me p { padding: 10px 14px; border-radius: 20px 20px 6px 20px; background: var(--c-bubble); color: var(--c-on-bubble); font-size: 17px; line-height: 1.4; }
 .bubble-me button { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; color: var(--c-muted); background: var(--c-control); transition: transform 380ms var(--spring); }
 .bubble-me button:active { transform: scale(0.9); }
-.bubble-bot { align-self: flex-start; display: flex; gap: 10px; align-items: flex-start; max-width: 92%; padding: 10px 14px; border-radius: 20px 20px 20px 6px; background: var(--c-card); box-shadow: var(--shadow-card); font-size: 16px; color: var(--c-dim); animation: bubble-in 460ms var(--spring) both; animation-delay: 120ms; transform-origin: bottom left; }
+.bubble-bot { align-self: flex-start; display: flex; gap: 10px; align-items: flex-start; max-width: 92%; padding: 10px 14px; border-radius: 20px 20px 20px 6px; background: var(--c-card); box-shadow: var(--shadow-card); font-size: 16px; color: var(--c-dim); animation: bubble-in 460ms var(--spring-soft) both; animation-delay: 120ms; transform-origin: bottom left; }
 .bubble-bot svg { margin-top: 2px; color: var(--c-brand-ink); }
-.bubble-live { align-self: flex-end; display: inline-flex; gap: 4px; padding: 14px 16px; border-radius: 20px 20px 6px 20px; background: var(--c-control); animation: bubble-in 360ms var(--spring) both; transform-origin: bottom right; }
+.bubble-live { align-self: flex-end; display: inline-flex; gap: 4px; padding: 14px 16px; border-radius: 20px 20px 6px 20px; background: var(--c-control); animation: bubble-in 360ms var(--spring-soft) both; transform-origin: bottom right; }
 .bubble-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--c-muted); animation: typing 1.2s ease-in-out infinite; }
 .bubble-live i:nth-child(2) { animation-delay: 0.15s; }
 .bubble-live i:nth-child(3) { animation-delay: 0.3s; }
@@ -260,7 +260,7 @@ input, select, textarea { max-width: 100%; }
 .bill-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px; background: var(--c-brand); color: #3d2400; }
 .bill-count { font-size: 13px; font-weight: 500; color: var(--c-muted); white-space: nowrap; }
 .bill-lines { margin-top: 8px; }
-.bill-line { padding: 12px 0; border-top: 0.5px solid var(--c-line); animation: line-in 560ms var(--spring) both; animation-delay: calc(var(--i, 0) * 80ms); }
+.bill-line { padding: 12px 0; border-top: 0.5px solid var(--c-line); animation: line-in 560ms var(--spring-soft) both; animation-delay: calc(var(--i, 0) * 80ms); }
 .bill-line:first-child { border-top: 0; }
 .bill-line .row1 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .bill-line .name { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
@@ -304,6 +304,7 @@ input, select, textarea { max-width: 100%; }
 .banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-card); background: var(--c-card); box-shadow: var(--shadow-card); animation: rise 360ms var(--spring-soft) both; }
 .banner-ico { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; }
 .banner[data-tone='warn'] .banner-ico { background: color-mix(in srgb, var(--c-warn) 14%, transparent); color: var(--c-warn); }
+.banner[data-tone='error'] { background: color-mix(in srgb, var(--c-bad) 6%, var(--c-card)); }
 .banner[data-tone='error'] .banner-ico { background: color-mix(in srgb, var(--c-bad) 14%, transparent); color: var(--c-bad); }
 .banner strong { display: block; font-size: 16px; font-weight: 650; }
 .banner p { font-size: 15px; color: var(--c-dim); margin-top: 2px; }
@@ -322,12 +323,12 @@ input, select, textarea { max-width: 100%; }
 .vs-hint { text-align: center; font-size: 13px; color: var(--c-muted); min-height: 18px; }
 .vs-hint b { color: var(--c-ink); font-weight: 650; }
 .vs-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; margin-top: 4px; }
-.vs-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 60px; width: 100%; max-width: 132px; border-radius: 18px; font-size: 15px; font-weight: 650; animation: act-in 480ms var(--spring) both; transition: transform 380ms var(--spring), filter var(--dur-fast); }
+.vs-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 60px; width: 100%; max-width: 132px; border-radius: 18px; font-size: 15px; font-weight: 650; animation: act-in 480ms var(--spring-soft) both; transition: transform 380ms var(--spring), filter var(--dur-fast); }
 .vs-act:active { transform: scale(0.93); transition-duration: 90ms; }
 .vs-act-no { justify-self: end; background: var(--c-control); color: var(--c-ink); }
 .vs-act-yes { justify-self: start; background: #167c3a; color: #fff; box-shadow: 0 6px 18px -6px rgb(22 124 58 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.25); animation-delay: 60ms; }
 .vs-act small { font-size: 11px; font-weight: 500; opacity: 0.8; }
-.vs-credit { margin-top: 6px; text-align: center; font-size: 11px; letter-spacing: 0.01em; color: var(--c-muted); }
+.vs-credit { margin-top: 4px; text-align: center; font-size: 11px; letter-spacing: 0.01em; color: var(--c-muted); }
 .vs-credit b { font-weight: 600; color: var(--c-dim); }
 .vs-start { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; margin: 8px auto 4px; padding: 0 28px; border-radius: 999px; background: var(--c-accent); color: var(--c-on-solid); font-size: 17px; font-weight: 650; box-shadow: var(--shadow-float); transition: transform 380ms var(--spring); }
 .vs-start:active { transform: scale(0.95); }
@@ -335,12 +336,12 @@ input, select, textarea { max-width: 100%; }
 
 /* ---------- The mic: the hero. Static gradients are painted once; motion is transform/opacity only. ---------- */
 
-.mic { --lvl: 0; position: relative; display: grid; place-items: center; width: 132px; height: 132px; }
+.mic { --lvl: 0; --mic: 104px; position: relative; display: grid; place-items: center; width: calc(var(--mic) + 28px); height: calc(var(--mic) + 28px); }
 .mic-halo, .mic-ring { position: absolute; inset: 14px; border-radius: 50%; pointer-events: none; }
 .mic-halo { inset: 4px; background: radial-gradient(circle, color-mix(in srgb, var(--c-brand) 38%, transparent) 0%, transparent 68%); opacity: 0.5; animation: breathe 3.6s ease-in-out infinite; }
 .mic-ring { border: 2px solid var(--c-rec); opacity: 0; transform: scale(1); will-change: transform, opacity; }
 .mic-btn {
-  position: relative; display: grid; place-items: center; width: 104px; height: 104px; border-radius: 50%;
+  position: relative; display: grid; place-items: center; width: var(--mic); height: var(--mic); border-radius: 50%;
   color: #f4f4f6; isolation: isolate; overflow: hidden;
   /* Brushed metal bezel. */
   background: conic-gradient(from 210deg, #f6f6f8, #a9a9b0 12%, #ececf0 24%, #8c8c94 38%, #f2f2f5 52%, #9a9aa2 66%, #e6e6ea 80%, #b3b3ba 92%, #f6f6f8);
@@ -358,13 +359,14 @@ input, select, textarea { max-width: 100%; }
 .mic-core { position: absolute; inset: 8px; border-radius: 50%; z-index: -1; opacity: 0; transition: opacity 260ms ease-out; }
 .mic-shine { position: absolute; inset: 8px; border-radius: 50%; z-index: 1; pointer-events: none; background: radial-gradient(80% 50% at 50% 6%, rgb(255 255 255 / 0.42), rgb(255 255 255 / 0.05) 60%, transparent 70%); }
 .mic-press { position: absolute; inset: 8px; border-radius: 50%; z-index: 1; pointer-events: none; opacity: 0; box-shadow: inset 0 6px 14px rgb(0 0 0 / 0.55); transition: opacity 160ms; }
-.mic-shimmer { position: absolute; inset: 0; border-radius: 50%; z-index: 2; pointer-events: none; opacity: 0; background: conic-gradient(from 0deg, transparent 0 62%, rgb(255 255 255 / 0.85) 74%, transparent 86%); -webkit-mask: radial-gradient(circle, transparent 0 46px, #000 47px); mask: radial-gradient(circle, transparent 0 46px, #000 47px); transition: opacity 240ms; }
+.mic-shimmer { position: absolute; inset: 0; border-radius: 50%; z-index: 2; pointer-events: none; opacity: 0; background: conic-gradient(from 0deg, transparent 0 62%, rgb(255 255 255 / 0.85) 74%, transparent 86%); -webkit-mask: radial-gradient(circle, transparent 0 calc(var(--mic) / 2 - 6px), #000 calc(var(--mic) / 2 - 5px)); mask: radial-gradient(circle, transparent 0 calc(var(--mic) / 2 - 6px), #000 calc(var(--mic) / 2 - 5px)); transition: opacity 240ms; }
 .mic-btn svg { position: relative; z-index: 2; width: 40px; height: 40px; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); transition: transform 420ms var(--spring); }
-.mic-badge { position: absolute; bottom: -4px; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--c-rec); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; box-shadow: 0 4px 12px -4px var(--c-rec); animation: act-in 360ms var(--spring) both; }
-.mic-badge i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: beat 1s ease-in-out infinite; }
+.rec-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; background: #d70015; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; animation: act-in 360ms var(--spring-soft) both; }
+.rec-pill i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: beat 1s ease-in-out infinite; }
 
 .mic-btn:active:not(:disabled) { transform: scale(0.94); transition-duration: 120ms; }
-.mic-btn:disabled { opacity: 0.45; filter: grayscale(1); }
+.mic-btn:disabled { opacity: 0.5; filter: grayscale(1); }
+.mic[data-state='disabled'] .mic-halo { animation: none; opacity: 0; }
 
 /* Listening: the cap glows red, the button stays pressed in, rings follow the voice. */
 .mic[data-state='listening'] .mic-btn { transform: scale(0.93); }
@@ -391,7 +393,7 @@ input, select, textarea { max-width: 100%; }
 
 /* ---------- Toasts, sheets, misc ---------- */
 
-.toast { display: inline-flex; align-items: center; gap: 10px; max-width: min(92vw, 440px); padding: 10px 16px 10px 12px; border-radius: 999px; background: var(--c-glass-solid); color: var(--c-ink); font-size: 15px; font-weight: 600; box-shadow: var(--shadow-float); border: 0.5px solid var(--c-edge); animation: toast-in 520ms var(--spring) both; }
+.toast { display: inline-flex; align-items: center; gap: 10px; max-width: min(92vw, 440px); padding: 10px 16px 10px 12px; border-radius: 999px; background: var(--c-glass-solid); color: var(--c-ink); font-size: 15px; font-weight: 600; box-shadow: var(--shadow-float); border: 0.5px solid var(--c-edge); animation: toast-in 520ms var(--spring-soft) both; }
 .toast-ico { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; color: #fff; }
 .toast[data-kind="ok"] .toast-ico { background: #167c3a; }
 .toast[data-kind='error'] .toast-ico { background: var(--c-rec); }
@@ -406,6 +408,15 @@ input, select, textarea { max-width: 100%; }
 .hud-bar > div { height: 100%; width: 100%; border-radius: 3px; background: var(--c-brand); transform-origin: left; transition: transform 500ms var(--spring-soft); }
 
 .auth-card { margin-top: 7vh; margin-bottom: 32px; background: var(--c-card); border-radius: 28px; box-shadow: var(--shadow-float); animation: rise var(--dur-rise) var(--spring-soft) both; }
+
+/* Short or narrow phones (360x640 to 360x800): a slightly smaller dock leaves room for the bill. */
+@media (max-width: 767px) and (max-height: 820px), (max-width: 374px) {
+  .mic { --mic: 92px; }
+  .mic-btn svg { width: 36px; height: 36px; }
+  .vs-dock-glass { padding: 8px 14px 10px; }
+  .vs-act { min-height: 54px; border-radius: 16px; }
+  .vs-total strong { font-size: 24px; }
+}
 
 @media (min-width: 768px) {
   .app-content { padding: 12px 24px 36px 236px; }
