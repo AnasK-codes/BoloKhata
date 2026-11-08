@@ -33,6 +33,8 @@ export interface ParsedItem {
   unit: Unit | null;
   /** Rules-extracted only; never accepted from a model. */
   spokenPrice?: { amount: number; basis: 'line' | 'unit'; unit: Unit | null; quantity?: number };
+  /** Rules only: the amount was vague ("thoda aata"); the line is priced at a placeholder and asked about. */
+  quantityUnclear?: true;
 }
 
 export interface BuildBillInput {
@@ -44,6 +46,8 @@ export interface BuildBillInput {
   udhaarAmount?: number | null;
   /** Rules-extracted only (like a spoken price); the model never supplies it. */
   adjust?: BillAdjust;
+  /** "udhaar" was said with no amount: whatever is not paid is on credit (rules only). */
+  creditAll?: boolean;
 }
 
 export interface BuildBillResult {
@@ -52,6 +56,8 @@ export interface BuildBillResult {
   warnings: string[];
   /** True when anything needs a human look (unresolved items, impossible conversions, mismatches). */
   needsReview: boolean;
+  /** Indexes into `bill.items` whose amount was vague and must be asked for. */
+  unclearQuantity: number[];
 }
 
 /** Quantity of `from` in `to` units, in thousandths, or null if the units cannot convert. */
@@ -117,6 +123,7 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
   const warnings: string[] = [];
   const unresolvedItems: UnresolvedItem[] = [];
   const items: BillItem[] = [];
+  const unclearQuantity: number[] = [];
   let needsReview = false;
 
   const parsed = input.parsedItems.slice(0, LIMITS.maxBillItems);
@@ -142,7 +149,11 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
         name: product?.name ?? item.name, quantity: item.quantity, unit, unitPrice,
         lineTotal: 0, spokenPrice: quote.data,
       }, item.quantity) : null;
-      if (priced && item.name.trim()) { items.push(priced); continue; }
+      if (priced && item.name.trim()) {
+        if (item.quantityUnclear) unclearQuantity.push(items.length);
+        items.push(priced);
+        continue;
+      }
       warnings.push(`"${item.name}" ki boli gayi price ya unit valid nahi hai. Poore rupaye aur sahi unit bolo.`);
       unresolvedItems.push(unresolved(item, candidatesOf(match))); needsReview = true; continue;
     }
@@ -164,6 +175,16 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
       needsReview = true;
       continue;
     }
+    // The same product said twice ("do kilo aata ... aur aadha kilo aata") is one line, not two.
+    const at = items.findIndex((i) => i.productId === product.id && i.spokenPrice === undefined);
+    const prior = at >= 0 ? items[at] : undefined;
+    if (prior) {
+      const merged = Math.round(prior.quantity * 1000) + milli;
+      items[at] = { ...prior, quantity: merged / 1000, lineTotal: lineTotal(merged, product.pricePerUnit) };
+      if (item.quantityUnclear && !unclearQuantity.includes(at)) unclearQuantity.push(at);
+      continue;
+    }
+    if (item.quantityUnclear) unclearQuantity.push(items.length);
     items.push({
       productId: product.id,
       name: product.name,
@@ -179,7 +200,9 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
   const total = computeTotals(subtotal, adjust).total;
   if (items.length === 0) warnings.push('The bill has no items.');
 
-  const reconciled = reconcilePayment(total, input.amountPaid, input.udhaarAmount, input.customerId, warnings);
+  const noAmounts = (input.amountPaid ?? null) === null && (input.udhaarAmount ?? null) === null;
+  // "paanch kilo aata udhaar": nothing was paid, so the whole bill is udhaar.
+  const reconciled = reconcilePayment(total, input.creditAll && noAmounts ? 0 : input.amountPaid, input.udhaarAmount, input.customerId, warnings);
   if (reconciled.review) needsReview = true;
 
   return {
@@ -187,6 +210,7 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
     unresolvedItems,
     warnings,
     needsReview,
+    unclearQuantity,
   };
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogCustomer, CatalogProduct } from '@bolbill/shared';
 import { draftMessage } from '../turn/testing';
-import { addProductToDraft, billFromProduct, draftFromTranscript, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
+import { addProductToDraft, answerMissingItem, billFromProduct, dismissQuestion, draftFromTranscript, quantityChoices, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
 
 const products: CatalogProduct[] = [
   { id: 'p1', name: 'Aata', aliases: ['atta'], unit: 'kg', pricePerUnit: 45 },
@@ -203,5 +203,68 @@ describe('quick tiles: one tap adds a product', () => {
   it('does nothing to a draft that is not a bill', () => {
     const payment = draftMessage(1, { intent: 'record_payment', bill: undefined, payment: { amount: 100 } });
     expect(addProductToDraft(payment, aata)).toBe(payment);
+  });
+});
+
+describe('answering the open question by tap', () => {
+  const twoLines = () => addProductToDraft(draftMessage(1, { bill: { items: [], total: 0, paid: 0, udhaar: 0 } }), products[1]!);
+  const askQty = { slot: 'quantity', itemIndex: 0, attempts: 1, fallback: false, transcript: 'thoda cheeni' } as const;
+
+  it('a quantity chip on the line in question answers it', () => {
+    const d = { ...twoLines(), clarification: askQty };
+    const edited = setItemQuantity(d, 0, 2);
+    expect(edited.clarification).toBeUndefined();
+    expect(edited.bill?.items[0]?.quantity).toBe(2);
+  });
+
+  it('editing another line leaves the question open', () => {
+    const d = addProductToDraft({ ...twoLines(), clarification: askQty }, products[0]!);
+    expect(setItemQuantity(d, 1, 3).clarification).toEqual(askQty);
+  });
+
+  it('removing a line above the one in question keeps pointing at the right line', () => {
+    const d = addProductToDraft(addProductToDraft(draftMessage(1, { bill: { items: [], total: 0, paid: 0, udhaar: 0 } }), products[0]!), products[1]!);
+    const asked = { ...d, clarification: { ...askQty, itemIndex: 1 } };
+    expect(removeItem(asked, 0).clarification).toMatchObject({ itemIndex: 0 });
+    expect(removeItem(asked, 1).clarification).toBeUndefined();
+  });
+
+  it('picking a product for an unknown item answers it', () => {
+    const d = draftMessage(1, {
+      unresolved: [{ kind: 'item', spoken: 'kesar', quantity: 1, candidates: [] }],
+      clarification: { slot: 'item', spoken: 'kesar', attempts: 2, fallback: true, transcript: 'kesar' },
+    });
+    expect(resolveItem(d, 0, products[2]!).clarification).toBeUndefined();
+  });
+
+  it('picking a product for a missing item adds it with the amount already heard', () => {
+    const d = { ...twoLines(), clarification: { slot: 'item', quantity: 2, unit: 'kg', attempts: 1, fallback: false, transcript: 'do kilo' } as const };
+    const answered = answerMissingItem(d, products[0]!);
+    expect(answered.clarification).toBeUndefined();
+    expect(answered.bill?.items.map((i) => [i.name, i.quantity])).toEqual([['Cheeni', 1], ['Aata', 2]]);
+  });
+
+  it('dismissing the question drops a missing item and an unknown one, keeping the rest', () => {
+    const missing = { ...twoLines(), clarification: { slot: 'item', quantity: 2, unit: 'kg', attempts: 1, fallback: false, transcript: 'do kilo' } as const };
+    expect(dismissQuestion(missing)).toMatchObject({ bill: { items: [{ name: 'Cheeni' }] } });
+    expect(dismissQuestion(missing).clarification).toBeUndefined();
+    const unknown = draftMessage(1, {
+      unresolved: [{ kind: 'item', spoken: 'kesar', quantity: 1, candidates: [] }],
+      clarification: { slot: 'item', spoken: 'kesar', attempts: 1, fallback: false, transcript: 'kesar' },
+    });
+    expect(dismissQuestion(unknown).unresolved).toEqual([]);
+  });
+
+  it('quantityChoices suits the unit', () => {
+    expect(quantityChoices('kg')).toEqual([0.25, 0.5, 1, 2, 5]);
+    expect(quantityChoices('g')).toEqual([100, 250, 500]);
+    expect(quantityChoices('piece')).toEqual([1, 2, 5, 10]);
+  });
+});
+
+describe('editing the transcript of a credit bill', () => {
+  it('"udhaar" with no amount keeps the whole bill on credit', () => {
+    const d = draftFromTranscript(draftMessage(1), 'Sharma ji ko do kilo aata udhaar', products, customers);
+    expect(d?.bill).toMatchObject({ total: 90, paid: 0, udhaar: 90 });
   });
 });

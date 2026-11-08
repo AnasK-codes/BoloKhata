@@ -107,7 +107,8 @@ function press(state: TurnState, at: number): TurnTransition {
       mode: 'held',
       transcript: null,
       heard: false,
-      draft: null,
+      // A bill stays on screen while the next sentence is spoken (it may be the answer to its question).
+      draft: state.draft?.intent === 'create_bill' ? state.draft : null,
       degraded: [],
       error: null,
       turns: [...state.turns, record].slice(-HISTORY_LIMIT),

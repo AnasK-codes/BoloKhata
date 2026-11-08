@@ -95,6 +95,15 @@ describe('press', () => {
     expect(sim.phase).toBe('listening');
   });
 
+  it('keeps a bill on screen while the answer to its question is spoken', () => {
+    const sim = new Sim();
+    const turnId = sim.speak();
+    sim.server(draftMessage(turnId, { draftId: 'dq', unresolved: [{ kind: 'item', spoken: 'kesar', candidates: [] }], clarification: { slot: 'item', spoken: 'kesar', attempts: 1, fallback: false, transcript: 'kesar' } }));
+    sim.press();
+    expect(sim.state.draft?.draftId).toBe('dq');
+    expect(sim.phase).toBe('listening');
+  });
+
   it('latches on a short tap', () => {
     const sim = new Sim();
     sim.press();

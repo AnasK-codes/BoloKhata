@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { LIMITS, MAX_ANY_MESSAGE_BYTES } from './constants';
 import { CLIENT_FIXTURES, SERVER_FIXTURES } from './fixtures';
 import { parseClientMessage, parseServerMessage } from './parse';
-import { draftSchema } from './server';
+import { draftSchema, MAX_CLARIFY_ATTEMPTS } from './server';
+import { DIALECTS } from './common';
 
 const enc = (value: unknown) => JSON.stringify(value);
 
@@ -179,5 +180,48 @@ describe('malformed and hostile input', () => {
   it('allows a customer balance to be negative (overpayment)', () => {
     const msg = CLIENT_FIXTURES.context_update.valid;
     expect(parseClientMessage(enc(msg)).ok).toBe(true);
+  });
+});
+
+describe('clarification on a draft', () => {
+  const draft = draftSchema.parse(SERVER_FIXTURES.draft.valid);
+  const ask = { slot: 'item', spoken: 'kesar', quantity: 1, unit: 'kg', attempts: 1, fallback: false, transcript: 'ek kilo cheeni aur kesar' };
+
+  it('accepts an open question and round-trips it through ptt_start', () => {
+    const withAsk = { ...draft, clarification: ask };
+    expect(parseServerMessage(enc(withAsk)).ok).toBe(true);
+    const back = parseClientMessage(enc({ type: 'ptt_start', turnId: 3, draftContext: withAsk }));
+    expect(back.ok && back.value.type === 'ptt_start' && back.value.draftContext?.clarification).toEqual(ask);
+  });
+
+  it('accepts a quantity question about one bill line', () => {
+    const q = { slot: 'quantity', itemIndex: 0, attempts: 2, fallback: true, transcript: 'thoda aata' };
+    expect(parseServerMessage(enc({ ...draft, clarification: q })).ok).toBe(true);
+  });
+
+  it('rejects an unknown slot, zero or too many attempts, and an over-long transcript', () => {
+    for (const bad of [
+      { ...ask, slot: 'price' },
+      { ...ask, attempts: 0 },
+      { ...ask, attempts: MAX_CLARIFY_ATTEMPTS + 1 },
+      { ...ask, transcript: 'x'.repeat(LIMITS.maxTranscriptLength + 1) },
+      { ...ask, itemIndex: LIMITS.maxBillItems },
+    ]) {
+      expect(parseServerMessage(enc({ ...draft, clarification: bad })).ok).toBe(false);
+    }
+  });
+});
+
+describe('dialect hint', () => {
+  const hello = CLIENT_FIXTURES.hello.valid as Record<string, unknown>;
+  it.each(DIALECTS)('accepts %s on hello and context_update', (dialect) => {
+    expect(parseClientMessage(enc({ ...hello, dialect })).ok).toBe(true);
+    expect(parseClientMessage(enc({ type: 'context_update', catalog: { version: 1 }, dialect })).ok).toBe(true);
+  });
+  it('rejects a dialect we do not know', () => {
+    expect(parseClientMessage(enc({ ...hello, dialect: 'klingon' })).ok).toBe(false);
+  });
+  it('keeps the field optional for older clients', () => {
+    expect(parseClientMessage(enc(hello)).ok).toBe(true);
   });
 });

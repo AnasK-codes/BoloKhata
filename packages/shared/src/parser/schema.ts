@@ -24,11 +24,23 @@ export const parsedUtteranceSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-export type ParsedItemOutput = z.infer<typeof parsedItemSchema> & Pick<ParsedItem, 'spokenPrice'>;
+export type ParsedItemOutput = z.infer<typeof parsedItemSchema> & Pick<ParsedItem, 'spokenPrice'> & {
+  /** Rules only: a vague amount ("thoda aata"). The quantity is a placeholder and must be asked. */
+  quantityUnclear?: true;
+};
+/** Rules only: a quantity that was spoken with no item name ("... aur do kilo"). */
+export interface MissingItem {
+  quantity: number;
+  unit: z.infer<typeof unitSchema> | null;
+}
 export type ParsedUtterance = Omit<z.infer<typeof parsedUtteranceSchema>, 'items'> & {
   items: ParsedItemOutput[];
   /** Rules only (discount, GST, round-off). Not in the LLM schema, so a model's answer cannot carry it. */
   adjust?: BillAdjust;
   /** Rules only: things the speaker asked for that could not be applied (for example GST without a rate). */
   adjustWarnings?: string[];
+  /** Rules only: quantities with no item name, so the gateway can ask "kya?" instead of dropping them. */
+  missingItems?: MissingItem[];
+  /** Rules only: "udhaar" with no amount ("paanch kilo aata udhaar"): the whole bill is on credit. */
+  creditAll?: true;
 };

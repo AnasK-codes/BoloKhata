@@ -38,6 +38,17 @@ export interface MockTtsOptions {
   chunkCount?: number;
   firstChunkDelayMs?: number;
   interChunkDelayMs?: number;
+  /**
+   * Real Gnani (observed 2026-11-08, not in the docs) sends `complete` twice per request: once with
+   * the next chunk_index and once with chunk_index null. On by default so tests see what production
+   * sees; set false for the single `complete` the docs describe.
+   */
+  duplicateComplete?: boolean;
+  /**
+   * Hold the duplicate `complete` back (at most this long) so it reaches the client in a separate
+   * packet, after the client has sent its next request but still before that request's `start`.
+   */
+  duplicateCompleteDelayMs?: number;
 }
 
 export interface TtsRequestRecord {
@@ -143,6 +154,8 @@ class TtsSession {
       this.send({ type: 'error', message });
       return;
     }
+    // Like a real server, everything for the previous request goes out before the next one starts.
+    this.pendingDuplicate?.();
     this.stream(request);
   }
 
@@ -181,6 +194,16 @@ class TtsSession {
     const sendNext = () => {
       if (sentBytes >= totalBytes) {
         this.send({ type: 'complete', data: { chunk_index: chunkIndex + 1, audio: '', is_final: true } });
+        if (options.duplicateComplete !== false) {
+          const again = () => {
+            clearTimeout(timer);
+            this.pendingDuplicate = null;
+            this.send({ type: 'complete', data: { chunk_index: null, audio: '', is_final: true } });
+          };
+          const timer = options.duplicateCompleteDelayMs ? setTimeout(again, options.duplicateCompleteDelayMs) : undefined;
+          if (timer) this.pendingDuplicate = again;
+          else again();
+        }
         record.completed = true;
         this.active = false;
         return;
@@ -210,6 +233,9 @@ class TtsSession {
     this.active = false;
     this.server.sessions.delete(this);
   }
+
+  /** The previous request's duplicate `complete`, when it is being held back (separate packet). */
+  private pendingDuplicate: (() => void) | null = null;
 
   private send(message: Record<string, unknown>): void {
     if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(message));

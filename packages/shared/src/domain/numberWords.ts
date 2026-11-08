@@ -180,6 +180,9 @@ const FRACTION_NUMBERS: ReadonlyArray<readonly [string, number]> = [
 /** Offsets applied to the next number. */
 const FRACTION_OFFSETS: ReadonlyArray<readonly [string, number]> = [
   ['sawa', 0.25],
+  ['sava', 0.25],
+  ['savaa', 0.25],
+  ['sawaa', 0.25],
   ['सवा', 0.25],
   ['saade', 0.5],
   ['sade', 0.5],
@@ -352,6 +355,14 @@ export interface ParsedQuantity {
   consumed: number;
 }
 
+/**
+ * A paav is a quarter kilo, said as a unit of its own: "ek paav jeera" (250 g), "do paav" (500 g),
+ * "paav kilo" (0.25 kg). "pav" is also bread, so that spelling counts only after a number.
+ */
+const PAAV = new Set(['paav', 'paaw', 'paw', 'pao', 'pau', 'पाव', 'पौआ', 'पव्वा'].map(nfc));
+const PAAV_AFTER_NUMBER = new Set([...PAAV, 'pav']);
+const PAAV_GRAMS = 250;
+
 const ATTACHED = /^(\d+(?:\.\d+)?)(\p{L}[\p{L}\p{M}]*)$/u;
 
 /**
@@ -371,9 +382,14 @@ export function extractQuantityAndUnit(tokens: readonly string[]): ParsedQuantit
     if (unit) return { quantity: Number.parseFloat(attached[1] ?? ''), unit, consumed: 1 };
   }
 
+  if (PAAV.has(first)) {
+    return UNIT_ALIASES.get(norm[1] ?? '') === 'kg' ? { quantity: 0.25, unit: 'kg', consumed: 2 } : { quantity: PAAV_GRAMS, unit: 'g', consumed: 1 };
+  }
+
   for (let k = Math.min(norm.length, MAX_NUMBER_TOKENS); k >= 1; k--) {
     const quantity = parseTokens(norm.slice(0, k));
     if (quantity === null) continue;
+    if (PAAV_AFTER_NUMBER.has(norm[k] ?? '')) return { quantity: quantity * PAAV_GRAMS, unit: 'g', consumed: k + 1 };
     const unit = UNIT_ALIASES.get(norm[k] ?? '') ?? null;
     return { quantity, unit, consumed: k + (unit ? 1 : 0) };
   }

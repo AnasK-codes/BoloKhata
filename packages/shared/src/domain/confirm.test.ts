@@ -18,6 +18,12 @@ describe('isConfirmable', () => {
     expect(isConfirmable(d({ intent: 'create_bill', bill: bill(0), unresolved: [{ kind: 'item', spoken: 'x', candidates: [] }] } as Partial<DraftMessage>))).toBe(false);
   });
 
+  it('bills with an open question cannot be saved, by voice or tap, until it is answered', () => {
+    const clarification = { slot: 'quantity', itemIndex: 0, attempts: 1, fallback: false, transcript: 'thoda aata' } as const;
+    expect(isConfirmable(d({ intent: 'create_bill', bill: bill(0), clarification } as Partial<DraftMessage>))).toBe(false);
+    expect(isConfirmable(d({ intent: 'create_bill', bill: bill(0), clarification: { ...clarification, fallback: true } } as Partial<DraftMessage>))).toBe(false);
+  });
+
   it('payments need a known customer', () => {
     expect(isConfirmable(d({ intent: 'record_payment', payment: { amount: 200 } }))).toBe(false);
     expect(isConfirmable(d({ intent: 'record_payment', payment: { amount: 200 }, customer: { id: 'c1', name: 'A', isNew: false } }))).toBe(true);

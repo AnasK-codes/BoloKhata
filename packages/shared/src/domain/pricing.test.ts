@@ -149,7 +149,9 @@ describe('buildBill: things that cannot be priced', () => {
   it('limits the number of items', () => {
     const many = Array.from({ length: 45 }, () => item('aata', 1, 'kg'));
     const r = bill(many);
-    expect(r.bill.items).toHaveLength(40);
+    // Only the first 40 spoken items are used (the same product merges into one line).
+    expect(r.bill.items).toHaveLength(1);
+    expect(r.bill.items[0]?.quantity).toBe(40);
     expect(r.needsReview).toBe(true);
   });
   it('limits the spoken text echoed back', () => {
@@ -214,5 +216,42 @@ describe('buildBill: paid and udhaar reconciliation (total = 90)', () => {
       const b = bill(base, { ...cust, udhaarAmount: udhaar }).bill;
       expect(b.paid + b.udhaar).toBe(b.total);
     }
+  });
+});
+
+describe('vague amounts', () => {
+  it('reports which bill lines had a vague amount, by their index in the bill', () => {
+    const r = buildBill({
+      parsedItems: [{ name: 'kesar', quantity: 1, unit: null }, { name: 'cheeni', quantity: 1, unit: 'kg' }, { name: 'aata', quantity: 1, unit: null, quantityUnclear: true }],
+      products: seedIndex(),
+    });
+    expect(r.bill.items.map((i) => i.name)).toEqual(['Cheeni', 'Aata']);
+    expect(r.unclearQuantity).toEqual([1]);
+  });
+});
+
+describe('the same product said twice', () => {
+  it('becomes one line with the quantities added, not two lines with the same product', () => {
+    const r = buildBill({ parsedItems: [{ name: 'aata', quantity: 2, unit: 'kg' }, { name: 'cheeni', quantity: 1, unit: null }, { name: 'atta', quantity: 500, unit: 'g' }], products: seedIndex() });
+    expect(r.bill.items.map((i) => [i.name, i.quantity])).toEqual([['Aata', 2.5], ['Cheeni', 1]]);
+    expect(r.bill.total).toBe(Math.round(2.5 * 45) + 48);
+  });
+  it('a vague amount on a merged line is still flagged at the merged index', () => {
+    const r = buildBill({ parsedItems: [{ name: 'cheeni', quantity: 1, unit: 'kg' }, { name: 'aata', quantity: 1, unit: null, quantityUnclear: true }, { name: 'aata', quantity: 1, unit: null }], products: seedIndex() });
+    expect(r.bill.items).toHaveLength(2);
+    expect(r.unclearQuantity).toEqual([1]);
+  });
+});
+
+describe('whole bill on credit', () => {
+  const items = [{ name: 'aata', quantity: 2, unit: 'kg' as const }];
+  it('puts the whole total on udhaar when no amounts were said', () => {
+    expect(buildBill({ parsedItems: items, products: seedIndex(), creditAll: true }).bill).toMatchObject({ total: 90, paid: 0, udhaar: 90 });
+  });
+  it('a paid amount still wins: "sau diye, baaki udhaar"', () => {
+    expect(buildBill({ parsedItems: items, products: seedIndex(), creditAll: true, amountPaid: 40 }).bill).toMatchObject({ paid: 40, udhaar: 50 });
+  });
+  it('without the flag a bill with no amounts is cash, as before', () => {
+    expect(buildBill({ parsedItems: items, products: seedIndex() }).bill).toMatchObject({ paid: 90, udhaar: 0 });
   });
 });

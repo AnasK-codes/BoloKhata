@@ -2,6 +2,8 @@
 
 **Status: no real measurements yet.** The spike (`pnpm spike`) has not been run against the real Gnani API, so this file contains no numbers. The values in `.env.example` and the README (STT format, language, VAD, pre-roll, drain, TTS model, voice, sample rate) are starting points, not measured choices.
 
+On 2026-11-08 only the pronunciation experiment ran against the real API (`pnpm spike --only P`). It records no latency numbers; see `docs/TTS-TUNING.md`. It did show one upstream behaviour that is not in the docs: every TTS request ends with **two** `complete` messages, which the gateway now handles.
+
 This file is overwritten by a complete real run (`pnpm spike --label <where-you-ran-it>`, all experiments A to F). A mock run or a partial `--only` run never overwrites it.
 
 ## To produce the real results
