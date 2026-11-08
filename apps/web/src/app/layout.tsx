@@ -4,11 +4,12 @@ import { AppProvider } from '@/components/AppProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { PwaRegister } from '@/components/PwaRegister';
 import { AccountGate } from '@/components/AccountGate';
+import { LocaleSync } from '@/components/LocaleSync';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Bol-Bill',
-  description: 'Bolkar bill banao: realtime Hinglish voice billing for kirana stores.',
+  description: 'Bolkar bill banao: realtime Hinglish voice billing for kirana stores.', // i18n-ignore: static build-time metadata, not on-screen UI
   applicationName: 'Bol-Bill',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'Bol-Bill', statusBarStyle: 'black-translucent' },
@@ -19,13 +20,15 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: [{ media: '(prefers-color-scheme: light)', color: '#eeeef0' }, { media: '(prefers-color-scheme: dark)', color: '#0f0f11' }],
+  themeColor: [{ media: '(prefers-color-scheme: light)', color: '#f2f2f6' }, { media: '(prefers-color-scheme: dark)', color: '#000000' }],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // `lang` is set on the client to the chosen language before first paint (LocaleSync).
   return (
-    <html lang="en-IN">
+    <html lang="hi-Latn" suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
+        <LocaleSync />
         <AccountGate><AppProvider>
           <div className="app-content">{children}</div>
           <BottomNav />

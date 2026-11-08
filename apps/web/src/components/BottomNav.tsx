@@ -3,20 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon, type IconName } from './Icon';
+import { useT, type MessageKey } from '@/lib/i18n';
 
-const ITEMS: { href: string; label: string; hint: string; icon: IconName }[] = [
-  { href: '/', label: 'Bolo', hint: 'Voice', icon: 'mic' },
-  { href: '/ledger', label: 'Khata', hint: 'Ledger', icon: 'book' },
-  { href: '/bills', label: 'Bills', hint: 'History', icon: 'receipt' },
-  { href: '/catalog', label: 'Samaan', hint: 'Catalog', icon: 'box' },
-  { href: '/settings', label: 'Settings', hint: 'Settings', icon: 'gear' },
+const ITEMS: { href: string; label: MessageKey; icon: IconName }[] = [
+  { href: '/', label: 'nav.voice', icon: 'mic' },
+  { href: '/ledger', label: 'nav.ledger', icon: 'book' },
+  { href: '/bills', label: 'nav.bills', icon: 'receipt' },
+  { href: '/catalog', label: 'nav.catalog', icon: 'box' },
+  { href: '/settings', label: 'nav.settings', icon: 'gear' },
 ];
 
 export function BottomNav() {
+  const t = useT();
   const path = usePathname();
   return (
-    <nav aria-label="Main" className="app-nav">
-      <Link href="/" className="nav-brand">Bol<span>Bill.</span><small>Aapki dukaan ka voice assistant</small></Link>
+    <nav aria-label={t('nav.main')} className="app-nav">
+      <Link href="/" className="nav-brand"><span className="vs-monogram" aria-hidden="true">B</span>{t('app.name')}</Link>
       <ul>
         {ITEMS.map((item) => {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
@@ -25,17 +27,16 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                aria-label={`${item.label} (${item.hint})`}
                 className={`nav-item ${active ? 'nav-active' : ''}`}
               >
                 <Icon name={item.icon} size={24} />
-                {item.label}
+                {t(item.label)}
               </Link>
             </li>
           );
         })}
       </ul>
-      <div className="nav-note"><strong>Bolkar kaam aasaan.</strong><p>Bill, khata aur samaan — sab ek jagah.</p></div>
+      <div className="nav-note"><strong>{t('nav.noteTitle')}</strong><p>{t('nav.noteBody')}</p></div>
     </nav>
   );
 }

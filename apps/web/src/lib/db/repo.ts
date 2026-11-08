@@ -21,6 +21,7 @@ import {
   type ReceiptBusiness,
   receiptBusinessSchema,
 } from '@bolbill/shared';
+import { t } from '../i18n';
 import type { BolDb } from './schema';
 
 export interface SaveBillInput {
@@ -118,10 +119,10 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
     },
     /** Changes only the rate; name, unit, aliases and stock stay. Returns whether it changed. */
     async setProductPrice(id: string, pricePerUnit: number): Promise<{ ok: true; changed: boolean } | { ok: false; error: string }> {
-      if (!Number.isInteger(pricePerUnit) || pricePerUnit <= 0) return { ok: false, error: 'Rate poora rupaya ho, 0 se zyada.' };
+      if (!Number.isInteger(pricePerUnit) || pricePerUnit <= 0) return { ok: false, error: t('repo.rateInvalid') };
       return db.transaction('rw', db.products, async () => {
         const product = await db.products.get(id);
-        if (!product) return { ok: false, error: 'Samaan nahi mila.' } as const;
+        if (!product) return { ok: false, error: t('repo.itemNotFound') } as const;
         if (product.pricePerUnit === pricePerUnit) return { ok: true, changed: false } as const;
         await db.products.put({ ...product, pricePerUnit });
         return { ok: true, changed: true } as const;
@@ -129,9 +130,9 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
     },
     deleteProduct: (id: string) => db.products.delete(id),
     async setStock(productId: string, stock: number | undefined): Promise<{ ok: true } | { ok: false; error: string }> {
-      if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) return { ok: false, error: 'Stock 0 ya usse zyada ginti hona chahiye.' };
+      if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) return { ok: false, error: t('repo.stockInvalid') };
       const product = await db.products.get(productId);
-      if (!product) return { ok: false, error: 'Samaan nahi mila.' };
+      if (!product) return { ok: false, error: t('repo.itemNotFound') };
       const { stock: _old, ...rest } = product;
       await db.products.put(stock === undefined ? rest : { ...rest, stock });
       return { ok: true };
@@ -179,18 +180,18 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
     async saveCustomer(input: { id?: string; name: string; aliases: string[]; mobile?: string; address?: string }): Promise<{ ok: true; customer: Customer } | { ok: false; error: string }> {
       return db.transaction('rw', db.customers, async () => {
         const mine = input.id ? await db.customers.get(input.id) : undefined;
-        if (input.id && !mine) return { ok: false, error: 'Customer not found.' } as const;
+        if (input.id && !mine) return { ok: false, error: t('repo.customerNotFound') } as const;
         const wanted = [input.name, ...input.aliases].map((n) => normalize(n));
         for (const other of await db.customers.toArray()) {
           if (other.id === input.id) continue;
           if (customerKeys(other).some((k) => wanted.includes(k))) {
-            return { ok: false, error: `"${other.name}" ke saath naam takra raha hai (already used).` } as const;
+            return { ok: false, error: t('repo.nameClash', { name: other.name }) } as const;
           }
         }
         const mobile = input.mobile?.trim() ?? mine?.mobile;
         const address = input.address?.trim() ?? mine?.address;
         if ((mobile || address) && !creditDetailsSchema.safeParse({ name: input.name, mobile, address }).success) {
-          return { ok: false, error: 'Naam, 10 digit mobile aur poora address likho.' } as const;
+          return { ok: false, error: t('repo.creditDetails') } as const;
         }
         const customer: Customer = { id: mine?.id ?? newId(), name: input.name.trim(), aliases: input.aliases, createdAt: mine?.createdAt ?? clock(),
           ...(mobile ? { mobile } : {}), ...(address ? { address } : {}) };
@@ -202,7 +203,7 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
     async deleteCustomer(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
       return db.transaction('rw', [db.customers, db.ledgerEntries, db.bills], async () => {
         const used = (await db.ledgerEntries.where('customerId').equals(id).count()) + (await db.bills.where('customerId').equals(id).count());
-        if (used > 0) return { ok: false, error: 'Is grahak ka hisab hai, isliye hata nahi sakte. (Has history; cannot delete.)' } as const;
+        if (used > 0) return { ok: false, error: t('repo.hasHistory') } as const;
         await db.customers.delete(id);
         return { ok: true } as const;
       });
@@ -255,7 +256,7 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
         if (existing) {
           return { ok: true, created: false, entry: existing, balanceAfter: getBalance(customerId, customerEntries), warnings: [] } as const;
         }
-        if (!(await db.customers.get(customerId))) return { ok: false, error: 'Customer not found.' } as const;
+        if (!(await db.customers.get(customerId))) return { ok: false, error: t('repo.customerNotFound') } as const;
         const result = applyPayment(customerId, amount, customerEntries, {
           id: entryId,
           createdAt: clock(),
@@ -279,11 +280,11 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
 
     async reverseBill(billId: string, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
       const note = reason.trim();
-      if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: 'Wajah likho (1–200 letters).' };
+      if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: t('repo.reasonRequired') };
       return db.transaction('rw', [db.bills, db.ledgerEntries, db.products], async () => {
         const bill = await db.bills.get(billId);
-        if (!bill) return { ok: false, error: 'Bill nahi mila.' } as const;
-        if (bill.reversedAt !== undefined) return { ok: false, error: 'Bill pehle hi reverse ho chuka hai.' } as const;
+        if (!bill) return { ok: false, error: t('repo.billNotFound') } as const;
+        if (bill.reversedAt !== undefined) return { ok: false, error: t('repo.billReversed') } as const;
         const entries = await db.ledgerEntries.toArray();
         const originals = entries.filter((e) => e.billId === billId && !e.reversesEntryId);
         const at = clock();
@@ -301,11 +302,11 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
 
     async reverseLedgerEntry(entryId: string, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
       const note = reason.trim();
-      if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: 'Wajah likho (1–200 letters).' };
+      if (!note || !safeText(200).safeParse(note).success) return { ok: false, error: t('repo.reasonRequired') };
       return db.transaction('rw', [db.bills, db.ledgerEntries], async () => {
         const original = await db.ledgerEntries.get(entryId);
-        if (!original) return { ok: false, error: 'Entry nahi mili.' } as const;
-        if (original.billId && !original.reversesEntryId) return { ok: false, error: 'Bills mein jaakar poora bill reverse karo.' } as const;
+        if (!original) return { ok: false, error: t('repo.entryNotFound') } as const;
+        if (original.billId && !original.reversesEntryId) return { ok: false, error: t('repo.reverseFromBills') } as const;
         const entries = await db.ledgerEntries.where('customerId').equals(original.customerId).toArray();
         const result = reverseEntry(original, entries, { id: `reversal:${entryId}`, createdAt: clock(), note });
         if (!result.ok) return result;

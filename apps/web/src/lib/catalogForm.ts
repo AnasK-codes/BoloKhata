@@ -1,4 +1,5 @@
 import { LIMITS, UNITS, creditDetailsSchema, type Unit } from '@bolbill/shared';
+import { t } from './i18n';
 
 export interface ProductFormInput {
   name: string;
@@ -36,25 +37,25 @@ export function parseAliases(text: string): string[] {
   return out;
 }
 
-/** Validates the catalog form. Messages are short Hinglish with the fix in them. */
+/** Validates the catalog form. Messages are short, in the interface language, with the fix in them. */
 export function validateProductForm(input: ProductFormInput): ProductFormResult {
   const errors: Partial<Record<keyof ProductFormInput, string>> = {};
   const name = input.name.trim();
-  if (name === '') errors.name = 'Naam likho (name is required).';
-  else if (name.length > LIMITS.maxNameLength) errors.name = `Naam ${LIMITS.maxNameLength} akshar se chhota rakho.`;
+  if (name === '') errors.name = t('form.nameRequired');
+  else if (name.length > LIMITS.maxNameLength) errors.name = t('form.nameTooLong', { max: LIMITS.maxNameLength });
 
   const price = Number(input.price.trim());
   if (input.price.trim() === '' || !Number.isInteger(price) || price <= 0) {
-    errors.price = 'Rate poora rupaya ho, 0 se zyada (whole rupees, above 0).';
+    errors.price = t('form.priceInvalid');
   }
-  if (!(UNITS as readonly string[]).includes(input.unit)) errors.unit = 'Unit chuno.';
+  if (!(UNITS as readonly string[]).includes(input.unit)) errors.unit = t('form.unitRequired');
 
   const aliases = parseAliases(input.aliases);
-  if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = `Zyada se zyada ${LIMITS.maxAliasesPerEntry} doosre naam.`;
+  if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = t('form.tooManyAliases', { max: LIMITS.maxAliasesPerEntry });
 
   const stockText = input.stock?.trim() ?? '';
   const stock = stockText === '' ? undefined : Number(stockText);
-  if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) errors.stock = 'Stock 0 ya usse zyada ginti ho, ya khali chhodo.';
+  if (stock !== undefined && (!Number.isFinite(stock) || stock < 0 || stock > 1_000_000)) errors.stock = t('form.stockInvalid');
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, value: { name, pricePerUnit: price, unit: input.unit as Unit, aliases, ...(stock !== undefined ? { stock } : {}) } };
@@ -75,19 +76,19 @@ export type CustomerFormResult =
 export function validateCustomerForm(input: CustomerFormInput): CustomerFormResult {
   const errors: Partial<Record<keyof CustomerFormInput, string>> = {};
   const name = input.name.trim();
-  if (name === '') errors.name = 'Naam likho (name is required).';
-  else if (name.length > LIMITS.maxNameLength) errors.name = `Naam ${LIMITS.maxNameLength} akshar se chhota rakho.`;
+  if (name === '') errors.name = t('form.nameRequired');
+  else if (name.length > LIMITS.maxNameLength) errors.name = t('form.nameTooLong', { max: LIMITS.maxNameLength });
   const aliases = parseAliases(input.aliases);
   const mobile = input.mobile?.trim() ?? '';
   const address = input.address?.trim() ?? '';
   if (mobile || address) {
     const details = creditDetailsSchema.safeParse({ name, mobile, address });
     if (!details.success) for (const issue of details.error.issues) {
-      if (issue.path[0] === 'mobile') errors.mobile = '10 digit mobile number likho.';
-      if (issue.path[0] === 'address') errors.address = 'Poora address likho (5–300 letters).';
+      if (issue.path[0] === 'mobile') errors.mobile = t('form.mobileInvalid');
+      if (issue.path[0] === 'address') errors.address = t('form.addressInvalid');
     }
   }
-  if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = `Zyada se zyada ${LIMITS.maxAliasesPerEntry} doosre naam.`;
+  if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = t('form.tooManyAliases', { max: LIMITS.maxAliasesPerEntry });
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, value: { name, aliases, ...(mobile || address ? { mobile, address } : {}) } };
 }

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@bolbill/shared": "workspace:*",
+    "@number-flow/react": "0.6.2",
     "dexie": "^4.4.7",
     "next": "^16.4.4",
     "react": "^19.3.1",
