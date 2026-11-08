@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { startMockTts } from '@bolbill/mock-gnani';
+import { TtsSession } from './ttsClient';
+import { pronunciationRequest } from './expP';
 import { parseSpikeArgs, selectedExperiments } from './args';
 import { Budget } from './budget';
 import { pickSubset, type Clip } from './clips';
@@ -169,5 +172,31 @@ describe('variant verdicts', () => {
   it('prefers speed only when accuracy is a tie', () => {
     expect(verdict({ pairs: 3, werDelta: 0, latencyDeltaMs: -80 })).toMatch(/faster/);
     expect(verdict({ pairs: 3, werDelta: 0.1, latencyDeltaMs: -300 })).toMatch(/keep baseline/);
+  });
+});
+
+describe('TtsSession: sequential requests on one socket (Gnani sends complete twice)', () => {
+  it('gives every request its own audio, in order, with no empty or shifted clips', async () => {
+    const mock = await startMockTts({ chunkBytes: 4800, duplicateCompleteDelayMs: 200, validApiKey: 'k' });
+    try {
+      const session = await TtsSession.open(mock.url, 'k');
+      const sizes: number[] = [];
+      for (const text of ['ek', 'do do do do', 'teen']) {
+        const r = await session.synthesize(pronunciationRequest(text), 3000);
+        expect(r.completed, text).toBe(true);
+        sizes.push(r.audio.length);
+      }
+      await session.close();
+      expect(sizes.every((n) => n > 0)).toBe(true);
+      expect(sizes[1]).toBeGreaterThan(sizes[0]!); // the longer text got the longer clip: nothing shifted
+      expect(mock.requests.map((q) => q.text)).toEqual(['ek', 'do do do do', 'teen']);
+    } finally {
+      await mock.close();
+    }
+  });
+
+  it('experiment P is opt-in: a full spike run never selects it', () => {
+    expect(selectedExperiments(parseSpikeArgs([]))).not.toContain('P');
+    expect(selectedExperiments(parseSpikeArgs(['--only', 'P']))).toEqual(['P']);
   });
 });

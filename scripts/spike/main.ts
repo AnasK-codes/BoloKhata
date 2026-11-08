@@ -7,6 +7,7 @@ import { runExperimentB, STT_VARIANTS } from './expB';
 import { runExperimentC } from './expC';
 import { PHRASES, RESERVE_FOR_E, TTS_VARIANTS, phraseText, runExperimentD } from './expD';
 import { runExperimentE } from './expE';
+import { pronunciationChars, runExperimentP } from './expP';
 import { accounting, printTable, runMeta, runOutputDir, writeLatencyDoc, writeResultsJson } from './report';
 import { STT_EXPERIMENTS, type ExperimentContext, type ExperimentResult } from './types';
 
@@ -16,6 +17,7 @@ const RUNNERS: Partial<Record<ExperimentId, (ctx: ExperimentContext) => Promise<
   C: runExperimentC,
   D: runExperimentD,
   E: runExperimentE,
+  P: runExperimentP,
 };
 
 const MOCK_BANNER =
@@ -41,6 +43,7 @@ function estimateTtsChars(args: SpikeArgs, experiments: ExperimentId[]): number 
     }
   }
   if (experiments.includes('E')) total += RESERVE_FOR_E;
+  if (experiments.includes('P')) total += pronunciationChars();
   return total;
 }
 
@@ -62,6 +65,7 @@ function printDryRun(args: SpikeArgs, env: SpikeEnv): void {
     D: `TTS: ${TTS_VARIANTS.length} variants (${TTS_VARIANTS.map((v) => v.id).join(', ')}); baseline on ${PHRASES.length} phrases, others on ${args.ttsSubset}`,
     E: 'TTS reuse: two sequential requests, then ONE deliberate concurrent request',
     F: 'credit accounting: audio seconds and characters actually sent',
+    P: 'pronunciation A/B: every candidate spelling in the corpus, one request at a time, plus a listening sheet (opt-in)',
   };
   for (const id of experiments) console.log(`  ${id}. ${describe[id]}`);
 

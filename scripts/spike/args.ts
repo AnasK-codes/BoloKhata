@@ -1,6 +1,8 @@
 import { parseArgs } from 'node:util';
 
-export const EXPERIMENT_IDS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+export const EXPERIMENT_IDS = ['A', 'B', 'C', 'D', 'E', 'F', 'P'] as const;
+/** Experiments that run only when named with --only (P spends credits on a listening test). */
+export const OPT_IN_EXPERIMENTS: readonly string[] = ['P'];
 export type ExperimentId = (typeof EXPERIMENT_IDS)[number];
 
 export interface SpikeArgs {
@@ -76,5 +78,5 @@ export function parseSpikeArgs(argv: string[]): SpikeArgs {
 }
 
 export function selectedExperiments(args: SpikeArgs): ExperimentId[] {
-  return args.only ?? [...EXPERIMENT_IDS];
+  return args.only ?? EXPERIMENT_IDS.filter((id) => !OPT_IN_EXPERIMENTS.includes(id));
 }
