@@ -224,6 +224,6 @@ export function clarifyAsk(c: Clarification, itemName: string | undefined, varia
       return [clip(item ? `${item} kitna chahiye?` : `Kitna chahiye?`), pick([`Jaise ek kilo ya aadha kilo.`, `Kilo ya gram mein boliye.`], variant)];
     }
     case 'customer':
-      return [clip(`${name(c.spoken) || 'Grahak'} kaun hain?`), `Poora naam boliye.`];
+      return c.spoken ? [clip(`${name(c.spoken)} kaun hain?`), `Poora naam boliye.`] : customerNeeded(variant);
   }
 }

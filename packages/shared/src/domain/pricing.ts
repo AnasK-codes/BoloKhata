@@ -46,6 +46,8 @@ export interface BuildBillInput {
   udhaarAmount?: number | null;
   /** Rules-extracted only (like a spoken price); the model never supplies it. */
   adjust?: BillAdjust;
+  /** "udhaar" was said with no amount: whatever is not paid is on credit (rules only). */
+  creditAll?: boolean;
 }
 
 export interface BuildBillResult {
@@ -173,6 +175,15 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
       needsReview = true;
       continue;
     }
+    // The same product said twice ("do kilo aata ... aur aadha kilo aata") is one line, not two.
+    const at = items.findIndex((i) => i.productId === product.id && i.spokenPrice === undefined);
+    const prior = at >= 0 ? items[at] : undefined;
+    if (prior) {
+      const merged = Math.round(prior.quantity * 1000) + milli;
+      items[at] = { ...prior, quantity: merged / 1000, lineTotal: lineTotal(merged, product.pricePerUnit) };
+      if (item.quantityUnclear && !unclearQuantity.includes(at)) unclearQuantity.push(at);
+      continue;
+    }
     if (item.quantityUnclear) unclearQuantity.push(items.length);
     items.push({
       productId: product.id,
@@ -189,7 +200,9 @@ export function buildBill(input: BuildBillInput): BuildBillResult {
   const total = computeTotals(subtotal, adjust).total;
   if (items.length === 0) warnings.push('The bill has no items.');
 
-  const reconciled = reconcilePayment(total, input.amountPaid, input.udhaarAmount, input.customerId, warnings);
+  const noAmounts = (input.amountPaid ?? null) === null && (input.udhaarAmount ?? null) === null;
+  // "paanch kilo aata udhaar": nothing was paid, so the whole bill is udhaar.
+  const reconciled = reconcilePayment(total, input.creditAll && noAmounts ? 0 : input.amountPaid, input.udhaarAmount, input.customerId, warnings);
   if (reconciled.review) needsReview = true;
 
   return {

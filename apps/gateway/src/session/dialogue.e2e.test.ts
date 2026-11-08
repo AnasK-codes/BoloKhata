@@ -112,6 +112,21 @@ describe('a partly understood bill', () => {
     expect(lines(answer)).toEqual([['Cheeni', 1], ['Jeera', 1]]);
   }, 30_000);
 
+  it('"udhaar kiska likhun?" is answered by a name, and the bill keeps its items and udhaar', async () => {
+    const client = await gateway!.ready(HELLO);
+    const first = await say(client, 1, 'do kilo cheeni udhaar');
+    expect(first['clarification']).toMatchObject({ slot: 'customer' });
+    const second = await say(client, 2, 'Sharma ji', first);
+    expect(second).toMatchObject({ draftId: first['draftId'], customer: { id: 'c1' }, bill: { total: 100, udhaar: 100 } });
+    expect(second['clarification']).toBeUndefined();
+  }, 30_000);
+
+  it('the same product said twice is one line', async () => {
+    const client = await gateway!.ready(HELLO);
+    const d = await say(client, 1, 'do kilo aata aur ek kilo aata');
+    expect(lines(d)).toEqual([['Aata', 3]]);
+  }, 30_000);
+
   it('survives a reconnect mid-question: the browser sends the draft to the new session', async () => {
     const client = await gateway!.ready(HELLO);
     const first = await say(client, 1, 'ek kilo cheeni aur do kilo add kardo');

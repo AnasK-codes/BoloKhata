@@ -261,3 +261,10 @@ describe('answering the open question by tap', () => {
     expect(quantityChoices('piece')).toEqual([1, 2, 5, 10]);
   });
 });
+
+describe('editing the transcript of a credit bill', () => {
+  it('"udhaar" with no amount keeps the whole bill on credit', () => {
+    const d = draftFromTranscript(draftMessage(1), 'Sharma ji ko do kilo aata udhaar', products, customers);
+    expect(d?.bill).toMatchObject({ total: 90, paid: 0, udhaar: 90 });
+  });
+});

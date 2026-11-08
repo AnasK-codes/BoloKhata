@@ -93,3 +93,12 @@ describe('confirmation words', () => {
     expect(r.items.map((i) => i.name)).not.toContain('nahi');
   });
 });
+
+describe('udhaar with no amount means the whole bill is on credit', () => {
+  it('flags it in the parse', () => {
+    expect(parse('Kiran ji ko paanch kilo aata udhaar').creditAll).toBe(true);
+    expect(parse('do kilo cheeni udhaar likho').creditAll).toBe(true);
+    expect(parse('Sharma ji ko do kilo aata teen sau udhaar').creditAll).toBeUndefined();
+    expect(parse('do kilo cheeni').creditAll).toBeUndefined();
+  });
+});

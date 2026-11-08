@@ -725,6 +725,7 @@ export function parseUtterance(transcript: string, matcher?: CatalogMatcher): Pa
 
   if (items.length > 0) {
     result.intent = 'create_bill';
+    if (amounts.hasUdhaarKw && amounts.udhaar === null) result.creditAll = true;
     const noCustomerWithCredit = customer === null && amounts.udhaar !== null && amounts.udhaar > 0;
     result.confidence = clamp01(base * itemFactor(items, matcher) * customerFactor(customer, matcher, noCustomerWithCredit ? 0.6 : 1));
     return result;

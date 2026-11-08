@@ -205,7 +205,7 @@ export function draftFromTranscript(
   }
 
   if (parsed.intent === 'create_bill') {
-    const result = buildBill({ parsedItems: parsed.items, products: index, amountPaid: parsed.amount_paid, udhaarAmount: parsed.udhaar_amount, ...(parsed.adjust ? { adjust: parsed.adjust } : {}) });
+    const result = buildBill({ parsedItems: parsed.items, products: index, amountPaid: parsed.amount_paid, udhaarAmount: parsed.udhaar_amount, ...(parsed.adjust ? { adjust: parsed.adjust } : {}), ...(parsed.creditAll ? { creditAll: true } : {}) });
     if (result.bill.items.length === 0 && result.unresolvedItems.length === 0) return null;
     const draft: DraftMessage = {
       ...common,

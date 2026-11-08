@@ -53,10 +53,13 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
   for (const item of base.bill.items) {
     if (!matchingProducts.some((p) => p.id === item.productId)) matchingProducts.push({ id: item.productId, name: item.name, aliases: [], unit: item.unit, pricePerUnit: item.unitPrice ?? 0 });
   }
+  // "nahi, teen kilo" names no item: on a one-item bill it can only mean that item.
+  const only = name === '' && base.bill.items.length === 1 ? base.bill.items[0]?.productId : undefined;
   const index = new CatalogIndex(matchingProducts);
-  const match = index.matchProduct(name);
-  if (!match.best || match.ambiguous) return fail();
-  const product = matchingProducts.find((p) => p.id === match.best?.id);
+  const match = only === undefined ? index.matchProduct(name) : null;
+  if (only === undefined && (!match?.best || match.ambiguous)) return fail();
+  const productId = only ?? match?.best?.id;
+  const product = matchingProducts.find((p) => p.id === productId);
   if (!product) return fail();
   const items = base.bill.items.map((i) => ({ ...i }));
   const positions = items.flatMap((i, pos) => i.productId === product.id ? [pos] : []);

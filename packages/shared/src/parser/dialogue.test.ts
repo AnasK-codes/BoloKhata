@@ -157,3 +157,27 @@ describe('nextClarification: one question at a time, at most two spoken attempts
     expect(next.transcript.startsWith('x')).toBe(true);
   });
 });
+
+describe('udhaar with nobody named', () => {
+  const ask: Clarification = { slot: 'customer', attempts: 1, fallback: false, transcript: 'do kilo cheeni udhaar' };
+  const ctx = () => context(ask, { bill: { items: [line('p_cheeni', 'Cheeni', 2, 48)], total: 96, paid: 0, udhaar: 96 } });
+
+  it('asks whose udhaar it is when a credit bill has no customer', () => {
+    expect(nextClarification({ transcript: 'x', missing: [], unresolved: [], unclearQuantity: [], needsCustomer: true })).toMatchObject({ slot: 'customer', attempts: 1 });
+    expect(nextClarification({ transcript: 'x', missing: [], unresolved: [], unclearQuantity: [] })).toBeUndefined();
+  });
+
+  it('a known name answers it, and the udhaar stays', () => {
+    const f = answerFollowUp(ctx(), 'Sharma ji', index);
+    expect(f.kind === 'answer' && [f.parsed.customer, f.parsed.amount_paid]).toEqual(['Ramesh Sharma', 0]);
+  });
+
+  it('a new name is taken as a new customer', () => {
+    const f = answerFollowUp(ctx(), 'Mohan Lal', index);
+    expect(f.kind === 'answer' && f.parsed.customer).toBe('Mohan Lal');
+  });
+
+  it('a number is not a name', () => {
+    expect(answerFollowUp(ctx(), 'do sau', index).kind).toBe('missed');
+  });
+});

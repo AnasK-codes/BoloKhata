@@ -125,6 +125,8 @@ export interface ClarifyInput {
   unresolved: readonly UnresolvedItem[];
   /** Bill lines whose amount was vague ("thoda aata"). */
   unclearQuantity: readonly number[];
+  /** A credit bill with no customer: "udhaar kiska likhun?" */
+  needsCustomer?: boolean;
   previous?: Clarification;
 }
 
@@ -144,6 +146,7 @@ export function nextClarification(input: ClarifyInput): Clarification | undefine
   else if (item) ask = { slot: 'item', spoken: item.spoken, ...(item.quantity !== undefined ? { quantity: item.quantity } : {}), ...(item.unit ? { unit: item.unit } : {}), transcript };
   else if (unclear !== undefined && unclear < LIMITS.maxBillItems) ask = { slot: 'quantity', itemIndex: unclear, transcript };
   else if (customer) ask = { slot: 'customer', spoken: customer.spoken, transcript };
+  else if (input.needsCustomer) ask = { slot: 'customer', transcript };
   if (!ask) return undefined;
 
   const prev = input.previous;
@@ -275,10 +278,24 @@ function fillSlot(
     case 'customer': {
       if (parsed.intent === 'create_bill' && parsed.items.length > 0) return 'command';
       const match = matcher.matchCustomer(parsed.customer ?? answer);
-      if (!match.best || match.ambiguous) return null;
-      return { ...base, customer: match.best.name };
+      if (match.best && !match.ambiguous) return { ...base, customer: match.best.name };
+      // "Udhaar kiska likhun?" can be answered with a new name; a choice between two cannot.
+      const name = ask.spoken === undefined ? newCustomerName(answer) : null;
+      return name ? { ...base, customer: name } : null;
     }
   }
+}
+
+const NAME_FILLER = foldSet(['ji', 'ka', 'ke', 'ki', 'ko', 'naam', 'nam', 'pe', 'par', 'likho', 'likh', 'do', 'hai', 'udhaar', 'udhar']);
+const MAX_NAME_WORDS = 4;
+
+/** A short spoken name ("Mohan Lal ji"), title-cased, or null when it does not look like one. */
+function newCustomerName(answer: string): string | null {
+  const tokens = tokenizeSpeech(answer);
+  if (tokens.some((t) => parseNumber(t) !== null)) return null;
+  const words = tokens.filter((t) => !NAME_FILLER.has(fold(t)));
+  if (words.length < 1 || words.length > MAX_NAME_WORDS) return null;
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ').slice(0, LIMITS.maxNameLength);
 }
 
 function stripFlag(item: ParsedItemOutput): ParsedItemOutput {

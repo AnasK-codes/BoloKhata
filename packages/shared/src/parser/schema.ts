@@ -41,4 +41,6 @@ export type ParsedUtterance = Omit<z.infer<typeof parsedUtteranceSchema>, 'items
   adjustWarnings?: string[];
   /** Rules only: quantities with no item name, so the gateway can ask "kya?" instead of dropping them. */
   missingItems?: MissingItem[];
+  /** Rules only: "udhaar" with no amount ("paanch kilo aata udhaar"): the whole bill is on credit. */
+  creditAll?: true;
 };

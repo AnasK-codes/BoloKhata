@@ -13,7 +13,6 @@ import {
   type Clarification,
   customerAmbiguous,
   customerExists,
-  customerNeeded,
   customerNotFound,
   itemNotFound,
   nothingPending,
@@ -145,17 +144,18 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   }
 
+  // Udhaar with nobody to owe it would be stored with no ledger entry: do not offer to save it.
+  const missingCustomer = udhaarNeedsCustomer(result.bill.udhaar, customer !== undefined && customer !== null);
+
   // One question at a time, about only the piece that is missing. Everything understood stays on the bill.
   const clarification = nextClarification({
     transcript: input.transcript ?? '',
     missing,
     unresolved,
     unclearQuantity: result.unclearQuantity,
+    needsCustomer: missingCustomer && result.bill.items.length > 0,
     ...(input.previous ? { previous: input.previous } : {}),
   });
-
-  // Udhaar with nobody to owe it would be stored with no ledger entry: do not offer to save it.
-  const missingCustomer = udhaarNeedsCustomer(result.bill.udhaar, customer !== undefined && customer !== null);
   const creditReady = customer?.id ? input.catalog.customers.find((c) => c.id === customer.id)?.creditReady : false;
   const missingDetails = result.bill.udhaar > 0 && creditReady === false;
   let reply: string[];
@@ -165,8 +165,6 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
   } else if (clarification) {
     const line = clarification.itemIndex !== undefined ? result.bill.items[clarification.itemIndex] : undefined;
     reply = clarifyAsk(clarification, line?.name, variant);
-  } else if (missingCustomer) {
-    reply = customerNeeded(variant);
   } else if (missingDetails) {
     reply = ['Udhaar ke liye grahak ka naam, mobile aur address bharo.'];
   } else {
