@@ -11,7 +11,7 @@ import { formatQuantity, rupees } from '@/lib/format';
 import { Money } from './Money';
 import { unitName } from './units';
 import { t as translate, useT } from '@/lib/i18n';
-import { removeItem, resolveCustomer, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
+import { answerMissingItem, dismissQuestion, quantityChoices, removeItem, resolveCustomer, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from '@/lib/voice/draftEdit';
 
 interface Props {
   draft: DraftMessage;
@@ -70,6 +70,28 @@ function ProductPicker({ spoken, quantity, unit, candidates, products, onPick }:
   );
 }
 
+/** Shown after the voice has asked twice: the rest is done by tapping, never a third spoken question. */
+function FallbackNote() {
+  return (
+    <p role="status" className="mb-3 flex gap-2 rounded-xl bg-warn/15 px-3 py-2 font-semibold text-warn">
+      <Icon name="alert" size={18} />
+      Yahan tap karke chuniye. (Tap to pick; no need to say it again.)
+    </p>
+  );
+}
+
+/** "kitna chahiye?" as taps, under the line in question. */
+function QuantityChips({ unit, onPick, onDrop }: { unit: string; onPick(q: number): void; onDrop(): void }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Kitna chahiye? (How much?)">
+      {quantityChoices(unit as Parameters<typeof quantityChoices>[0]).map((q) => (
+        <button key={q} type="button" className="min-h-12 rounded-xl bg-accent px-4 font-semibold text-on-solid" onClick={() => onPick(q)}>{formatQuantity(q)} {unit}</button>
+      ))}
+      <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={onDrop}>Hatao</button>
+    </div>
+  );
+}
+
 export function BillCard({ draft, products, customers, repo, onChange }: Props) {
   const t = useT();
   const bill = draft.bill;
@@ -86,8 +108,13 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
     onChange(setCustomer(draft, known ? { id: known.id, name: known.name, isNew: false, creditReady: hasCreditDetails(known) } : { name, isNew: true, creditReady: false }));
   };
 
+  const ask = draft.clarification;
+  const askLine = ask?.slot === 'quantity' ? ask.itemIndex : undefined;
+  const askSpoken = ask?.slot === 'item' ? ask.spoken : undefined;
+
   return (
     <article className="bill" aria-label={t('bill.label')}>
+      {ask?.fallback && <FallbackNote />}
       <div className="bill-head">
         {editingCustomer ? (
           <form className="flex w-full gap-2" onSubmit={(e) => { e.preventDefault(); applyCustomer(); }}>
@@ -121,7 +148,7 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
       {bill && bill.items.length > 0 && (
         <ul className="bill-lines">
           {bill.items.map((item, i) => (
-            <li key={`${draft.draftId}:${item.productId}`} className="bill-line" style={{ ['--i' as string]: i }}>
+            <li key={`${draft.draftId}:${item.productId}`} className={`bill-line${askLine === i ? ' ring-2 ring-warn' : ''}`} style={{ ['--i' as string]: i }} {...(askLine === i ? { 'aria-current': 'step' as const } : {})}>
               <div className="row1">
                 <p className="name">{item.name}</p>
                 <p className="amt num"><Money value={item.lineTotal} /></p>
@@ -137,15 +164,29 @@ export function BillCard({ draft, products, customers, repo, onChange }: Props) 
                   </button>
                 </div>
               </div>
+              {askLine === i && (
+                <>
+                  <p className="mt-2 font-semibold text-warn">{item.name} kitna chahiye?</p>
+                  <QuantityChips unit={item.unit} onPick={(q) => onChange(setItemQuantity(draft, i, q))} onDrop={() => onChange(dismissQuestion(draft))} />
+                </>
+              )}
             </li>
           ))}
         </ul>
       )}
 
+      {ask?.slot === 'item' && ask.spoken === undefined && (
+        <div className="mt-3 rounded-xl ring-2 ring-warn" aria-current="step">
+          <ProductPicker spoken={ask.quantity !== undefined ? `${formatQuantity(ask.quantity)} ${ask.unit ?? ''}`.trim() : '?'} quantity={undefined} unit={undefined} candidates={[]} products={products} onPick={(p) => onChange(answerMissingItem(draft, p))} />
+          <button type="button" className="m-3 mt-0 min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>Hatao</button>
+        </div>
+      )}
+
       {draft.unresolved.map((u, i) =>
         u.kind === 'item' ? (
-          <div key={`u${i}${u.spoken}`} className="mt-3">
+          <div key={`u${i}${u.spoken}`} className={`mt-3${askSpoken === u.spoken ? ' ring-2 ring-warn' : ''}`} {...(askSpoken === u.spoken ? { 'aria-current': 'step' as const } : {})}>
             <ProductPicker spoken={u.spoken} quantity={u.quantity} unit={u.unit} candidates={u.candidates} products={products} onPick={(p) => { onChange(resolveItem(draft, i, p)); void repo.learnProductAlias(p.id, u.spoken).then((learned) => { if (learned) toast(translate('bill.learned', { spoken: u.spoken, name: p.name }), 'ok'); }); }} />
+            {askSpoken === u.spoken && <button type="button" className="m-3 mt-0 min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>Hatao</button>}
           </div>
         ) : (
           <div key={`u${i}${u.spoken}`} className="note-pick">

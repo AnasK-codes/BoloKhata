@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { z } from 'zod';
-import { LIMITS, TTS_HEADER_BYTES, writeTtsHeader } from '@bolbill/shared';
+import { TTS_HEADER_BYTES, prepareSpeechText, writeTtsHeader } from '@bolbill/shared';
 import type { GatewayConfig } from '../config';
 import type { CreditGuard } from '../guard/creditGuard';
 import { TypedEmitter } from '../util/events';
@@ -10,24 +10,10 @@ import { phraseCacheKey, type PhraseCache } from './phraseCache';
 type TtsConfig = GatewayConfig['gnani']['tts'];
 
 /**
- * Text is untrusted (a client `speak`, or a template filled with a customer name). It is cleaned
- * before it reaches Gnani: control characters and bracketed/angle-bracket markup (which TTS
- * engines may read as audio tags) are removed, whitespace collapsed, length limited.
- * Returns null when nothing speakable is left. Amounts must already be spoken words.
+ * Text is untrusted (a client `speak`, or a template filled with a customer name). It goes through
+ * the shared `prepareSpeechText` (the one place that decides what Timbre is sent: sanitising plus
+ * listened-to pronunciation overrides). Amounts must already be spoken words.
  */
-export function sanitizeSpeechText(raw: string): string | null {
-  const cleaned = raw
-    .normalize('NFC')
-    // eslint-disable-next-line no-control-regex -- stripping control characters is the point
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\[[^\]]*\]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (cleaned === '') return null;
-  return cleaned.slice(0, LIMITS.maxSpeakTextLength);
-}
-
 /** Body of one synthesis request: raw PCM so chunks can be forwarded as they arrive. */
 export function buildTtsRequest(tts: TtsConfig, text: string): Record<string, unknown> {
   return {
@@ -101,6 +87,12 @@ interface Job {
   ws: WebSocket | null;
   reserved: number;
   sawAudio: boolean;
+  /**
+   * Set by this request's `start`. Gnani sends `complete` twice per request (observed, not in the
+   * docs); the second can arrive after the next request was sent. A `complete` before this
+   * request's own `start` belongs to the previous request and is ignored.
+   */
+  sawStart: boolean;
   /** A trailing odd byte from the previous chunk, joined to the next (samples are 2 bytes). */
   carry: number;
   parts: Uint8Array[];
@@ -178,7 +170,7 @@ export class TtsLink extends TypedEmitter<TtsEvents> {
     if (this.closed) return false;
     const texts: string[] = [];
     for (const sentence of sentences) {
-      const text = sanitizeSpeechText(sentence);
+      const text = prepareSpeechText(sentence);
       if (text !== null) texts.push(text);
     }
     if (texts.length === 0) return false;
@@ -200,6 +192,7 @@ export class TtsLink extends TypedEmitter<TtsEvents> {
         ws: null,
         reserved: 0,
         sawAudio: false,
+        sawStart: false,
         carry: -1,
         parts: [],
         bytes: 0,
@@ -407,9 +400,12 @@ export class TtsLink extends TypedEmitter<TtsEvents> {
     const parsed = upstreamSchema.safeParse(json);
     if (!parsed.success) return;
     const { type, data } = parsed.data;
-    if (type === 'audio' && data?.audio !== undefined) {
-      this.onAudio(job, data.audio);
+    if (type === 'start') {
+      job.sawStart = true;
+    } else if (type === 'audio' && data?.audio !== undefined) {
+      if (job.sawStart) this.onAudio(job, data.audio);
     } else if (type === 'complete') {
+      if (!job.sawStart) return; // the previous request's trailing duplicate `complete`
       this.completeJob(job);
     } else if (type === 'error') {
       // The message text is not logged. Per the docs the connection stays usable.

@@ -111,6 +111,34 @@ export const unresolvedSchema = z.object({
   candidates: z.array(candidateSchema).max(LIMITS.maxCandidates),
 });
 
+/** After this many spoken questions about one slot, the screen offers taps instead of asking again. */
+export const MAX_CLARIFY_ATTEMPTS = 2;
+export const CLARIFY_SLOTS = ['item', 'quantity', 'customer'] as const;
+export type ClarifySlot = (typeof CLARIFY_SLOTS)[number];
+
+/**
+ * The one open question about a bill draft. It travels inside the draft, so the browser sends it
+ * back with the next press (and after a reconnect) and the gateway reads the next utterance as the
+ * answer first, instead of as a brand-new bill.
+ */
+export const clarificationSchema = z.object({
+  slot: z.enum(CLARIFY_SLOTS),
+  /** quantity: the bill line whose amount is unclear ("thoda aata"). */
+  itemIndex: z.number().int().min(0).max(LIMITS.maxBillItems - 1).optional(),
+  /** item / customer: what was heard for the slot, if anything. Display only. */
+  spoken: z.string().min(1).max(LIMITS.maxNameLength).optional(),
+  /** item: what is already known about the missing item ("do kilo ..."). */
+  quantity: z.number().positive().max(1_000_000).optional(),
+  unit: unitSchema.optional(),
+  /** Spoken questions so far for this slot. */
+  attempts: z.number().int().min(1).max(MAX_CLARIFY_ATTEMPTS),
+  /** True once the voice stops asking and the screen offers taps instead. */
+  fallback: z.boolean(),
+  /** What was said for this bill so far, for a combined second parse. */
+  transcript: z.string().max(LIMITS.maxTranscriptLength),
+});
+export type Clarification = z.infer<typeof clarificationSchema>;
+
 export const draftSchema = z.object({
   type: z.literal('draft'),
   turnId: turnIdSchema,
@@ -129,6 +157,8 @@ export const draftSchema = z.object({
   /** add_products: a whole list of products to create after one confirmation. */
   products: z.array(draftProductSchema).max(LIMITS.maxBillItems).optional(),
   unresolved: z.array(unresolvedSchema).max(LIMITS.maxUnresolved),
+  /** create_bill only: the question still open. Nothing with an open question can be saved. */
+  clarification: clarificationSchema.optional(),
   warnings: z.array(safeText(LIMITS.maxWarningLength)).max(LIMITS.maxWarnings),
   /** At most two short sentences so TTS can start on the first. */
   replyText: z

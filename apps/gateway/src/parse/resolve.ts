@@ -44,6 +44,7 @@ export function resolveUtterance(parsed: ParsedUtterance, index: CatalogIndex): 
           amountPaid: parsed.amount_paid,
           udhaarAmount: parsed.udhaar_amount,
           ...(parsed.adjust ? { adjust: parsed.adjust } : {}),
+          ...(parsed.creditAll ? { creditAll: true } : {}),
         })
       : null;
   const stockName = parsed.intent === 'out_of_stock' || parsed.intent === 'add_product' || parsed.intent === 'update_price' ? parsed.items[0]?.name : undefined;

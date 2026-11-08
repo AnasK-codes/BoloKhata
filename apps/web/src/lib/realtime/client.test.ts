@@ -85,6 +85,24 @@ describe('connecting', () => {
     expect(states.map((s) => s.status)).toEqual(['connecting', 'ready']);
   });
 
+  it('sends the current dialect setting in every hello, including after a reconnect', async () => {
+    let dialect: 'bundeli' | 'malwi' = 'bundeli';
+    const { client } = make({ getDialect: () => dialect });
+    client.connect();
+    await flush();
+    FakeWebSocket.last.open();
+    await flush();
+    expect(FakeWebSocket.last.sentJson[0]).toMatchObject({ type: 'hello', dialect: 'bundeli' });
+    dialect = 'malwi';
+    client.close();
+    client.connect();
+    await flush();
+    FakeWebSocket.last.open();
+    await flush();
+    expect(FakeWebSocket.last.sentJson[0]).toMatchObject({ type: 'hello', dialect: 'malwi' });
+    client.close();
+  });
+
   it('uses https as wss', async () => {
     const { client } = make({ gatewayUrl: 'https://gw.example' });
     client.connect();

@@ -10,7 +10,8 @@
  * - Every sentence is clipped to MAX_SENTENCE_CHARS. Customer and item names are user
  *   data: they are length-limited here and never interpreted.
  */
-import { amountToSpokenRupees } from '../domain/hindiNumbers';
+import { amountToSpokenRupees, numberToHindiWords } from '../domain/hindiNumbers';
+import type { Clarification } from '../protocol/server';
 
 export const MAX_SENTENCE_CHARS = 160;
 const MAX_NAME_CHARS = 40;
@@ -190,4 +191,64 @@ export function productExists(productName: string | null | undefined, variant = 
 /** "haan" or "nahi" with no draft waiting. */
 export function nothingPending(variant = 0): string[] {
   return [pick([`Abhi koi bill pending nahi hai.`, `Save karne ke liye kuch nahi hai.`], variant)];
+}
+
+const FRACTION_WORDS: ReadonlyMap<number, string> = new Map([[0.25, 'paav'], [0.5, 'aadha'], [1.5, 'dedh'], [2.5, 'dhai']]);
+
+/** "do kilo", "aadha kilo", "250 gram". Empty when the amount has no simple spoken form. */
+function spokenQuantity(quantity: number | undefined, unit: string | undefined): string {
+  if (quantity === undefined) return '';
+  const words = FRACTION_WORDS.get(quantity) ?? (Number.isInteger(quantity) ? numberToHindiWords(quantity) : '');
+  if (!words) return '';
+  return unit ? `${words} ${UNIT_WORDS[unit] ?? unit}` : words;
+}
+
+/**
+ * The one question about a partly understood bill. It asks only for the missing piece, never for
+ * the whole order again. Once the voice has asked twice (`fallback`), it points at the screen
+ * instead of asking a third time.
+ */
+export function clarifyAsk(c: Clarification, itemName: string | undefined, variant = 0): string[] {
+  if (c.fallback) return [pick([`Screen par chun lijiye.`, `Neeche se chun lijiye.`], variant)];
+  switch (c.slot) {
+    case 'item': {
+      const heard = name(c.spoken);
+      if (heard) {
+        return [clip(pick([`${heard} list mein nahi mila.`, `${heard} samaan mein nahi hai.`], variant)), pick([`Doosra naam boliye, ya hatao boliye.`, `Kaunsa samaan hai? Naam boliye.`], variant)];
+      }
+      const amount = spokenQuantity(c.quantity, c.unit);
+      return [clip(amount ? `${amount} kya chahiye?` : `Aur kya chahiye?`), `Samaan ka naam boliye.`];
+    }
+    case 'quantity': {
+      const item = name(itemName);
+      return [clip(item ? `${item} kitna chahiye?` : `Kitna chahiye?`), pick([`Jaise ek kilo ya aadha kilo.`, `Kilo ya gram mein boliye.`], variant)];
+    }
+    case 'customer':
+      return c.spoken ? [clip(`${name(c.spoken)} kaun hain?`), `Poora naam boliye.`] : customerNeeded(variant);
+  }
+}
+
+/** Udhaar for a customer whose mobile and address are not filled in yet. */
+export function creditDetailsNeeded(): string[] {
+  return ['Udhaar ke liye grahak ka naam, mobile aur address bharo.'];
+}
+
+/** A spoken "haan" for a bill that cannot be saved yet. */
+export function detailsFirst(): string[] {
+  return ['Bill aur grahak ki details pehle poori karo.'];
+}
+
+/** "Samaan mein ..." for products that all exist already. */
+export function allProductsExist(): string[] {
+  return ['Ye sab samaan mein pehle se hain.'];
+}
+
+/** A spoken edit that could not be applied safely. */
+export function correctionFailed(): string[] {
+  return ['Badlav samajh nahi aaya. Item aur quantity saaf bolo.'];
+}
+
+/** A spoken edit that removed the last item. */
+export function billEmptied(): string[] {
+  return ['Bill mein koi item nahi bacha. Naya item jodo.'];
 }

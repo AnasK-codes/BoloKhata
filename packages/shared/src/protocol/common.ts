@@ -30,6 +30,14 @@ export const INTENTS = [
 export const intentSchema = z.enum(INTENTS);
 export type Intent = z.infer<typeof intentSchema>;
 
+/**
+ * The shopkeeper's way of speaking, set in the app. Gnani has no dialect models (only Hindi and
+ * nine other languages), so this only selects which regional word lists the rule parser folds in.
+ */
+export const DIALECTS = ['auto', 'hinglish', 'malwi', 'nimadi', 'bundeli', 'bagheli'] as const;
+export const dialectSchema = z.enum(DIALECTS);
+export type Dialect = z.infer<typeof dialectSchema>;
+
 export const idSchema = z.string().min(1).max(LIMITS.maxIdLength);
 export const nameSchema = z.string().min(1).max(LIMITS.maxNameLength);
 export const aliasesSchema = z.array(nameSchema).max(LIMITS.maxAliasesPerEntry);

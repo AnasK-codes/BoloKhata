@@ -202,6 +202,9 @@ export class TtsSession {
         break;
       }
       const atMs = message.t - sentAt;
+      // Gnani sends `complete` twice per request (observed 2026-11-08, not documented). Anything
+      // before this request's own `start` is the previous request's tail and must not end this one.
+      if (message.type !== 'start' && message.type !== 'error' && result.startMs === null) continue;
       if (message.type === 'start') {
         result.startMs = atMs;
       } else if (message.type === 'audio' && message.audio) {

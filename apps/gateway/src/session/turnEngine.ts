@@ -1,12 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
-import { CatalogIndex, TTS_PCM_FORMAT, correctDraft, buildBill, isConfirmable, type DraftMessage, type ErrorCode } from '@bolbill/shared';
+import {
+  CatalogIndex,
+  TTS_PCM_FORMAT,
+  answerFollowUp,
+  applyDialect,
+  buildBill,
+  cancelled,
+  clarifyAsk,
+  correctDraft,
+  isConfirmable,
+  repeatClarification,
+  type Dialect,
+  type DraftMessage,
+  type ErrorCode,
+} from '@bolbill/shared';
 import type { GatewayConfig } from '../config';
 import type { SttLink, SttTranscript } from '../gnani/sttLink';
 import type { TtsLink } from '../gnani/ttsLink';
 import type { CreditGuard } from '../guard/creditGuard';
 import type { Metrics } from '../metrics';
-import type { Orchestrator } from '../parse/orchestrator';
+import type { Orchestrator, ParseOutcome } from '../parse/orchestrator';
+import { resolveUtterance } from '../parse/resolve';
 import type { TurnTimer } from '../timing';
 import { buildDraft, type Catalog, type PendingDraft } from './draftBuilder';
 import type { SendQueue } from './sendQueue';
@@ -61,6 +76,8 @@ export class TurnEngine {
   private readonly newDraftId: () => string;
 
   private catalog: Catalog | null = null;
+  /** The shopkeeper's dialect setting: which regional word lists the parser folds in. */
+  private dialect: Dialect = 'auto';
   private index: CatalogIndex | null = null;
   /** The press being captured or transcribed (frames are accepted only while this is set). */
   private activeTurn: number | null = null;
@@ -91,6 +108,10 @@ export class TurnEngine {
   setCatalog(catalog: Catalog): void {
     this.catalog = catalog;
     this.index = new CatalogIndex(catalog.products, catalog.customers);
+  }
+
+  setDialect(dialect: Dialect): void {
+    this.dialect = dialect;
   }
 
   /** Hot path: one call per microphone frame. No allocation, no logging. */
@@ -225,11 +246,14 @@ export class TurnEngine {
   }
 
   /** Parse, build the draft, send it, and start speaking it. Never throws. */
-  private async respond(ctx: TurnContext, transcript: string): Promise<void> {
+  private async respond(ctx: TurnContext, heard: string): Promise<void> {
     try {
+      // Regional words become canonical Hinglish for the parser; the user still sees what was heard.
+      const transcript = applyDialect(heard, this.dialect);
       const catalog = this.catalog;
       const index = this.index;
       if (!catalog || !index) return;
+      if (this.answerQuestion(ctx, transcript, catalog, index)) return;
       if (this.correctionContext?.bill) {
         const base = this.correctionContext;
         // Recompute totals before editing; catalog lines use current rates and quoted lines retain their validated price basis.
@@ -273,7 +297,9 @@ export class TurnEngine {
         catalog,
         pending: this.pending,
         draftId: this.newDraftId(),
+        transcript,
       });
+      if (result.draft.intent === 'create_bill') this.correctionContext = result.draft;
       if (result.pendingChange.action === 'set') this.pending = result.pendingChange.pending;
       else if (result.pendingChange.action === 'clear') this.pending = null;
 
@@ -297,6 +323,56 @@ export class TurnEngine {
       this.log.error({ turnId: ctx.turnId, code: errorName(error) }, 'turn failed');
       if (!ctx.cancelled) this.reportError(ctx.turnId, 'INTERNAL', 'Something went wrong. Please try again.', true);
     }
+  }
+
+  /**
+   * A bill with an open question: read the utterance as the answer first (shared `answerFollowUp`).
+   * Rules only and synchronous, so it never waits on a model. Returns false when the utterance is
+   * clearly another command, which then goes through the usual path.
+   */
+  private answerQuestion(ctx: TurnContext, transcript: string, catalog: Catalog, index: CatalogIndex): boolean {
+    const context = this.correctionContext;
+    if (!context?.clarification || context.intent !== 'create_bill') return false;
+    const follow = answerFollowUp(context, transcript, index);
+    if (follow.kind === 'command') return false;
+    this.timer.mark(ctx.turnId, 'rules_done');
+    this.timer.setParseSource(ctx.turnId, 'rules');
+
+    let draft: DraftMessage;
+    let cache: boolean;
+    if (follow.kind === 'cancel') {
+      draft = { type: 'draft', turnId: ctx.turnId, draftId: context.draftId, intent: 'cancel', source: 'rules', confidence: 0.95, unresolved: [], warnings: [], replyText: cancelled(ctx.turnId) };
+      cache = true;
+      this.correctionContext = null;
+      this.pending = null;
+    } else if (follow.kind === 'missed') {
+      // The same question again (one more attempt), or the tap fallback. The draft is unchanged.
+      const clarification = repeatClarification(context.clarification, follow.transcript);
+      const line = clarification.itemIndex !== undefined ? context.bill?.items[clarification.itemIndex] : undefined;
+      draft = { ...context, turnId: ctx.turnId, clarification, replyText: clarifyAsk(clarification, line?.name, ctx.turnId) };
+      cache = clarification.fallback; // only the fallback sentence is a fixed phrase
+      this.correctionContext = draft;
+    } else {
+      const outcome: ParseOutcome = { parsed: follow.parsed, resolution: resolveUtterance(follow.parsed, index), source: 'rules', needsReview: false, llm: 'skipped' };
+      const result = buildDraft({
+        turnId: ctx.turnId,
+        outcome,
+        catalog,
+        pending: this.pending,
+        draftId: context.draftId, // the same bill, updated: never a "replace this bill?" dialog
+        transcript: follow.transcript,
+        previous: context.clarification,
+      });
+      draft = result.draft;
+      cache = result.cacheReply;
+      this.correctionContext = draft.intent === 'create_bill' ? draft : null;
+      this.pending = isConfirmable(draft) ? { draftId: draft.draftId, intent: 'create_bill', canConfirm: true } : null;
+    }
+    this.timer.mark(ctx.turnId, 'draft');
+    this.out.json(draft);
+    this.sendTiming(ctx.turnId);
+    if (!this.tts.speak(ctx.turnId, draft.replyText, { cache })) this.reportError(ctx.turnId, 'TTS_UNAVAILABLE', 'Could not speak the reply.', true);
+    return true;
   }
 
   private countLlm(status: string): void {

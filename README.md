@@ -437,6 +437,7 @@ Microphone access needs HTTPS except on `localhost`. To test on a phone, deploy 
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | Quality gates |
 | `pnpm build` | Build everything |
 | `pnpm spike` | Latency spike against the real Gnani API (spends a few credits) |
+| `pnpm spike --only P` | Pronunciation A/B: synthesises every candidate spelling in the TTS corpus for a person to judge by ear (opt-in; about 1,100 TTS characters). See `docs/TTS-TUNING.md` |
 | `pnpm warm-phrases --dry-run` | Lists the fixed spoken phrases and the characters a warm-up would spend; without `--dry-run` it fills the TTS phrase cache (spends TTS credits unless pointed at the mock). `--budget N` caps characters |
 
 ## 14. Environment variables

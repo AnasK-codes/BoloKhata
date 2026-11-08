@@ -77,3 +77,14 @@ describe('financial reversals', () => {
     expect(reverseEntry({ ...original, amount: -1 }, [], { id: 'bad', createdAt: 3 }).ok).toBe(false);
   });
 });
+
+describe('a correction that names no item', () => {
+  const single: DraftMessage = { ...base, bill: { items: [base.bill!.items[0]!], total: 90, paid: 0, udhaar: 90 } };
+  it('"nahi, do kilo" on a one-item bill sets that item', () => {
+    const r = correctDraft(single, 'nahi, teen kilo', products);
+    expect(r).toMatchObject({ applied: true, draft: { bill: { items: [{ name: 'Aata', quantity: 3 }], total: 135 } } });
+  });
+  it('is refused on a bill with several items, rather than guessing which one', () => {
+    expect(correctDraft(base, 'nahi, teen kilo', products)).toMatchObject({ applied: false });
+  });
+});

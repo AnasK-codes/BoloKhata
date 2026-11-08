@@ -1,6 +1,9 @@
 import {
   LIMITS,
   addCustomerAsk,
+  allProductsExist,
+  creditDetailsNeeded,
+  detailsFirst,
   addProductAsk,
   addProductNeedsRate,
   addProductsAsk,
@@ -8,9 +11,11 @@ import {
   balanceReply,
   billReadback,
   cancelled,
+  clarifyAsk,
+  nextClarification,
+  type Clarification,
   customerAmbiguous,
   customerExists,
-  customerNeeded,
   customerNotFound,
   itemNotFound,
   nothingPending,
@@ -56,6 +61,10 @@ export interface DraftInput {
   pending: PendingDraft | null;
   /** Used for a new draft. A confirm or cancel reuses the pending draft's id instead. */
   draftId: string;
+  /** What was said for this bill so far (this turn, plus earlier turns when answering a question). */
+  transcript?: string;
+  /** The question this turn answered, so asking it again counts as another attempt. */
+  previous?: Clarification;
 }
 
 export interface DraftResult {
@@ -132,25 +141,35 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
 
   const unresolved: UnresolvedItem[] = [...result.unresolvedItems];
   if (customer?.ambiguous) unresolved.push(customer.ambiguous);
+  const missing = outcome.parsed.missingItems ?? [];
 
-  if (result.bill.items.length === 0 && unresolved.length === 0) {
+  if (result.bill.items.length === 0 && unresolved.length === 0 && missing.length === 0) {
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   }
 
   // Udhaar with nobody to owe it would be stored with no ledger entry: do not offer to save it.
   const missingCustomer = udhaarNeedsCustomer(result.bill.udhaar, customer !== undefined && customer !== null);
+
+  // One question at a time, about only the piece that is missing. Everything understood stays on the bill.
+  const clarification = nextClarification({
+    transcript: input.transcript ?? '',
+    missing,
+    unresolved,
+    unclearQuantity: result.unclearQuantity,
+    needsCustomer: missingCustomer && result.bill.items.length > 0,
+    ...(input.previous ? { previous: input.previous } : {}),
+  });
   const creditReady = customer?.id ? input.catalog.customers.find((c) => c.id === customer.id)?.creditReady : false;
   const missingDetails = result.bill.udhaar > 0 && creditReady === false;
   let reply: string[];
   let cacheReply = false;
-  if (customer?.ambiguous) {
+  if (clarification && clarification.slot === 'customer' && !clarification.fallback && customer?.ambiguous) {
     reply = customerAmbiguous(customer.ambiguous.candidates.map((c) => c.name), variant);
-  } else if (result.unresolvedItems.length > 0) {
-    reply = itemNotFound(result.unresolvedItems[0]?.spoken, variant);
-  } else if (missingCustomer) {
-    reply = customerNeeded(variant);
+  } else if (clarification) {
+    const line = clarification.itemIndex !== undefined ? result.bill.items[clarification.itemIndex] : undefined;
+    reply = clarifyAsk(clarification, line?.name, variant);
   } else if (missingDetails) {
-    reply = ['Udhaar ke liye grahak ka naam, mobile aur address bharo.'];
+    reply = creditDetailsNeeded();
   } else {
     reply = billReadback(
       { ...(customer ? { customerName: customer.name } : {}), total: result.bill.total, udhaar: result.bill.udhaar },
@@ -162,7 +181,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     cacheReply = true;
   }
 
-  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !missingCustomer && !missingDetails;
+  const confirmable = result.bill.items.length > 0 && unresolved.length === 0 && !clarification && !missingCustomer && !missingDetails;
   const draftId = input.draftId;
   const draft: DraftMessage = {
     ...base,
@@ -173,6 +192,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
       : {}),
     bill: result.bill,
     unresolved: unresolved.slice(0, LIMITS.maxUnresolved),
+    ...(clarification ? { clarification } : {}),
     warnings: warningsOf([...result.warnings, ...(outcome.parsed.adjustWarnings ?? []), ...(missingCustomer ? [MISSING_CUSTOMER_WARNING] : [])], outcome.needsReview || (outcome.parsed.adjustWarnings?.length ?? 0) > 0),
     replyText: reply,
   };
@@ -359,7 +379,7 @@ function addProducts(input: DraftInput, base: Base, variant: number): DraftResul
     products: products.slice(0, LIMITS.maxBillItems),
     unresolved: [],
     warnings: warningsOf([], input.outcome.needsReview),
-    replyText: fresh > 0 ? addProductsAsk(fresh, products.length - fresh, variant) : [`Ye sab samaan mein pehle se hain.`],
+    replyText: fresh > 0 ? addProductsAsk(fresh, products.length - fresh, variant) : allProductsExist(),
   };
   return { draft, cacheReply: false, pendingChange: fresh > 0 ? { action: 'set', pending: { draftId: input.draftId, intent } } : { action: 'clear' } };
 }
@@ -446,7 +466,7 @@ function answer(input: DraftInput, base: Base, variant: number): DraftResult {
   const intent = outcome.parsed.intent === 'confirm' ? 'confirm' : 'cancel';
   if (!pending) return plain(input, base, 'unknown', nothingPending(variant), true, { action: 'keep' });
   if (intent === 'confirm' && pending.canConfirm === false) {
-    return plain(input, base, 'unknown', ['Bill aur grahak ki details pehle poori karo.'], true, { action: 'keep' });
+    return plain(input, base, 'unknown', detailsFirst(), true, { action: 'keep' });
   }
   const draft: DraftMessage = {
     ...base,

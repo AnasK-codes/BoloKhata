@@ -1,7 +1,7 @@
 import { LIMITS } from '../protocol/constants';
 import type { DraftMessage } from '../protocol/server';
 import type { CatalogProduct } from '../protocol/client';
-import { billReadback } from '../voice/responses';
+import { billEmptied, billReadback, correctionFailed } from '../voice/responses';
 import { CatalogIndex, devanagariToLatin } from './matching';
 import { extractQuantityAndUnit, tokenizeSpeech } from './numberWords';
 import { computeTotals } from './adjustments';
@@ -19,7 +19,7 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
   const replace = /\b(karo|kardo|kar do|badlo|badal|change|set)\b/.test(speech) || /\b(nahi|nahin)\b/.test(speech);
   if (!remove && !add && !replace) return null;
   const fail = (): CorrectionResult => ({ applied: false, draft: { ...base,
-    replyText: ['Badlav samajh nahi aaya. Item aur quantity saaf bolo.'],
+    replyText: correctionFailed(),
     warnings: ['Badlav nahi hua. Bill check karo.'],
   } });
   if (base.unresolved.length > 0 || /\b(mat|dont|kam|ghatao|decrease|increase)\b/.test(speech) ||
@@ -53,10 +53,13 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
   for (const item of base.bill.items) {
     if (!matchingProducts.some((p) => p.id === item.productId)) matchingProducts.push({ id: item.productId, name: item.name, aliases: [], unit: item.unit, pricePerUnit: item.unitPrice ?? 0 });
   }
+  // "nahi, teen kilo" names no item: on a one-item bill it can only mean that item.
+  const only = name === '' && base.bill.items.length === 1 ? base.bill.items[0]?.productId : undefined;
   const index = new CatalogIndex(matchingProducts);
-  const match = index.matchProduct(name);
-  if (!match.best || match.ambiguous) return fail();
-  const product = matchingProducts.find((p) => p.id === match.best?.id);
+  const match = only === undefined ? index.matchProduct(name) : null;
+  if (only === undefined && (!match?.best || match.ambiguous)) return fail();
+  const productId = only ?? match?.best?.id;
+  const product = matchingProducts.find((p) => p.id === productId);
   if (!product) return fail();
   const items = base.bill.items.map((i) => ({ ...i }));
   const positions = items.flatMap((i, pos) => i.productId === product.id ? [pos] : []);
@@ -85,7 +88,7 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
   // A fully paid draft stays fully paid; a credit draft keeps the paid amount, capped at total.
   const paid = base.bill.udhaar === 0 ? total : Math.min(base.bill.paid, total);
   const bill = { items, total, paid, udhaar: total - paid, ...(base.bill.adjust ? { adjust: base.bill.adjust } : {}) };
-  const replyText = items.length === 0 ? ['Bill mein koi item nahi bacha. Naya item jodo.'] : billReadback({
+  const replyText = items.length === 0 ? billEmptied() : billReadback({
     ...(base.customer ? { customerName: base.customer.name } : {}), total, udhaar: bill.udhaar,
   });
   return { applied: true, draft: { ...base, bill, warnings: [], replyText } };

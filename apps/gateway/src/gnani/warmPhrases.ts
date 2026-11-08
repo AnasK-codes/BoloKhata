@@ -6,13 +6,14 @@ import {
   nothingPending,
   notUnderstood,
   paymentRecorded,
+  prepareSpeechText,
   saved,
 } from '@bolbill/shared';
 import type { GatewayConfig } from '../config';
 import { DailyCreditGuard } from '../guard/creditGuard';
 import type { Logger } from '../util/logger';
 import { phraseCacheKey, type PhraseCache } from './phraseCache';
-import { sanitizeSpeechText, TtsLink } from './ttsLink';
+import { TtsLink } from './ttsLink';
 
 /**
  * The fixed spoken phrases: replies that contain no customer name and no amount, so the same
@@ -23,7 +24,7 @@ export function fixedPhrases(): string[] {
   const phrases = new Set<string>();
   const add = (sentences: readonly string[]) => {
     for (const sentence of sentences) {
-      const text = sanitizeSpeechText(sentence);
+      const text = prepareSpeechText(sentence);
       if (text !== null) phrases.add(text);
     }
   };

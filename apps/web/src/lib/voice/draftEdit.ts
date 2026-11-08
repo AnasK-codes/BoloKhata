@@ -33,6 +33,12 @@ function readback(draft: DraftMessage, total: number, udhaar: number): DraftMess
   return sentences.length > 0 ? (sentences as DraftMessage['replyText']) : draft.replyText;
 }
 
+/** The draft without its open question. */
+function closeQuestion(draft: DraftMessage): DraftMessage {
+  const { clarification: _closed, ...rest } = draft;
+  return rest;
+}
+
 export function setItemQuantity(draft: DraftMessage, index: number, quantity: number): DraftMessage {
   const bill = draft.bill;
   const item = bill?.items[index];
@@ -40,7 +46,37 @@ export function setItemQuantity(draft: DraftMessage, index: number, quantity: nu
   const items = bill.items.map((it, i) =>
     i === index ? repriceBillItem(it, quantity) ?? it : it,
   );
-  return withBill(draft, items, bill.paid);
+  // Setting the amount of the line in question answers "kitna chahiye?".
+  const answered = draft.clarification?.slot === 'quantity' && draft.clarification.itemIndex === index;
+  return withBill(answered ? closeQuestion(draft) : draft, items, bill.paid);
+}
+
+/** Amount choices for the "kitna chahiye?" chips, in the line's own unit. */
+export function quantityChoices(unit: BillItem['unit']): number[] {
+  if (unit === 'kg' || unit === 'l') return [0.25, 0.5, 1, 2, 5];
+  if (unit === 'g' || unit === 'ml') return [100, 250, 500];
+  return [1, 2, 5, 10];
+}
+
+/** "do kilo kya?" answered by a tap: the product is added with the amount already heard. */
+export function answerMissingItem(draft: DraftMessage, product: CatalogProduct): DraftMessage {
+  const ask = draft.clarification;
+  const bill = draft.bill ?? { items: [], total: 0, paid: 0, udhaar: 0 };
+  if (ask?.slot !== 'item' || ask.spoken !== undefined) return draft;
+  const added = buildBill({ parsedItems: [{ name: product.name, quantity: ask.quantity ?? 1, unit: ask.unit ?? null }], products: [product] }).bill.items[0];
+  if (!added) return draft;
+  return withBill(closeQuestion(draft), [...bill.items, added], bill.udhaar === 0 ? Number.MAX_SAFE_INTEGER : bill.paid);
+}
+
+/** "Hatao" on the open question: drop what it was about (a missing or unknown item) and close it. */
+export function dismissQuestion(draft: DraftMessage): DraftMessage {
+  const ask = draft.clarification;
+  if (!ask) return draft;
+  if (ask.slot === 'item' && ask.spoken !== undefined) {
+    return closeQuestion({ ...draft, unresolved: draft.unresolved.filter((u) => !(u.kind === 'item' && u.spoken === ask.spoken)) });
+  }
+  if (ask.slot === 'quantity' && ask.itemIndex !== undefined) return removeItem(draft, ask.itemIndex);
+  return closeQuestion(draft);
 }
 
 /**
@@ -59,7 +95,14 @@ export function setAdjust(draft: DraftMessage, adjust: BillAdjust | undefined): 
 export function removeItem(draft: DraftMessage, index: number): DraftMessage {
   const bill = draft.bill;
   if (!bill || index < 0 || index >= bill.items.length) return draft;
-  return withBill(draft, bill.items.filter((_, i) => i !== index), bill.paid);
+  // A question about this line is gone with it; one about a later line moves up with it.
+  const ask = draft.clarification;
+  let next = draft;
+  if (ask?.slot === 'quantity' && ask.itemIndex !== undefined) {
+    if (ask.itemIndex === index) next = closeQuestion(draft);
+    else if (ask.itemIndex > index) next = { ...draft, clarification: { ...ask, itemIndex: ask.itemIndex - 1 } };
+  }
+  return withBill(next, bill.items.filter((_, i) => i !== index), bill.paid);
 }
 
 /** Amount paid now; the rest becomes udhaar. Clamped between 0 and the total. */
@@ -114,19 +157,23 @@ export function resolveItem(draft: DraftMessage, unresolvedIndex: number, produc
   if (!added) return draft;
   const unresolved = draft.unresolved.filter((_, i) => i !== unresolvedIndex);
   const existing = draft.bill ?? { items: [], total: 0, paid: 0, udhaar: 0 };
-  const next = withBill({ ...draft, unresolved }, [...existing.items, added], existing.paid);
+  const answered = draft.clarification?.slot === 'item' && draft.clarification.spoken === target.spoken;
+  const base = answered ? closeQuestion(draft) : draft;
+  const next = withBill({ ...base, unresolved }, [...existing.items, added], existing.paid);
   return { ...next, warnings: draft.warnings.filter((w) => !/no items/i.test(w)) };
 }
 
 export function resolveCustomer(draft: DraftMessage, unresolvedIndex: number, customer: { id: string; name: string }): DraftMessage {
   const target = draft.unresolved[unresolvedIndex];
   if (!target || target.kind !== 'customer') return draft;
-  const next = { ...draft, customer: { id: customer.id, name: customer.name, isNew: false }, unresolved: draft.unresolved.filter((_, i) => i !== unresolvedIndex) };
+  const base = draft.clarification?.slot === 'customer' ? closeQuestion(draft) : draft;
+  const next = { ...base, customer: { id: customer.id, name: customer.name, isNew: false }, unresolved: draft.unresolved.filter((_, i) => i !== unresolvedIndex) };
   return draft.bill ? { ...next, replyText: readback(next, draft.bill.total, draft.bill.udhaar) } : next;
 }
 
 export function setCustomer(draft: DraftMessage, customer: { id?: string; name: string; isNew: boolean; creditReady?: boolean }): DraftMessage {
-  const next: DraftMessage = { ...draft, customer: { ...(customer.id ? { id: customer.id } : {}), name: customer.name, isNew: customer.isNew, ...(customer.creditReady !== undefined ? { creditReady: customer.creditReady } : {}) } };
+  const base = draft.clarification?.slot === 'customer' ? closeQuestion({ ...draft, unresolved: draft.unresolved.filter((u) => u.kind !== 'customer') }) : draft;
+  const next: DraftMessage = { ...base, customer: { ...(customer.id ? { id: customer.id } : {}), name: customer.name, isNew: customer.isNew, ...(customer.creditReady !== undefined ? { creditReady: customer.creditReady } : {}) } };
   return draft.bill ? { ...next, replyText: readback(next, draft.bill.total, draft.bill.udhaar) } : next;
 }
 
@@ -158,7 +205,7 @@ export function draftFromTranscript(
   }
 
   if (parsed.intent === 'create_bill') {
-    const result = buildBill({ parsedItems: parsed.items, products: index, amountPaid: parsed.amount_paid, udhaarAmount: parsed.udhaar_amount, ...(parsed.adjust ? { adjust: parsed.adjust } : {}) });
+    const result = buildBill({ parsedItems: parsed.items, products: index, amountPaid: parsed.amount_paid, udhaarAmount: parsed.udhaar_amount, ...(parsed.adjust ? { adjust: parsed.adjust } : {}), ...(parsed.creditAll ? { creditAll: true } : {}) });
     if (result.bill.items.length === 0 && result.unresolvedItems.length === 0) return null;
     const draft: DraftMessage = {
       ...common,
