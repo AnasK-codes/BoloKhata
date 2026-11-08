@@ -8,6 +8,7 @@ import {
   rupeesSchema,
   safeText,
   signedRupeesSchema,
+  dialectSchema,
   turnIdSchema,
   unitSchema,
 } from './common';
@@ -52,6 +53,7 @@ export const helloSchema = z.object({
   v: z.literal(PROTOCOL_VERSION),
   clientTime: z.number(),
   lang: z.string().min(2).max(16),
+  dialect: dialectSchema.optional(),
   catalog: z.object({
     version: z.number().int().min(0),
     products: productsSchema,
@@ -68,6 +70,7 @@ export const contextUpdateSchema = z.object({
     customers: customersSchema.optional(),
     shop: shopStatsSchema.optional(),
   }),
+  dialect: dialectSchema.optional(),
 });
 
 export const pttStartSchema = z.object({
