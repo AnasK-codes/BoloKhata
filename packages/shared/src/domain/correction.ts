@@ -1,7 +1,7 @@
 import { LIMITS } from '../protocol/constants';
 import type { DraftMessage } from '../protocol/server';
 import type { CatalogProduct } from '../protocol/client';
-import { billReadback } from '../voice/responses';
+import { billEmptied, billReadback, correctionFailed } from '../voice/responses';
 import { CatalogIndex, devanagariToLatin } from './matching';
 import { extractQuantityAndUnit, tokenizeSpeech } from './numberWords';
 import { computeTotals } from './adjustments';
@@ -19,7 +19,7 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
   const replace = /\b(karo|kardo|kar do|badlo|badal|change|set)\b/.test(speech) || /\b(nahi|nahin)\b/.test(speech);
   if (!remove && !add && !replace) return null;
   const fail = (): CorrectionResult => ({ applied: false, draft: { ...base,
-    replyText: ['Badlav samajh nahi aaya. Item aur quantity saaf bolo.'],
+    replyText: correctionFailed(),
     warnings: ['Badlav nahi hua. Bill check karo.'],
   } });
   if (base.unresolved.length > 0 || /\b(mat|dont|kam|ghatao|decrease|increase)\b/.test(speech) ||
@@ -88,7 +88,7 @@ export function correctDraft(base: DraftMessage, text: string, products: readonl
   // A fully paid draft stays fully paid; a credit draft keeps the paid amount, capped at total.
   const paid = base.bill.udhaar === 0 ? total : Math.min(base.bill.paid, total);
   const bill = { items, total, paid, udhaar: total - paid, ...(base.bill.adjust ? { adjust: base.bill.adjust } : {}) };
-  const replyText = items.length === 0 ? ['Bill mein koi item nahi bacha. Naya item jodo.'] : billReadback({
+  const replyText = items.length === 0 ? billEmptied() : billReadback({
     ...(base.customer ? { customerName: base.customer.name } : {}), total, udhaar: bill.udhaar,
   });
   return { applied: true, draft: { ...base, bill, warnings: [], replyText } };

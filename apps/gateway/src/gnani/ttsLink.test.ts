@@ -10,7 +10,9 @@ import { testConfig } from '../testConfig';
 import { sleep } from '../testing/client';
 import { silentLogger } from '../util/logger';
 import { phraseCacheKey, PhraseCache } from './phraseCache';
-import { buildTtsRequest, sanitizeSpeechText, TtsLink, type TtsFailure } from './ttsLink';
+import { readFileSync, readdirSync } from 'node:fs';
+import { prepareSpeechText as sanitizeSpeechText } from '@bolbill/shared';
+import { buildTtsRequest, TtsLink, type TtsFailure } from './ttsLink';
 import { fixedPhrases, planWarmup, runWarmup } from './warmPhrases';
 
 let mock: MockTtsServer | undefined;
@@ -76,7 +78,7 @@ async function until(check: () => boolean, ms = 3000): Promise<void> {
 const pcmBytesFor = (chars: number, sampleRate = 24_000) =>
   Math.round((sampleRate * 2 * Math.max(200, chars * 60)) / 1000 / 2) * 2;
 
-describe('sanitizeSpeechText', () => {
+describe('prepareSpeechText (sanitising, as the gateway uses it)', () => {
   it('strips control characters, tag-like markup and extra whitespace', () => {
     expect(sanitizeSpeechText('  Ho\u0000 gaya\n\n<break time="1s"/> [laughs]  save  ')).toBe('Ho gaya save');
   });
@@ -107,6 +109,26 @@ describe('buildTtsRequest', () => {
       encoding: 'linear_pcm',
       container: 'raw',
     });
+  });
+});
+
+describe('nothing reaches Timbre without the shared normaliser', () => {
+  it('the text Gnani receives is exactly prepareSpeechText of what was asked', async () => {
+    mock = await startMockTts({ chunkBytes: 4800 });
+    const r = makeLink(mock.url);
+    const asked = ['  Save kar dun? <laugh> ', 'Haan\u0007 bolo [pause].'];
+    expect(r.link.speak(1, asked)).toBe(true);
+    await until(() => r.ends.length === 1);
+    expect(mock.requests.map((q) => q.text)).toEqual(asked.map((a) => sanitizeSpeechText(a)));
+  });
+
+  it('only ttsLink builds a synthesis request, and it runs every sentence through prepareSpeechText', () => {
+    const dir = new URL('../', import.meta.url);
+    const files = (readdirSync(dir, { recursive: true }) as string[]).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
+    const builders = files.filter((f) => /buildTtsRequest\(|tts\.url/.test(readFileSync(new URL(f, dir), 'utf8')));
+    expect(builders.map((f) => f.replace(/\\/g, '/'))).toEqual(['gnani/ttsLink.ts']);
+    const source = readFileSync(new URL('gnani/ttsLink.ts', dir), 'utf8');
+    expect(source).toMatch(/const text = prepareSpeechText\(sentence\)/);
   });
 });
 

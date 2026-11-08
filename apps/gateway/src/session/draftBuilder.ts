@@ -1,6 +1,9 @@
 import {
   LIMITS,
   addCustomerAsk,
+  allProductsExist,
+  creditDetailsNeeded,
+  detailsFirst,
   addProductAsk,
   addProductNeedsRate,
   addProductsAsk,
@@ -166,7 +169,7 @@ function createBill(input: DraftInput, base: Base, variant: number): DraftResult
     const line = clarification.itemIndex !== undefined ? result.bill.items[clarification.itemIndex] : undefined;
     reply = clarifyAsk(clarification, line?.name, variant);
   } else if (missingDetails) {
-    reply = ['Udhaar ke liye grahak ka naam, mobile aur address bharo.'];
+    reply = creditDetailsNeeded();
   } else {
     reply = billReadback(
       { ...(customer ? { customerName: customer.name } : {}), total: result.bill.total, udhaar: result.bill.udhaar },
@@ -376,7 +379,7 @@ function addProducts(input: DraftInput, base: Base, variant: number): DraftResul
     products: products.slice(0, LIMITS.maxBillItems),
     unresolved: [],
     warnings: warningsOf([], input.outcome.needsReview),
-    replyText: fresh > 0 ? addProductsAsk(fresh, products.length - fresh, variant) : [`Ye sab samaan mein pehle se hain.`],
+    replyText: fresh > 0 ? addProductsAsk(fresh, products.length - fresh, variant) : allProductsExist(),
   };
   return { draft, cacheReply: false, pendingChange: fresh > 0 ? { action: 'set', pending: { draftId: input.draftId, intent } } : { action: 'clear' } };
 }
@@ -463,7 +466,7 @@ function answer(input: DraftInput, base: Base, variant: number): DraftResult {
   const intent = outcome.parsed.intent === 'confirm' ? 'confirm' : 'cancel';
   if (!pending) return plain(input, base, 'unknown', nothingPending(variant), true, { action: 'keep' });
   if (intent === 'confirm' && pending.canConfirm === false) {
-    return plain(input, base, 'unknown', ['Bill aur grahak ki details pehle poori karo.'], true, { action: 'keep' });
+    return plain(input, base, 'unknown', detailsFirst(), true, { action: 'keep' });
   }
   const draft: DraftMessage = {
     ...base,

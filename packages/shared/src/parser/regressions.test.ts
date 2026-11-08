@@ -82,7 +82,7 @@ describe('Hindi quantity words', () => {
 });
 
 describe('confirmation words', () => {
-  it.each(['haan', 'हाँ', 'हां', 'han', 'ha', 'haa', 'haan ji', 'theek hai', 'ho gaya', 'haan ho gaya', 'kar do', 'ok'])('%s confirms', (t) => {
+  it.each(['haan', 'हाँ', 'हां', 'हा', 'हाँ जी', 'han', 'ha', 'haa', 'haan ji', 'theek hai', 'ho gaya', 'haan ho gaya', 'kar do', 'ok'])('%s confirms', (t) => {
     expect(parse(t).intent).toBe('confirm');
   });
   it.each(['nahi', 'नहीं', 'ruko', 'cancel', 'rehne do', 'nahi chahiye', 'mat karo'])('%s cancels', (t) => {

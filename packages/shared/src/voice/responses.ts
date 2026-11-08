@@ -227,3 +227,28 @@ export function clarifyAsk(c: Clarification, itemName: string | undefined, varia
       return c.spoken ? [clip(`${name(c.spoken)} kaun hain?`), `Poora naam boliye.`] : customerNeeded(variant);
   }
 }
+
+/** Udhaar for a customer whose mobile and address are not filled in yet. */
+export function creditDetailsNeeded(): string[] {
+  return ['Udhaar ke liye grahak ka naam, mobile aur address bharo.'];
+}
+
+/** A spoken "haan" for a bill that cannot be saved yet. */
+export function detailsFirst(): string[] {
+  return ['Bill aur grahak ki details pehle poori karo.'];
+}
+
+/** "Samaan mein ..." for products that all exist already. */
+export function allProductsExist(): string[] {
+  return ['Ye sab samaan mein pehle se hain.'];
+}
+
+/** A spoken edit that could not be applied safely. */
+export function correctionFailed(): string[] {
+  return ['Badlav samajh nahi aaya. Item aur quantity saaf bolo.'];
+}
+
+/** A spoken edit that removed the last item. */
+export function billEmptied(): string[] {
+  return ['Bill mein koi item nahi bacha. Naya item jodo.'];
+}
