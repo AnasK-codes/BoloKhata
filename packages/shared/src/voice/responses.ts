@@ -265,3 +265,8 @@ export function correctionFailed(): string[] {
 export function billEmptied(): string[] {
   return ['Bill mein koi item nahi bacha. Naya item jodo.'];
 }
+
+/** GST was asked for on an open bill without a rate: never guess one. */
+export function gstRateNeeded(): string[] {
+  return ['GST kitna percent? Bolo, jaise paanch percent GST.'];
+}
