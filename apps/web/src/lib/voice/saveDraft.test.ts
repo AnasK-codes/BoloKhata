@@ -115,3 +115,44 @@ describe('saveDraft', () => {
     expect((await repo.listProducts()).some((p) => p.name === 'Ragi')).toBe(false);
   });
 });
+
+describe('saving items with a quantity', () => {
+  it('stores the spoken quantity as the stock of a new product', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(20, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Rajma Test', unit: 'kg', pricePerUnit: 120, stock: 5, isNew: true } });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'product', created: true });
+    expect(await repo.findProductByName('Rajma Test')).toMatchObject({ pricePerUnit: 120, unit: 'kg', stock: 5 });
+  });
+
+  it('leaves stock untracked when no quantity was spoken', async () => {
+    const repo = createRepo(db);
+    await saveDraft(repo, draftMessage(21, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Rusk Test', unit: 'packet', pricePerUnit: 20, isNew: true } }));
+    expect((await repo.findProductByName('Rusk Test'))?.stock).toBeUndefined();
+  });
+
+  it('stores each row of a list with its own quantity, and the second confirmation adds nothing', async () => {
+    const repo = createRepo(db);
+    const draft = draftMessage(22, {
+      intent: 'add_products', bill: undefined, customer: undefined,
+      products: [
+        { name: 'Maida Test', unit: 'kg', pricePerUnit: 35, stock: 20, isNew: true },
+        { name: 'Besan Test', unit: 'kg', pricePerUnit: 80, stock: 10, isNew: true },
+        { name: 'Namak Test', unit: 'kg', pricePerUnit: 20, isNew: true },
+      ],
+    });
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'products', created: 3 });
+    expect(await repo.findProductByName('Maida Test')).toMatchObject({ stock: 20 });
+    expect(await repo.findProductByName('Besan Test')).toMatchObject({ stock: 10 });
+    expect((await repo.findProductByName('Namak Test'))?.stock).toBeUndefined();
+    expect(await saveDraft(repo, draft)).toEqual({ kind: 'products', created: 0 });
+  });
+
+  it('changes only the rate when the price of an item is changed by voice, keeping its stock', async () => {
+    const repo = createRepo(db);
+    await saveDraft(repo, draftMessage(23, { intent: 'add_product', bill: undefined, customer: undefined, product: { name: 'Rate Test', unit: 'kg', pricePerUnit: 40, stock: 8, isNew: true } }));
+    const found = await repo.findProductByName('Rate Test');
+    const change = draftMessage(24, { intent: 'update_price', bill: undefined, customer: undefined, product: { id: found!.id, name: 'Rate Test', unit: 'kg', pricePerUnit: 45, previousPrice: 40, isNew: false } });
+    expect(await saveDraft(repo, change)).toEqual({ kind: 'price', created: true });
+    expect(await repo.findProductByName('Rate Test')).toMatchObject({ pricePerUnit: 45, stock: 8 });
+  });
+});

@@ -68,10 +68,20 @@ export function answerMissingItem(draft: DraftMessage, product: CatalogProduct):
   return withBill(closeQuestion(draft), [...bill.items, added], bill.udhaar === 0 ? Number.MAX_SAFE_INTEGER : bill.paid);
 }
 
+/** "Rajma ka rate kitna hai?" answered by a typed rate: the item joins the list with its quantity. */
+export function answerRate(draft: DraftMessage, amount: number): DraftMessage {
+  const ask = draft.clarification;
+  if (ask?.slot !== 'rate' || ask.spoken === undefined || draft.intent !== 'add_products') return draft;
+  if (!Number.isInteger(amount) || amount <= 0) return draft;
+  const row = { name: ask.spoken, unit: ask.unit ?? 'piece', pricePerUnit: amount, ...(ask.quantity !== undefined ? { stock: ask.quantity } : {}), isNew: true };
+  return closeQuestion({ ...draft, products: [...(draft.products ?? []), row] });
+}
+
 /** "Hatao" on the open question: drop what it was about (a missing or unknown item) and close it. */
 export function dismissQuestion(draft: DraftMessage): DraftMessage {
   const ask = draft.clarification;
   if (!ask) return draft;
+  if (ask.slot === 'rate') return closeQuestion(draft);
   if (ask.slot === 'item' && ask.spoken !== undefined) {
     return closeQuestion({ ...draft, unresolved: draft.unresolved.filter((u) => !(u.kind === 'item' && u.spoken === ask.spoken)) });
   }

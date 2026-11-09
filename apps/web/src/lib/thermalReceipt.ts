@@ -1,4 +1,4 @@
-import { computeTotals, type Bill, type BillItem } from '@bolbill/shared';
+import { computeTotals, paymentStatus, type Bill, type BillItem } from '@bolbill/shared';
 import { formatQuantity } from './format';
 
 /** Characters per line on a 58 mm thermal roll in the printer's normal font. */
@@ -94,6 +94,10 @@ export function thermalReceipt(bill: Bill, customerName?: string, width = THERMA
   out.push(...pair('Paid', rs(bill.paid), width));
   if (bill.udhaar > 0) out.push(...pair('UDHAAR', rs(bill.udhaar), width));
   if (bill.reversedAt !== undefined) out.push(...wrapText('Yeh bill reverse ho chuka hai.', width));
+  else {
+    const status = paymentStatus(bill);
+    out.push(center(status === 'paid' ? '** PAID **' : status === 'unpaid' ? '** UNPAID - KHATA **' : '** PART PAID **', width));
+  }
 
   if (bill.business?.receiptFooter) out.push(rule, center(bill.business.receiptFooter, width));
   return out.join('\n');

@@ -27,3 +27,22 @@ describe('receipt', () => {
     expect(receiptText({ ...bill, reversedAt: 2, reversalReason: 'Synthetic mistake' })).toContain('REVERSED');
   });
 });
+
+describe('payment status on the receipt', () => {
+  const paidBill: Bill = { ...bill, paid: 90, udhaar: 0 };
+  it('says UNPAID for a bill that went entirely on khata', () => {
+    const text = receiptText({ ...bill, paid: 0, udhaar: 90 });
+    expect(text).toContain('Status: UNPAID');
+    expect(text).not.toContain('Status: PAID');
+  });
+  it('says PAID for a fully paid bill', () => {
+    expect(receiptText(paidBill)).toContain('Status: PAID');
+    expect(receiptText(paidBill)).not.toContain('UNPAID');
+  });
+  it('says PART PAID with what is left, for a bill that is partly on udhaar', () => {
+    expect(receiptText(bill)).toMatch(/Status: PART PAID.*₹40/);
+  });
+  it('leaves the status off a reversed bill, which says REVERSED instead', () => {
+    expect(receiptText({ ...paidBill, reversedAt: 2, reversalReason: 'x' })).not.toContain('Status:');
+  });
+});

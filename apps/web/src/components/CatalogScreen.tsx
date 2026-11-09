@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { LOW_STOCK_AT, UNITS, isLowStock, isOutOfStock, type Product } from '@bolbill/shared';
+import { UNITS, isLowStock, isOutOfStock, type Product } from '@bolbill/shared';
 import { rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
 import { validateProductForm, type ProductFormInput } from '@/lib/catalogForm';
@@ -12,6 +12,28 @@ import { unitName } from './voice/units';
 import { OfflineBadge, StateView } from './StateView';
 
 const EMPTY: ProductFormInput = { name: '', price: '', unit: 'kg', aliases: '', stock: '' };
+
+/** How much of an item is left, on every row: the amount first and large, then what it means. */
+function StockLine({ product: p }: { product: Product }) {
+  const t = useT();
+  if (p.stock === undefined) {
+    return (
+      <span data-stock="unset" className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted">
+        <span className="font-semibold">{t('catalog.stockUnset')}</span>
+        <span className="rounded-full bg-control px-2 py-0.5 text-xs font-semibold">+ {t('catalog.stockUnsetHint')}</span>
+      </span>
+    );
+  }
+  const unit = unitName(t, p.unit);
+  const state = isOutOfStock(p) ? 'out' : isLowStock(p) ? 'low' : 'ok';
+  const tone = state === 'out' ? 'text-bad' : state === 'low' ? 'text-warn' : 'text-good';
+  return (
+    <span data-stock={state} className="mt-1 flex flex-wrap items-baseline gap-x-2">
+      <span className={`num text-xl font-extrabold ${tone}`}>{p.stock} {unit}</span>
+      <span className={`text-sm font-semibold ${tone}`}>{state === 'out' ? t('catalog.out') : state === 'low' ? t('catalog.lowShort') : t('catalog.inStock')}</span>
+    </span>
+  );
+}
 
 export function CatalogScreen() {
   const t = useT();
@@ -130,9 +152,7 @@ export function CatalogScreen() {
               <button type="button" onClick={() => open(p)} className="min-h-14 flex-1 text-left" aria-label={t('common.editName', { name: p.name })}>
                 <span className="block text-lg font-semibold">{p.name}</span>
                 {p.aliases.length > 0 && <span className="block truncate text-sm text-muted">{p.aliases.join(', ')}</span>}
-                {isOutOfStock(p) && <span className="badge badge-bad mt-1">{t('catalog.out')}</span>}
-                {isLowStock(p) && <span className="badge badge-warn mt-1">{t('catalog.lowStock', { stock: p.stock ?? 0, unit: unitName(t, p.unit) })}</span>}
-                {p.stock !== undefined && p.stock > LOW_STOCK_AT && <span className="mt-0.5 block text-sm text-muted">{t('catalog.stockLine', { stock: p.stock, unit: unitName(t, p.unit) })}</span>}
+                <StockLine product={p} />
               </button>
               <span className="num whitespace-nowrap text-lg font-bold">{rupees(p.pricePerUnit)}<span className="text-sm font-normal text-muted">/{unitName(t, p.unit)}</span></span>
               {confirmDelete === p.id ? (

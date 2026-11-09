@@ -3,6 +3,9 @@ import type { Repo } from '../db/repo';
 import { validateProductForm } from '../catalogForm';
 import { t } from '../i18n';
 
+/** The form validator takes the quantity as text; an absent quantity means stock is not tracked. */
+const stockText = (stock: number | undefined): string => (stock === undefined ? '' : String(stock));
+
 export type SaveOutcome =
   | { kind: 'bill'; created: boolean }
   | { kind: 'payment'; created: boolean; balanceAfter: number }
@@ -49,22 +52,22 @@ export async function saveDraft(repo: Repo, draft: DraftMessage): Promise<SaveOu
     }
     if (draft.intent === 'add_product' && draft.product) {
       // The same rules as the Samaan form, so a spoken product can never be one the form would refuse.
-      const form = validateProductForm({ name: draft.product.name, price: String(draft.product.pricePerUnit), unit: draft.product.unit, aliases: '' });
+      const form = validateProductForm({ name: draft.product.name, price: String(draft.product.pricePerUnit), unit: draft.product.unit, aliases: '', stock: stockText(draft.product.stock) });
       if (!form.ok) return { kind: 'error', message: Object.values(form.errors)[0] ?? t('save.itemFailed') };
       // A second confirmation (tap plus "haan") finds the product the first one made.
       if (await repo.findProductByName(form.value.name)) return { kind: 'product', created: false };
-      await repo.upsertProduct({ name: form.value.name, aliases: [], unit: form.value.unit, pricePerUnit: form.value.pricePerUnit });
+      await repo.upsertProduct({ name: form.value.name, aliases: [], unit: form.value.unit, pricePerUnit: form.value.pricePerUnit, ...(form.value.stock !== undefined ? { stock: form.value.stock } : {}) });
       return { kind: 'product', created: true };
     }
     if (draft.intent === 'add_products' && draft.products) {
       // Validate every new row first so a bad one never leaves the list half saved.
-      const rows = draft.products.filter((p) => p.isNew).map((p) => validateProductForm({ name: p.name, price: String(p.pricePerUnit), unit: p.unit, aliases: '' }));
+      const rows = draft.products.filter((p) => p.isNew).map((p) => validateProductForm({ name: p.name, price: String(p.pricePerUnit), unit: p.unit, aliases: '', stock: stockText(p.stock) }));
       const bad = rows.find((r) => !r.ok);
       if (bad && !bad.ok) return { kind: 'error', message: Object.values(bad.errors)[0] ?? t('save.itemFailed') };
       let created = 0;
       for (const row of rows) {
         if (!row.ok || (await repo.findProductByName(row.value.name))) continue;
-        await repo.upsertProduct({ name: row.value.name, aliases: [], unit: row.value.unit, pricePerUnit: row.value.pricePerUnit });
+        await repo.upsertProduct({ name: row.value.name, aliases: [], unit: row.value.unit, pricePerUnit: row.value.pricePerUnit, ...(row.value.stock !== undefined ? { stock: row.value.stock } : {}) });
         created++;
       }
       return { kind: 'products', created };

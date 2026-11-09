@@ -312,7 +312,8 @@ input, select, textarea { max-width: 100%; }
 /* ---------- The dock (status, confirm, mic) ---------- */
 
 .vs-dock { position: sticky; z-index: 20; bottom: calc(64px + env(safe-area-inset-bottom)); margin-top: auto; }
-.vs-dock-glass { position: relative; padding: 10px 16px 12px; background: var(--c-glass-solid); border-top: 0.5px solid var(--c-line); }
+.vs-dock-glass { position: relative; overflow: hidden; padding: 10px 16px 12px; background: var(--c-glass-solid); border-top: 0.5px solid var(--c-line); }
+.vs-dock-glass > :is(.vs-total, .vs-status, .vs-hint, .vs-credit) { position: relative; z-index: 1; }
 .vs-total { display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px 2px; animation: rise 360ms var(--spring-soft) both; }
 .vs-total span { font-size: 15px; font-weight: 600; color: var(--c-dim); }
 .vs-total strong { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
@@ -335,6 +336,7 @@ input, select, textarea { max-width: 100%; }
 /* ---------- The mic: the hero. Static gradients are painted once; motion is transform/opacity only. ---------- */
 
 .mic { --lvl: 0; --mic: 104px; position: relative; display: grid; place-items: center; width: calc(var(--mic) + 28px); height: calc(var(--mic) + 28px); }
+/* The rings stay inside the 14px margin around the button (max scale about 1.24), so they never reach the text above or below. */
 .mic-halo, .mic-ring { position: absolute; inset: 14px; border-radius: 50%; pointer-events: none; }
 .mic-halo { inset: 4px; background: radial-gradient(circle, color-mix(in srgb, var(--c-brand) 38%, transparent) 0%, transparent 68%); opacity: 0.5; animation: breathe 3.6s ease-in-out infinite; }
 .mic-ring { border: 2px solid var(--c-rec); opacity: 0; transform: scale(1); will-change: transform, opacity; }
@@ -371,9 +373,9 @@ input, select, textarea { max-width: 100%; }
 .mic[data-state='listening'] .mic-press { opacity: 1; }
 .mic[data-state='listening'] .mic-core { opacity: 1; background: radial-gradient(circle at 50% 40%, #ff7b6f, #e5281c 55%, #8f130b); }
 .mic[data-state='listening'] .mic-halo { animation: none; opacity: 0; }
-.mic[data-state='listening'] .r1 { opacity: calc(0.25 + var(--lvl) * 0.6); transform: scale(calc(1.02 + var(--lvl) * 0.34)); }
-.mic[data-state='listening'] .r2 { opacity: calc(0.1 + var(--lvl) * 0.4); transform: scale(calc(1.06 + var(--lvl) * 0.6)); }
-.mic[data-state='listening'] .r3 { opacity: calc(var(--lvl) * 0.3); transform: scale(calc(1.1 + var(--lvl) * 0.86)); }
+.mic[data-state='listening'] .r1 { opacity: calc(0.25 + var(--lvl) * 0.6); transform: scale(calc(1 + var(--lvl) * 0.1)); }
+.mic[data-state='listening'] .r2 { opacity: calc(0.1 + var(--lvl) * 0.4); transform: scale(calc(1.02 + var(--lvl) * 0.15)); }
+.mic[data-state='listening'] .r3 { opacity: calc(var(--lvl) * 0.3); transform: scale(calc(1.04 + var(--lvl) * 0.2)); }
 
 /* Thinking: a light sweeps around the bezel. */
 .mic[data-state='busy'] .mic-shimmer { opacity: 1; animation: spin 1.15s linear infinite; }
@@ -441,6 +443,18 @@ html[lang='hi'] .vs-credit, html[lang='hi'] .bill-tag { font-size: 12px; }
   .vs-total strong { font-size: 24px; }
 }
 
+/*
+ * Phones: the mic dock is a footer of the screen, not a card floating over it. The bill and its list
+ * scroll inside their own area above the dock, so the dock never covers a line, a field or a button.
+ * (A sticky dock used to sit on top of the bill whenever the bill was taller than the space above it.)
+ */
+@media (max-width: 767px) {
+  .vs { height: calc(100dvh - 64px - env(safe-area-inset-bottom) - env(safe-area-inset-top)); min-height: 0; }
+  .vs-col { min-height: 0; }
+  .vs-stage { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .vs-dock { position: relative; flex: 0 0 auto; margin-top: 0; bottom: auto; box-shadow: 0 -8px 16px -12px rgb(0 0 0 / 0.25); }
+}
+
 @media (min-width: 768px) {
   .app-content { padding: 12px 24px 36px 236px; }
   .app-nav { top: 16px; bottom: 16px; left: 16px; right: auto; width: 204px; border: 0.5px solid var(--c-line); border-radius: 24px; padding: 20px 10px; display: flex; flex-direction: column; box-shadow: var(--shadow-card); }
@@ -483,7 +497,7 @@ html[lang='hi'] .vs-credit, html[lang='hi'] .bill-tag { font-size: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes beat { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 @keyframes breathe { 0%, 100% { opacity: 0.35; transform: scale(0.94); } 50% { opacity: 0.75; transform: scale(1.04); } }
-@keyframes emit { from { opacity: 0.55; transform: scale(1); } to { opacity: 0; transform: scale(1.75); } }
+@keyframes emit { from { opacity: 0.55; transform: scale(1); } to { opacity: 0; transform: scale(1.24); } }
 @keyframes typing { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @keyframes wave { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
 @keyframes sweep { to { transform: translateX(100%); } }

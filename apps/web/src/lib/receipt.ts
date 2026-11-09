@@ -1,4 +1,4 @@
-import { computeTotals, type Bill } from '@bolbill/shared';
+import { computeTotals, paymentStatus, type Bill } from '@bolbill/shared';
 import { formatDate, formatQuantity, rupees } from './format';
 
 /** Receipts deliberately omit customer contact details. */
@@ -13,9 +13,17 @@ export function receiptText(bill: Bill, customerName?: string): string {
       : `${item.name} — ${formatQuantity(item.quantity)} ${item.unit} × ${rupees(item.unitPrice ?? 0)} = ${rupees(item.lineTotal)}`),
     ...(bill.adjust ? adjustmentLines(bill) : []),
     `Total: ${rupees(bill.total)}`, `Paid: ${rupees(bill.paid)}`, `Udhaar: ${rupees(bill.udhaar)}`,
+    ...(bill.reversedAt === undefined ? [statusLine(bill)] : []),
     ...(bill.reversedAt !== undefined ? ['Yeh bill reverse ho chuka hai; payment ki demand nahi hai.'] : []),
     ...(bill.business?.receiptFooter ? [bill.business.receiptFooter] : []),
   ].join('\n');
+}
+
+/** PAID, UNPAID (everything on khata) or PART PAID with what is left. */
+function statusLine(bill: Bill): string {
+  const status = paymentStatus(bill);
+  if (status === 'paid') return 'Status: PAID';
+  return status === 'unpaid' ? `Status: UNPAID (khata ${rupees(bill.udhaar)})` : `Status: PART PAID (baaki ${rupees(bill.udhaar)})`;
 }
 
 function adjustmentLines(bill: Bill): string[] {

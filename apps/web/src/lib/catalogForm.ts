@@ -1,4 +1,5 @@
-import { LIMITS, UNITS, creditDetailsSchema, type Unit } from '@bolbill/shared';
+import { LIMITS, UNITS, type Unit } from '@bolbill/shared';
+import { detailErrors } from './detailIssues';
 import { t } from './i18n';
 
 export interface ProductFormInput {
@@ -82,11 +83,10 @@ export function validateCustomerForm(input: CustomerFormInput): CustomerFormResu
   const mobile = input.mobile?.trim() ?? '';
   const address = input.address?.trim() ?? '';
   if (mobile || address) {
-    const details = creditDetailsSchema.safeParse({ name, mobile, address });
-    if (!details.success) for (const issue of details.error.issues) {
-      if (issue.path[0] === 'mobile') errors.mobile = t('form.mobileInvalid');
-      if (issue.path[0] === 'address') errors.address = t('form.addressInvalid');
-    }
+    // Saving contact details needs both. Say which one is wrong and why, not a single catch-all.
+    const found = detailErrors(t, { name, mobile, address });
+    if (found.mobile) errors.mobile = found.mobile;
+    if (found.address) errors.address = found.address;
   }
   if (aliases.length > LIMITS.maxAliasesPerEntry) errors.aliases = t('form.tooManyAliases', { max: LIMITS.maxAliasesPerEntry });
   if (Object.keys(errors).length > 0) return { ok: false, errors };

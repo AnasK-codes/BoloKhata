@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import type { DraftMessage } from '@bolbill/shared';
 import { Icon } from '../Icon';
+import { answerRate, dismissQuestion } from '@/lib/voice/draftEdit';
 import { formatDate, rupees } from '@/lib/format';
 import { useLive } from '@/lib/db/live';
 import type { Repo } from '@/lib/db/repo';
@@ -129,6 +131,11 @@ export function ProductCard({ draft, saved }: { draft: DraftMessage; saved: bool
       </p>
       <p className="mt-2 text-3xl font-extrabold tracking-tight">{product.name}</p>
       <p className="num mt-1 text-2xl font-bold">{changing && <span className="mr-2 text-lg font-semibold text-dim line-through">{rupees(product.previousPrice ?? 0)}</span>}{rupees(product.pricePerUnit)}<span className="text-base font-semibold text-dim"> / {unitName(t, product.unit)}</span></p>
+      {product.isNew && (
+        <p className={`num mt-1 text-lg font-semibold ${product.stock === undefined ? 'text-warn' : ''}`}>
+          {product.stock !== undefined ? t('catalog.stockLine', { stock: product.stock, unit: unitName(t, product.unit) }) : t('info.noStock')}
+        </p>
+      )}
       <p className="mt-1 text-dim">
         {changing
           ? saved ? t('info.rateSaved') : t('info.rateAsk')
@@ -139,20 +146,24 @@ export function ProductCard({ draft, saved }: { draft: DraftMessage; saved: bool
 }
 
 /** "Samaan mein aata 45, cheeni 50, ...": the whole list, one confirmation. Existing products are marked and skipped. */
-export function ProductListCard({ draft, saved }: { draft: DraftMessage; saved: boolean }) {
+export function ProductListCard({ draft, saved, onChange }: { draft: DraftMessage; saved: boolean; onChange?(draft: DraftMessage): void }) {
   const t = useT();
-  const products = draft.products;
-  if (!products || products.length === 0) return null;
+  const products = draft.products ?? [];
+  const asking = draft.clarification?.slot === 'rate' ? draft.clarification : undefined;
+  if (products.length === 0 && !asking) return null;
   const fresh = products.filter((p) => p.isNew).length;
   return (
     <article className="pop rounded-2xl bg-card p-4" aria-label={t('info.newItems')}>
       <p className="text-dim">
-        {fresh === 0 ? <span className="badge">{t('info.allExist')}</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />{t('info.itemsAdded', { count: fresh })}</span> : <span className="badge badge-warn">{t('info.newCount', { count: fresh })}</span>}
+        {asking ? <span className="badge badge-warn">{t('info.pendingRate')}</span> : fresh === 0 ? <span className="badge">{t('info.allExist')}</span> : saved ? <span className="inline-flex items-center gap-1 text-good"><Icon name="check" size={18} />{t('info.itemsAdded', { count: fresh })}</span> : <span className="badge badge-warn">{t('info.newCount', { count: fresh })}</span>}
       </p>
       <ul className="mt-3 divide-y divide-black/5">
         {products.map((p, i) => (
           <li key={`${p.name}-${i}`} className="flex items-center justify-between gap-3 py-2">
-            <span className={`text-lg font-bold ${p.isNew ? '' : 'text-dim line-through'}`}>{p.name}</span>
+            <span>
+              <span className={`block text-lg font-bold ${p.isNew ? '' : 'text-dim line-through'}`}>{p.name}</span>
+              {p.isNew && <span className={`num block text-sm ${p.stock === undefined ? 'text-warn' : 'text-dim'}`}>{p.stock !== undefined ? t('catalog.stockLine', { stock: p.stock, unit: unitName(t, p.unit) }) : t('info.noStock')}</span>}
+            </span>
             <span className="num text-lg font-semibold">
               {rupees(p.pricePerUnit)}<span className="text-sm text-dim"> / {unitName(t, p.unit)}</span>
               {!p.isNew && <span className="badge ml-2">{t('info.exists')}</span>}
@@ -160,7 +171,37 @@ export function ProductListCard({ draft, saved }: { draft: DraftMessage; saved: 
           </li>
         ))}
       </ul>
-      {!saved && fresh > 0 && <p className="mt-2 text-dim">{t('info.allCorrect')}</p>}
+      {asking && onChange && <RateAsk draft={draft} onChange={onChange} />}
+      {!saved && fresh > 0 && !asking && <p className="mt-2 text-dim">{t('info.allCorrect')}</p>}
     </article>
+  );
+}
+
+/** "Rajma ka rate kitna hai?" as a field: type the rate instead of saying it again. */
+function RateAsk({ draft, onChange }: { draft: DraftMessage; onChange(draft: DraftMessage): void }) {
+  const t = useT();
+  const ask = draft.clarification;
+  const [text, setText] = useState('');
+  const [error, setError] = useState('');
+  if (ask?.slot !== 'rate') return null;
+  const unit = unitName(t, ask.unit ?? 'piece');
+  const submit = () => {
+    const amount = Number(text.trim());
+    if (!Number.isInteger(amount) || amount <= 0) { setError(t('info.rateInvalid')); return; }
+    setError('');
+    onChange(answerRate(draft, amount));
+  };
+  return (
+    <form className="note-pick mt-3 rounded-xl ring-2 ring-warn p-3" noValidate aria-current="step" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <label htmlFor="rate-answer" className="block font-semibold">{t('info.rateFor', { name: ask.spoken ?? '' })}</label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input id="rate-answer" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} placeholder={t('info.rateField', { unit })}
+          aria-label={t('info.rateField', { unit })} aria-invalid={error !== ''} aria-describedby={error ? 'rate-answer-error' : undefined}
+          className="num min-h-12 w-full basis-full rounded-xl bg-inset px-3 text-lg" />
+        <button type="submit" className="min-h-12 flex-1 rounded-xl bg-accent px-4 font-bold text-on-solid">{t('info.rateAdd')}</button>
+        <button type="button" className="min-h-12 rounded-xl bg-control px-4 font-semibold" onClick={() => onChange(dismissQuestion(draft))}>{t('common.cancel')}</button>
+      </div>
+      {error && <p id="rate-answer-error" role="alert" className="mt-1 text-bad">{error}</p>}
+    </form>
   );
 }
