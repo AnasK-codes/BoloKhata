@@ -281,7 +281,8 @@ export class TurnEngine {
           ...(base.customer?.id ? { customerId: base.customer.id } : {}) });
         const repriced = { ...base, bill: priced.bill,
           unresolved: [...base.unresolved, ...priced.unresolvedItems].slice(0, 10) };
-        const correction = correctDraft(repriced, transcript, catalog.products) ?? adjustDraft(repriced, transcript);
+        // adjustDraft first: it claims only bare discount/GST/round-off speech, while correctDraft treats "kam" as a failed edit.
+        const correction = adjustDraft(repriced, transcript) ?? correctDraft(repriced, transcript, catalog.products);
         if (correction) {
           const draft = { ...correction.draft, turnId: ctx.turnId, source: 'rules' as const };
           this.correctionContext = draft;
