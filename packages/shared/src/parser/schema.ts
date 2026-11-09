@@ -27,11 +27,19 @@ export const parsedUtteranceSchema = z.object({
 export type ParsedItemOutput = z.infer<typeof parsedItemSchema> & Pick<ParsedItem, 'spokenPrice'> & {
   /** Rules only: a vague amount ("thoda aata"). The quantity is a placeholder and must be asked. */
   quantityUnclear?: true;
+  /** Rules only, Samaan: how much of the item is on the shelf ("rajma 5 kilo ... jodo"). In `unit`. */
+  stock?: number;
 };
 /** Rules only: a quantity that was spoken with no item name ("... aur do kilo"). */
 export interface MissingItem {
   quantity: number;
   unit: z.infer<typeof unitSchema> | null;
+}
+/** Rules only, Samaan: an item named with a quantity but no rate, so the rate can be asked for. */
+export interface MissingRate {
+  name: string;
+  unit: z.infer<typeof unitSchema> | null;
+  stock?: number;
 }
 export type ParsedUtterance = Omit<z.infer<typeof parsedUtteranceSchema>, 'items'> & {
   items: ParsedItemOutput[];
@@ -43,4 +51,6 @@ export type ParsedUtterance = Omit<z.infer<typeof parsedUtteranceSchema>, 'items
   missingItems?: MissingItem[];
   /** Rules only: "udhaar" with no amount ("paanch kilo aata udhaar"): the whole bill is on credit. */
   creditAll?: true;
+  /** Rules only, add_products: listed items that have a quantity but no rate. */
+  missingRate?: MissingRate[];
 };

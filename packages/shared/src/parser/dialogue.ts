@@ -275,6 +275,8 @@ function fillSlot(
       const items = target >= 0 ? base.items.map((item, i) => (i === target ? answerItem : item)) : [...base.items, answerItem];
       return { ...base, items: [...items, ...rest.map(stripFlag)].slice(0, LIMITS.maxBillItems) };
     }
+    case 'rate':
+      return null; // a Samaan rate is answered through parseRateAnswer, not by merging into a bill
     case 'customer': {
       if (parsed.intent === 'create_bill' && parsed.items.length > 0) return 'command';
       const match = matcher.matchCustomer(parsed.customer ?? answer);

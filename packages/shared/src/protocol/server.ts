@@ -92,6 +92,8 @@ export const draftProductSchema = z.object({
   pricePerUnit: rupeesSchema.min(1),
   /** update_price only: the rate before the change, for the card. */
   previousPrice: rupeesSchema.optional(),
+  /** add_product(s): how much is on the shelf, in `unit`, when the speaker said so. Absent = not tracked. */
+  stock: z.number().positive().max(1_000_000).optional(),
   isNew: z.boolean(),
 });
 
@@ -113,7 +115,8 @@ export const unresolvedSchema = z.object({
 
 /** After this many spoken questions about one slot, the screen offers taps instead of asking again. */
 export const MAX_CLARIFY_ATTEMPTS = 2;
-export const CLARIFY_SLOTS = ['item', 'quantity', 'customer'] as const;
+/** rate: a Samaan item was named with no rate (rajma 5 kilo, but kitne rupaye kilo?). */
+export const CLARIFY_SLOTS = ['item', 'quantity', 'customer', 'rate'] as const;
 export type ClarifySlot = (typeof CLARIFY_SLOTS)[number];
 
 /**
@@ -157,7 +160,7 @@ export const draftSchema = z.object({
   /** add_products: a whole list of products to create after one confirmation. */
   products: z.array(draftProductSchema).max(LIMITS.maxBillItems).optional(),
   unresolved: z.array(unresolvedSchema).max(LIMITS.maxUnresolved),
-  /** create_bill only: the question still open. Nothing with an open question can be saved. */
+  /** create_bill and add_products: the question still open. Nothing with an open question can be saved. */
   clarification: clarificationSchema.optional(),
   warnings: z.array(safeText(LIMITS.maxWarningLength)).max(LIMITS.maxWarnings),
   /** At most two short sentences so TTS can start on the first. */
