@@ -10,10 +10,15 @@ import {
   clarifyAsk,
   correctDraft,
   isConfirmable,
+  parseRateAnswer,
+  parseUtterance,
   repeatClarification,
+  shortAnswer,
   type Dialect,
   type DraftMessage,
   type ErrorCode,
+  type MissingRate,
+  type ParsedItemOutput,
 } from '@bolbill/shared';
 import type { GatewayConfig } from '../config';
 import type { SttLink, SttTranscript } from '../gnani/sttLink';
@@ -84,6 +89,8 @@ export class TurnEngine {
   private current: TurnContext | null = null;
   private pending: PendingDraft | null = null;
   private correctionContext: DraftMessage | null = null;
+  /** Samaan items still waiting for a rate after the one being asked about. */
+  private rateQueue: MissingRate[] = [];
   private sttReserved = 0;
   private disposed = false;
   /** The turn whose `tts_end` went out most recently, so an interrupt does not send timing twice. */
@@ -254,6 +261,7 @@ export class TurnEngine {
       const index = this.index;
       if (!catalog || !index) return;
       if (this.answerQuestion(ctx, transcript, catalog, index)) return;
+      if (this.answerRate(ctx, transcript, catalog, index)) return;
       if (this.correctionContext?.bill) {
         const base = this.correctionContext;
         // Recompute totals before editing; catalog lines use current rates and quoted lines retain their validated price basis.
@@ -299,7 +307,8 @@ export class TurnEngine {
         draftId: this.newDraftId(),
         transcript,
       });
-      if (result.draft.intent === 'create_bill') this.correctionContext = result.draft;
+      if (result.draft.intent === 'create_bill' || (result.draft.intent === 'add_products' && result.draft.clarification)) this.correctionContext = result.draft;
+      this.rateQueue = result.draft.clarification?.slot === 'rate' ? (outcome.parsed.missingRate ?? []).slice(1) : [];
       if (result.pendingChange.action === 'set') this.pending = result.pendingChange.pending;
       else if (result.pendingChange.action === 'clear') this.pending = null;
 
@@ -368,10 +377,66 @@ export class TurnEngine {
       this.correctionContext = draft.intent === 'create_bill' ? draft : null;
       this.pending = isConfirmable(draft) ? { draftId: draft.draftId, intent: 'create_bill', canConfirm: true } : null;
     }
+    this.sendReply(ctx, draft, cache);
+    return true;
+  }
+
+  /** Sends a draft built without the orchestrator (rules only) and starts speaking its reply. */
+  private sendReply(ctx: TurnContext, draft: DraftMessage, cache: boolean): void {
     this.timer.mark(ctx.turnId, 'draft');
     this.out.json(draft);
     this.sendTiming(ctx.turnId);
     if (!this.tts.speak(ctx.turnId, draft.replyText, { cache })) this.reportError(ctx.turnId, 'TTS_UNAVAILABLE', 'Could not speak the reply.', true);
+  }
+
+  /**
+   * "Rajma ka rate kitna hai?" is open: a bare "chaalis rupaye kilo" fills it and the item joins the
+   * same list (same draft id). Anything that is clearly another command goes through the usual path;
+   * anything else repeats the question, at most twice, then the screen takes over. Rules only.
+   */
+  private answerRate(ctx: TurnContext, transcript: string, catalog: Catalog, index: CatalogIndex): boolean {
+    const context = this.correctionContext;
+    const ask = context?.clarification;
+    if (!context || ask?.slot !== 'rate' || context.intent !== 'add_products') return false;
+    const said = shortAnswer(transcript);
+    const rate = said === null ? parseRateAnswer(transcript) : null;
+    if (said === null && rate === null && parseUtterance(transcript, index).intent !== 'unknown') return false; // another command
+    this.timer.mark(ctx.turnId, 'rules_done');
+    this.timer.setParseSource(ctx.turnId, 'rules');
+
+    if (said === 'cancel') {
+      this.correctionContext = null;
+      this.pending = null;
+      this.rateQueue = [];
+      this.sendReply(ctx, { type: 'draft', turnId: ctx.turnId, draftId: context.draftId, intent: 'cancel', source: 'rules', confidence: 0.95, unresolved: [], warnings: [], replyText: cancelled(ctx.turnId) }, true);
+      return true;
+    }
+    const unit = ask.unit ?? rate?.unit ?? null;
+    if (!rate || (ask.unit && rate.unit && ask.unit !== rate.unit) || !ask.spoken) {
+      const clarification = repeatClarification(ask, ask.transcript);
+      const draft: DraftMessage = { ...context, turnId: ctx.turnId, clarification, replyText: clarifyAsk(clarification, undefined, ctx.turnId) };
+      this.correctionContext = draft;
+      this.sendReply(ctx, draft, clarification.fallback);
+      return true;
+    }
+
+    const earlier: ParsedItemOutput[] = (context.products ?? []).map((p) => ({
+      name: p.name, quantity: 1, unit: p.unit, ...(p.stock !== undefined ? { stock: p.stock } : {}),
+      spokenPrice: { amount: p.pricePerUnit, basis: 'unit' as const, unit: p.unit },
+    }));
+    const answered: ParsedItemOutput = {
+      name: ask.spoken, quantity: 1, unit, ...(ask.quantity !== undefined ? { stock: ask.quantity } : {}),
+      spokenPrice: { amount: rate.amount, basis: 'unit', unit },
+    };
+    const queue = this.rateQueue;
+    const parsed = { intent: 'add_products' as const, customer: null, items: [...earlier, answered], amount_paid: null, udhaar_amount: null, confidence: 0.9, ...(queue.length > 0 ? { missingRate: queue } : {}) };
+    const outcome: ParseOutcome = { parsed, resolution: resolveUtterance(parsed, index), source: 'rules', needsReview: false, llm: 'skipped' };
+    const result = buildDraft({ turnId: ctx.turnId, outcome, catalog, pending: this.pending, draftId: context.draftId, transcript: ask.transcript });
+    const draft = result.draft;
+    this.rateQueue = draft.clarification?.slot === 'rate' ? queue.slice(1) : [];
+    this.correctionContext = draft.clarification ? draft : null;
+    this.pending = isConfirmable(draft) ? { draftId: draft.draftId, intent: 'add_products', canConfirm: true } : null;
+    this.sendReply(ctx, draft, false);
     return true;
   }
 

@@ -326,12 +326,30 @@ describe('add_product', () => {
     expect(add('Maida', 'kg', 0).draft.intent).toBe('unknown');
   });
 
-  it('asks for the rate, naming the product, when only the name was spoken', () => {
-    const r = build({ intent: 'add_product', items: [{ name: 'Rajma', quantity: 1, unit: null }] });
-    expect(r.draft.intent).toBe('unknown');
+  it('asks for the rate, naming the product, and keeps the question in the draft', () => {
+    const r = build({ intent: 'add_product', items: [{ name: 'Rajma', quantity: 1, unit: null, stock: 5 }] });
+    expect(r.draft.intent).toBe('add_products');
+    expect(r.draft.clarification).toMatchObject({ slot: 'rate', spoken: 'Rajma', quantity: 5, attempts: 1, fallback: false });
     expect(r.draft.replyText.join(' ')).toContain('Rajma');
     expect(r.draft.replyText.join(' ')).toMatch(/rate|daam/i);
     expect(r.pendingChange).toEqual({ action: 'clear' });
+  });
+
+  it('carries the spoken quantity on the product and says it in the reply', () => {
+    const r = build({ intent: 'add_product', items: [{ name: 'Rajma', quantity: 1, unit: 'kg', stock: 5, spokenPrice: { amount: 120, basis: 'unit' as const, unit: 'kg' } }] });
+    expect(r.draft.product).toEqual({ name: 'Rajma', unit: 'kg', pricePerUnit: 120, stock: 5, isNew: true });
+    expect(r.draft.replyText.join(' ')).toContain('paanch kilo');
+    expect(r.draft.warnings).toEqual([]);
+  });
+
+  it('warns, on screen, when no quantity was given', () => {
+    expect(add('Maida').draft.warnings.join(' ')).toMatch(/stock/i);
+  });
+
+  it('does not ask for the rate of a product that already exists', () => {
+    const r = build({ intent: 'add_product', items: [{ name: 'aata', quantity: 1, unit: null }] });
+    expect(r.draft.clarification).toBeUndefined();
+    expect(r.draft.replyText.join(' ')).toContain('pehle se');
   });
 
   it('is saved by a spoken "haan"', () => {
@@ -397,6 +415,18 @@ describe('add_products', () => {
     expect(r.draft.products?.map((p) => [p.name, p.isNew])).toEqual([['Maida', true], ['Aata', false]]);
     expect(r.pendingChange).toMatchObject({ action: 'set' });
     expect(r.draft.replyText.join(' ')).toContain('pehle se');
+  });
+
+  it('keeps each quantity, and asks for the rate of an item that has none, one at a time', () => {
+    const r = build({
+      intent: 'add_products',
+      items: [{ name: 'Maida', quantity: 1, unit: 'kg', stock: 20, spokenPrice: { amount: 35, basis: 'unit' as const, unit: 'kg' } }],
+      missingRate: [{ name: 'Sooji', unit: 'kg', stock: 10 }, { name: 'Besan', unit: 'kg', stock: 4 }],
+    });
+    expect(r.draft.products).toEqual([{ name: 'Maida', unit: 'kg', pricePerUnit: 35, stock: 20, isNew: true }]);
+    expect(r.draft.clarification).toMatchObject({ slot: 'rate', spoken: 'Sooji', quantity: 10, unit: 'kg' });
+    expect(r.pendingChange).toEqual({ action: 'clear' }); // cannot be saved until the rate is answered
+    expect(r.draft.replyText.join(' ')).toContain('Sooji');
   });
 
   it('offers nothing when every product exists', () => {
