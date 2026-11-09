@@ -16,8 +16,11 @@ export interface CorpusEntry {
   word: string;
   /** Hindi spelling, for the reader of the listening sheet. */
   hindi: string;
-  /** 'nasal': the n/m marks a nasal vowel. 'consonant': a real n/m that must stay (a control). */
-  kind: 'nasal' | 'consonant';
+  /**
+   * 'nasal': the n/m marks a nasal vowel. 'consonant': a real n/m that must stay (a control).
+   * 'dental': a dental द that Timbre read as a retroflex ड when the word was written in Latin.
+   */
+  kind: 'nasal' | 'consonant' | 'dental';
   /** Where it is spoken. */
   usedIn: string;
   /** What is sent to Timbre for each variant. The first is today's spelling. */
@@ -32,7 +35,7 @@ export const PRONUNCIATION_CORPUS: readonly CorpusEntry[] = [
   { id: 'likh-dun', word: 'likh dun', hindi: 'लिख दूँ', kind: 'nasal', usedIn: 'stockOutAsk, addProductAsk',
     candidates: ['Aata khatam, likh dun?', 'आटा खत्म, लिख दूँ?', 'आटा खत्म, लिख दूं?', 'Aata khatam, likh du?'] },
   { id: 'jodun', word: 'jodun', hindi: 'जोड़ूँ', kind: 'nasal', usedIn: 'addCustomerAsk, addProductAsk, addProductsAsk',
-    candidates: ['Samaan mein jodun?', 'सामान में जोड़ूँ?', 'सामान में जोड़ूं?', 'Samaan mein jodu?'] },
+    candidates: ['Samaan mein jodun?', 'सामान में जोड़ूँ?', 'सामान में जोड़ूं?', 'Samaan mein jodu?', 'Samaan mein जोड़ूँ?'] },
   { id: 'likhun', word: 'likhun', hindi: 'लिखूँ', kind: 'nasal', usedIn: 'customerNeeded ("Udhaar kiska likhun?")',
     candidates: ['Udhaar kiska likhun?', 'उधार किसका लिखूँ?', 'उधार किसका लिखूं?', 'Udhaar kiska likhu?'] },
   { id: 'karun', word: 'karun', hindi: 'करूँ', kind: 'nasal', usedIn: 'billReadback ("... udhaar rahega, save karun?")',
@@ -63,6 +66,9 @@ export const PRONUNCIATION_CORPUS: readonly CorpusEntry[] = [
   // The real decision behind most of the above: send whole sentences in Devanagari or keep Latin.
   { id: 'readback', word: 'readback', hindi: 'बिल … सेव कर दूँ?', kind: 'nasal', usedIn: 'billReadback (the demo sentence)',
     candidates: ['Bill do sau pachas rupaye ka hai. Save kar dun?', 'बिल दो सौ पचास रुपये का है। सेव कर दूँ?'] },
+  // Reported by a person on 2026-11-09: "jodun" heard as जोडून, "dabao" heard as डबाओ. Last candidate is what the app now sends.
+  { id: 'dabao', word: 'dabao', hindi: 'दबाओ', kind: 'dental', usedIn: 'addCustomerAsk ("Haan bolo ya confirm dabao.")',
+    candidates: ['Haan bolo ya confirm dabao.', 'Haan bolo ya confirm दबाओ।', 'हाँ बोलो या कन्फर्म दबाओ।', 'Bolo ya button दबाओ.'] },
 ];
 
 /**

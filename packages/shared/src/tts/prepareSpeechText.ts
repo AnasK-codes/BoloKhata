@@ -27,7 +27,13 @@ export interface PronunciationOverride {
  * Winners from listening, in the order they are applied (longer phrases first). Empty until the
  * listening sheet from `pnpm spike --only P` has been judged by a person.
  */
-export const PRONUNCIATION_OVERRIDES: readonly PronunciationOverride[] = [];
+export const PRONUNCIATION_OVERRIDES: readonly PronunciationOverride[] = [
+  // Reported by a person on 2026-11-09 with the spelling they expect to hear. The Devanagari form
+  // names the exact sounds (जोड़ूँ ends in a nasal vowel; दबाओ starts with a dental द, not ड).
+  // Applied on their report; the clips that confirm it by ear are in docs/TTS-TUNING.md.
+  { from: 'jodun', to: 'जोड़ूँ', evidence: 'TTS-TUNING.md "Reported 2026-11-09": jodun' },
+  { from: 'dabao', to: 'दबाओ', evidence: 'TTS-TUNING.md "Reported 2026-11-09": dabao' },
+];
 
 /**
  * Spellings a person has heard Timbre mispronounce, as sent today. Each must either get an
@@ -36,6 +42,8 @@ export const PRONUNCIATION_OVERRIDES: readonly PronunciationOverride[] = [];
 export const KNOWN_BAD_SPELLINGS: readonly { spelling: string; heard: string }[] = [
   { spelling: 'kar dun', heard: 'kardunn: an extra hard "n" at the end (should be a soft nasal "kar dū̃")' },
   { spelling: 'haan', heard: 'हान: a hard "n" consonant instead of the nasal vowel हाँ' },
+  { spelling: 'jodun', heard: 'जोडून: a hard n and a retroflex ड (should be जोड़ूँ)' },
+  { spelling: 'dabao', heard: 'डबाओ: a retroflex ड (should be a dental द: दबाओ)' },
 ];
 
 /** Known-bad spellings whose fix is waiting for a person to judge the A/B clips. */

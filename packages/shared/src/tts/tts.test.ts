@@ -30,6 +30,29 @@ describe('prepareSpeechText: pronunciation overrides', () => {
   });
 });
 
+describe('reported mispronunciations are fixed in what Timbre is sent', () => {
+  it('"jodun" goes out as जोड़ूँ and "dabao" as दबाओ, whatever the sentence around them', () => {
+    expect(prepareSpeechText('Samaan mein jodun?')).toBe('Samaan mein जोड़ूँ?');
+    expect(prepareSpeechText('Anil ko customer mein jodun?')).toBe('Anil ko customer mein जोड़ूँ?');
+    expect(prepareSpeechText('Haan bolo ya confirm dabao.')).toBe('Haan bolo ya confirm दबाओ.');
+    expect(prepareSpeechText('JODUN? Dabao!')).toBe('जोड़ूँ? दबाओ!');
+  });
+  it('leaves similar words alone', () => {
+    expect(prepareSpeechText('jodna dabaoo jodunga')).toBe('jodna dabaoo jodunga');
+  });
+  it('no template reply sends either Latin spelling any more', () => {
+    for (const sentence of allSpokenStrings()) {
+      const sent = (prepareSpeechText(sentence) ?? '').toLowerCase();
+      expect(sent, sentence).not.toMatch(/\bjodun\b|\bdabao\b/);
+    }
+  });
+  it('the sweep reaches the sentences that say them', () => {
+    const all = allSpokenStrings().join(' ').toLowerCase();
+    expect(all).toContain('jodun');
+    expect(all).toContain('dabao');
+  });
+});
+
 describe('known-bad spellings are never forgotten', () => {
   it('each one is either fixed by a listened-to override or explicitly waiting for listening', () => {
     for (const bad of KNOWN_BAD_SPELLINGS) {

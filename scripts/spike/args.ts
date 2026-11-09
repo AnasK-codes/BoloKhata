@@ -19,6 +19,8 @@ export interface SpikeArgs {
   ttsSubset: number;
   repeats: number;
   skipLongIdle: boolean;
+  /** Experiment P only: just these corpus entries (by id), to re-check a few words cheaply. null means all. */
+  entries: string[] | null;
 }
 
 function positiveNumber(name: string, raw: string): number {
@@ -54,6 +56,7 @@ export function parseSpikeArgs(argv: string[]): SpikeArgs {
       'tts-subset': { type: 'string', default: '2' },
       repeats: { type: 'string', default: '1' },
       'skip-long-idle': { type: 'boolean', default: false },
+      entries: { type: 'string' },
     },
     strict: true,
   });
@@ -74,6 +77,7 @@ export function parseSpikeArgs(argv: string[]): SpikeArgs {
     ttsSubset: Math.floor(positiveNumber('tts-subset', values['tts-subset'] ?? '2')),
     repeats: Math.floor(positiveNumber('repeats', values.repeats ?? '1')),
     skipLongIdle: values['skip-long-idle'] ?? false,
+    entries: values.entries ? values.entries.split(',').map((e) => e.trim()).filter(Boolean) : null,
   };
 }
 
