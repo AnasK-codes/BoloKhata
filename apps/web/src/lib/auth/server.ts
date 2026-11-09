@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { businessProfileSchema } from '@bolbill/shared';
 import { credentialsSchema, signupSchema } from './schema';
 import { AccountError, authConfig, supabase, type AuthSession } from './supabase';
+import { demoState, isDemoNoAuth } from './demo';
 
 const ACCESS = 'bolbill-access';
 const REFRESH = 'bolbill-refresh';
@@ -47,6 +48,7 @@ export async function handleAccount(request: NextRequest, action = 'current', fe
     if (request.method !== 'GET') {
       if (request.headers.get('origin') !== appOrigin) throw new AccountError(403, 'Request origin allowed nahi hai.');
     }
+    if (isDemoNoAuth(env)) return await handleDemo(request, action, appOrigin, fetcher, env);
     const client = supabase(authConfig(env), fetcher);
     if (action === 'login' || action === 'signup') {
       const parsed = (action === 'signup' ? signupSchema : credentialsSchema).safeParse(await body(request));
@@ -119,9 +121,54 @@ export async function handleAccount(request: NextRequest, action = 'current', fe
     return finish(json({ configured: true, user, profile }));
   } catch (error) {
     if (error instanceof AccountError) {
-      const missingConfig = !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY;
+      const missingConfig = !isDemoNoAuth(env) && (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY);
       return finish(json({ error: error.message, ...(missingConfig ? { configured: false, user: null, profile: null } : {}) }, error.status));
     }
     return finish(json({ error: 'Account request complete nahi hui. Dobara try karo.' }, 500));
+  }
+}
+
+/**
+ * Demo mode (DEMO_NO_AUTH=true): every action answers with the synthetic demo account. The
+ * cross-origin check above still ran, so only this site can post here. A business profile that
+ * validates is echoed back for the session but not stored anywhere.
+ */
+async function handleDemo(request: NextRequest, action: string, appOrigin: string, fetcher: typeof fetch, env: Record<string, string | undefined>): Promise<NextResponse> {
+  switch (action) {
+    case 'current':
+    case 'login':
+    case 'signup':
+    case 'logout':
+      return json(demoState());
+    case 'profile': {
+      const parsed = businessProfileSchema.safeParse(await body(request));
+      if (!parsed.success) throw new AccountError(400, 'Business name, owner, mobile aur address sahi bharo.');
+      return json(demoState(parsed.data));
+    }
+    case 'gateway-session': {
+      const parsed = z.object({ accessCode: z.string().max(128).optional() }).safeParse(await body(request));
+      if (!parsed.success) throw new AccountError(400, 'Demo code valid nahi hai.');
+      const gatewayUrl = env.GATEWAY_INTERNAL_URL ?? env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:8080';
+      const forwardedFor = request.headers.get('x-forwarded-for');
+      let upstream: Response;
+      try {
+        upstream = await fetcher(`${gatewayUrl.replace(/\/$/, '')}/session`, {
+          method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(8000),
+          headers: { 'content-type': 'application/json', origin: appOrigin, ...(forwardedFor ? { 'x-forwarded-for': forwardedFor } : {}) },
+          body: JSON.stringify(parsed.data),
+        });
+      } catch { throw new AccountError(503, 'Voice gateway se connection nahi hua. Dobara try karo.'); }
+      const raw: unknown = await upstream.json().catch(() => null);
+      if (upstream.status === 401) throw new AccountError(503, 'Demo mode mein gateway ko ACCOUNT_AUTH_REQUIRED=false aur bina Supabase chalao.');
+      const allowed = z.union([
+        z.object({ token: z.string().min(1).max(4096), expiresAt: z.number().optional() }),
+        z.object({ type: z.literal('limit'), reason: z.string(), message: z.string().max(200), retryAfterSec: z.number().optional(), resetAt: z.string().optional() }),
+        z.object({ error: z.string().max(100) }),
+      ]).safeParse(raw);
+      if (!allowed.success) throw new AccountError(502, 'Voice gateway ka jawab valid nahi tha.');
+      return json(allowed.data, upstream.status);
+    }
+    default:
+      throw new AccountError(404, 'Action nahi mila.');
   }
 }

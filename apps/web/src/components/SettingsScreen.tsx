@@ -32,7 +32,7 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
 export function SettingsScreen() {
   const t = useT();
   const { db, repo, toast } = useApp();
-  const { user, profile, saveProfile, logout } = useAccount();
+  const { user, profile, saveProfile, logout, demo } = useAccount();
   const [editingProfile, setEditingProfile] = useState(false);
   const hud = useSettings((s) => s.hud);
   const handsFree = useSettings((s) => s.handsFree);
@@ -87,7 +87,7 @@ export function SettingsScreen() {
         <div className="space-y-3 p-4"><p className="text-lg font-bold">{profile.businessName}</p><p className="break-words text-dim">{user.email}</p>
           <p className="text-sm text-muted">{t('settings.cloudNote')}</p>
           <button className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold" onClick={() => setEditingProfile(true)}>{t('settings.profile')}</button>
-          <button disabled={busy} className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold text-bad" onClick={async () => { setBusy(true); try { await logout(); } catch { toast(t('settings.logoutFailed'), 'error'); setBusy(false); } }}>{t('settings.logout')}</button>
+          {!demo && <button disabled={busy} className="min-h-12 w-full rounded-xl bg-control px-4 font-semibold text-bad" onClick={async () => { setBusy(true); try { await logout(); } catch { toast(t('settings.logoutFailed'), 'error'); setBusy(false); } }}>{t('settings.logout')}</button>}
         </div>
       </Section>
 

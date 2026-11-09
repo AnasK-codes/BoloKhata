@@ -31,3 +31,17 @@ Production compose reads cloud settings from root `.env` and passes only the URL
 Tests mock Supabase REST for signup/confirmation, cookies, login, refresh, logout, ownership, onboarding and gateway enforcement. Local database tests cover account isolation and receipt snapshots. This does not verify a live project, email delivery or PostgreSQL RLS execution; those require the setup above. No real account was created or verification email sent during implementation.
 
 Primary references: [Auth REST](https://supabase.github.io/auth/), [password-based auth](https://supabase.com/docs/guides/auth/passwords), [row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security).
+
+## Temporary demo mode (login off)
+
+For a demo where nobody should have to sign in, set `DEMO_NO_AUTH=true`:
+
+- in the root `.env` (the gateway, and the production compose file passes it to the web container), and
+- in `apps/web/.env.local` when you run the web app yourself.
+
+Then restart both. The app opens as a synthetic "Demo Kirana Store" (no real person, shop or phone number), the gateway session is issued without an account token, and **a banner on every screen says "Demo mode: login is switched off"**. Settings hides Logout. A business profile edited in demo mode lasts only for that page load.
+
+What it does not change: the gateway's origin allowlist, per-IP and global rate limits, session cap and daily Gnani credit caps still apply, and `DEMO_ACCESS_CODE` still works if set. Bills and the ledger stay in this browser's IndexedDB as before, so **everyone who opens the demo on the same browser shares one local ledger**.
+
+To bring login back, remove the variable (or set it to `false`) and restart. Nothing else needs undoing. Do not leave it on for a public deployment you care about: anyone who can reach the URL can use the demo and spend its Gnani credits.
+

@@ -127,3 +127,29 @@ describe('loadConfig', () => {
     });
   });
 });
+
+describe('DEMO_NO_AUTH (temporary demo switch)', () => {
+  const withAuth = { ...TEST_ENV, ACCOUNT_AUTH_REQUIRED: 'true', SUPABASE_URL: 'https://auth.example.test', SUPABASE_ANON_KEY: 'synthetic-anon-key' };
+
+  it('is off by default, and then login stays on when Supabase is configured', () => {
+    const config = loadConfig(withAuth);
+    expect(config.demoNoAuth).toBe(false);
+    expect(config.accountAuth).not.toBeNull();
+  });
+
+  it('turns account checking off even when Supabase is configured', () => {
+    const config = loadConfig({ ...withAuth, DEMO_NO_AUTH: 'true' });
+    expect(config.demoNoAuth).toBe(true);
+    expect(config.accountAuth).toBeNull();
+  });
+
+  it('lets the gateway start with login "required" but no Supabase, only in demo mode', () => {
+    const noKeys = { ...TEST_ENV, ACCOUNT_AUTH_REQUIRED: 'true' };
+    expect(() => loadConfig(noKeys)).toThrow(ConfigError);
+    expect(loadConfig({ ...noKeys, DEMO_NO_AUTH: 'true' }).accountAuth).toBeNull();
+  });
+
+  it('accepts only true or false', () => {
+    expect(messageOf(() => loadConfig({ ...TEST_ENV, DEMO_NO_AUTH: 'yes' }))).toContain('DEMO_NO_AUTH');
+  });
+});

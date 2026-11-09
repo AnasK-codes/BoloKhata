@@ -19,6 +19,8 @@ const envSchema = z
     SUPABASE_URL: z.preprocess(blankToUndefined, z.url().optional()),
     SUPABASE_ANON_KEY: optionalString,
     ACCOUNT_AUTH_REQUIRED: z.enum(['true', 'false']).default('false'),
+    /** TEMPORARY demo switch: skip account login entirely (see apps/web/src/lib/auth/demo.ts). */
+    DEMO_NO_AUTH: z.enum(['true', 'false']).default('false'),
     GNANI_STT_URL: wsUrl.default('wss://api.vachana.ai/stt/v3/stream'),
     GNANI_TTS_URL: wsUrl.default('wss://api.vachana.ai/api/v1/tts'),
 
@@ -111,7 +113,7 @@ const envSchema = z
       if (env.ALLOWED_ORIGINS.some((o) => !o.startsWith('https://')))
         ctx.addIssue({ code: 'custom', path: ['ALLOWED_ORIGINS'], message: 'production origins must be https://' });
     }
-    if (env.ACCOUNT_AUTH_REQUIRED === 'true' || env.SUPABASE_URL || env.SUPABASE_ANON_KEY) {
+    if (env.DEMO_NO_AUTH !== 'true' && (env.ACCOUNT_AUTH_REQUIRED === 'true' || env.SUPABASE_URL || env.SUPABASE_ANON_KEY)) {
       if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: 'SUPABASE_URL and SUPABASE_ANON_KEY are both required for account authentication' });
       if (env.SUPABASE_URL && !env.SUPABASE_URL.startsWith('https://') && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(env.SUPABASE_URL)) ctx.addIssue({ code: 'custom', path: ['SUPABASE_URL'], message: 'use HTTPS (HTTP is allowed only for local tests)' });
     }
@@ -140,6 +142,8 @@ const envSchema = z
 
 export interface GatewayConfig {
   accountAuth: { url: string; key: string } | null;
+  /** True while the temporary demo switch has login turned off. Rate limits and credit caps still apply. */
+  demoNoAuth: boolean;
   gnani: {
     apiKey: string;
     stt: {
@@ -212,7 +216,8 @@ export function loadConfig(env: Record<string, string | undefined>): GatewayConf
   }
   const e = parsed.data;
   return {
-    accountAuth: e.SUPABASE_URL && e.SUPABASE_ANON_KEY ? { url: e.SUPABASE_URL.replace(/\/$/, ''), key: e.SUPABASE_ANON_KEY } : null,
+    demoNoAuth: e.DEMO_NO_AUTH === 'true',
+    accountAuth: e.DEMO_NO_AUTH !== 'true' && e.SUPABASE_URL && e.SUPABASE_ANON_KEY ? { url: e.SUPABASE_URL.replace(/\/$/, ''), key: e.SUPABASE_ANON_KEY } : null,
     gnani: {
       apiKey: e.GNANI_API_KEY,
       stt: {

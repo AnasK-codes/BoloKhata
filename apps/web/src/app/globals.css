@@ -593,3 +593,6 @@ html[lang='hi'] .vs-credit, html[lang='hi'] .bill-tag { font-size: 12px; }
 .receipt-shadow { filter: drop-shadow(0 8px 12px #18181b26); }
 .stock-filter { display: flex; gap: 8px; flex-wrap: wrap; }
 @media print { .thermal-print-root.receipt-paper { clip-path: none !important; } .receipt-stage { background: none !important; padding: 0 !important; } .receipt-shadow { filter: none !important; } }
+
+/* Temporary demo mode (DEMO_NO_AUTH): a thin, always-visible strip so nobody mistakes it for a real login. */
+.demo-banner { position: sticky; top: 0; z-index: 60; padding: 4px 12px calc(4px + env(safe-area-inset-top)); text-align: center; font-size: 12px; font-weight: 650; background: var(--c-warn); color: #fff; }

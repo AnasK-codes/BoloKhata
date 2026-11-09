@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 // Two projects: fast unit tests, and integration tests that start the real gateway on the mock
@@ -7,6 +8,9 @@ export default defineConfig({
   test: {
     projects: [
       {
+        // The app imports with "@/..." (see tsconfig); tests that render a component need the same.
+        oxc: { jsx: { runtime: 'automatic' } },
+        resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
         test: {
           name: 'unit',
           include: ['src/**/*.test.ts'],
