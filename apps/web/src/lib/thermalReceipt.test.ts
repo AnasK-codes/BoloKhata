@@ -73,7 +73,7 @@ describe('thermalReceipt', () => {
     const plain: Bill = { ...bill };
     delete plain.business;
     const text = thermalReceipt(plain);
-    expect(text).toContain('BOL-BILL');
+    expect(text).toContain('BOLOKHATA');
     expect(text).not.toContain('Grahak:');
   });
 

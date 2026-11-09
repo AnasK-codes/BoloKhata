@@ -3,7 +3,7 @@
   "short_name": "BoloKhata",
   "description": "Bolkar bill banao: realtime Hinglish voice billing for kirana stores.",
   "id": "/",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -12,7 +12,7 @@
   "lang": "en-IN",
   "categories": ["business", "finance"],
   "shortcuts": [
-    { "name": "Naya bill (Bolo)", "short_name": "Bolo", "url": "/" },
+    { "name": "Naya bill (Bolo)", "short_name": "Bolo", "url": "/app" },
     { "name": "Customer khata", "short_name": "Khata", "url": "/ledger" },
     { "name": "Apna samaan", "short_name": "Samaan", "url": "/catalog" }
   ],

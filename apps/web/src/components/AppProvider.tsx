@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { getAccessCode } from '@/lib/accessCode';
 import { ContextSync } from '@/lib/db/contextSync';
 import { createRepo, type Repo } from '@/lib/db/repo';
+import { seedIfFirstRun } from '@/lib/db/seed';
 import { getDb, type BolDb } from '@/lib/db/schema';
 import { getGatewayUrl } from '@/lib/env';
 import { createRealtimeSession, type RealtimeSession } from '@/lib/session/createSession';
@@ -67,8 +68,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let db: BolDb;
       try {
         db = getDb(user.id);
-        // Real accounts start empty. Synthetic demo data is available only through the explicit reset action.
-        if (!(await db.meta.get('seededAt'))) await db.meta.put({ key: 'seededAt', value: Date.now() });
+        // A new device opens with the synthetic demo shop (items, customers, a little udhaar) so there is
+        // something to try straight away. It runs once, guarded by a flag in the same transaction, so a
+        // shop that later deletes everything is not re-seeded. "Reset demo data" in Settings brings it back.
+        await seedIfFirstRun(db);
         // Ask the browser not to evict the ledger when storage is tight (iOS Safari is the main risk).
         void navigator.storage?.persist?.().catch(() => undefined);
       } catch {

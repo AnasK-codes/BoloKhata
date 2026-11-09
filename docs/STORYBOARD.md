@@ -17,7 +17,7 @@ Film **on a real phone, screen recorded with the phone's own audio**, portrait, 
 | 6 | 0:36–0:40 | Toast "Bill save ho gaya"; switch to **Khata**: Sharma ji's balance is higher; switch back. | (the app confirms by voice) | "Saved on the phone. Works offline." | Hidden |
 | 7 | 0:40–0:50 | Hold the mic. The balance card appears with the number and the last entries; the voice says the amount. | (hold) "Sharma ji ka kitna udhaar hai" | "Ask for the udhaar, hear the answer." | HUD visible |
 | 8 | 0:50–0:55 | While the voice is speaking again, press the mic: the voice stops at once. | (press during speech) | "Interrupt any time." | HUD shows "Interrupt → silence" (only if the HUD shows it) |
-| 9 | 0:55–1:00 | End card: app name, link, "Built on Gnani Prisma (speech-to-text) and Timbre (text-to-speech)". | "Bol-Bill, Gnani Prisma aur Timbre pe bana." | "Bol-Bill · Gnani Prisma + Timbre · #GreatIndianAIInternshipChallenge" | Hidden |
+| 9 | 0:55–1:00 | End card: app name, link, "Built on Gnani Prisma (speech-to-text) and Timbre (text-to-speech)". | "BoloKhata, Gnani Prisma aur Timbre pe bana." | "BoloKhata · Gnani Prisma + Timbre · #GreatIndianAIInternshipChallenge" | Hidden |
 
 **Optional noise shot** (only if you have a real noise source; there is no Noise Lab in the app): replace shot 8 with a repeat of shot 2 with a real fan or street sound playing in the room, and caption it "Real fan noise, no processing tricks." Do not put it in if it does not work; do not use a synthetic noise track unlabelled.
 

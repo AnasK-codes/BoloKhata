@@ -70,7 +70,7 @@ export function thermalReceipt(bill: Bill, customerName?: string, width = THERMA
   if (bill.business) {
     out.push(center(bill.business.businessName.toUpperCase(), width), center(bill.business.address, width), center(`Mob: ${bill.business.mobile}`, width));
   } else {
-    out.push(center('BOL-BILL', width));
+    out.push(center('BOLOKHATA', width));
   }
   out.push(rule, ...pair(`Bill: ${bill.id.slice(0, 8)}`, dateTime(bill.createdAt), width));
   if (customerName) out.push(...wrapText(`Grahak: ${customerName}`, width));

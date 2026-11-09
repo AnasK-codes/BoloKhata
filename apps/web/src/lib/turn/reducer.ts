@@ -1,7 +1,8 @@
 import { MAX_TURN_ID, isConfirmable, saved, type DraftMessage, type ServerMessage, type TimingSpan } from '@bolbill/shared';
-import type { Degradation, Effect, TurnError, TurnEvent, TurnRecord, TurnState, TurnTransition } from './types';
+import type { ChatEntry, Degradation, Effect, TurnError, TurnEvent, TurnRecord, TurnState, TurnTransition } from './types';
 
 export const HISTORY_LIMIT = 20;
+export const CONVERSATION_LIMIT = 40;
 
 export function initialTurnState(overrides: Partial<TurnState> = {}): TurnState {
   return {
@@ -18,6 +19,7 @@ export function initialTurnState(overrides: Partial<TurnState> = {}): TurnState 
     degraded: [],
     error: null,
     turns: [],
+    conversation: [],
     ...overrides,
   };
 }
@@ -166,6 +168,7 @@ function serverMessage(state: TurnState, message: ServerMessage, at: number): Tu
       return {
         state: {
           ...state,
+          conversation: withUser(state.conversation, message.turnId, message.text),
           transcript: message.text,
           phase: state.phase === 'finishing' || state.phase === 'transcribing' ? 'drafting' : state.phase,
           turns: stamp(state, 'transcript', at),
@@ -213,9 +216,25 @@ function turnError(state: TurnState, message: Extract<ServerMessage, { type: 'er
   return fail(state, errorOf(message), effects);
 }
 
+/** Adds or updates what was heard in a turn. Nothing is recorded for silence. */
+function withUser(list: ChatEntry[], turnId: number, text: string): ChatEntry[] {
+  const user = text.trim();
+  if (user === '') return list;
+  const at = list.findIndex((e) => e.turnId === turnId);
+  const next = at >= 0 ? list.map((e, i) => (i === at ? { ...e, user } : e)) : [...list, { turnId, user }];
+  return next.slice(-CONVERSATION_LIMIT);
+}
+
+/** Adds the assistant's answer to its turn's entry, if that turn was heard. */
+function withAssistant(list: ChatEntry[], turnId: number, replyText: readonly string[]): ChatEntry[] {
+  const assistant = replyText.join(' ').trim();
+  if (assistant === '') return list;
+  return list.map((e) => (e.turnId === turnId ? { ...e, assistant } : e));
+}
+
 function draft(state: TurnState, message: DraftMessage, at: number): TurnTransition {
   const turns = stamp(state, 'draft', at);
-  const base = { ...state, draft: message, turns };
+  const base = { ...state, draft: message, turns, conversation: withAssistant(state.conversation, message.turnId, message.replyText) };
   const rest = (s: TurnState) => (s.phase === 'speaking' || s.phase === 'listening' ? s.phase : settled(s));
 
   switch (message.intent) {
@@ -396,6 +415,8 @@ export function reduce(state: TurnState, event: TurnEvent): TurnTransition {
       return confirm(state);
     case 'discard':
       return discard(state);
+    case 'clear_history':
+      return { state: { ...state, conversation: [] }, effects: [] };
     case 'dismiss_error':
       if (state.phase !== 'error') return { state, effects: [] };
       return { state: { ...state, phase: settled(state), error: null }, effects: [] };

@@ -34,16 +34,26 @@ describe('reported mispronunciations are fixed in what Timbre is sent', () => {
   it('"jodun" goes out as जोड़ूँ and "dabao" as दबाओ, whatever the sentence around them', () => {
     expect(prepareSpeechText('Samaan mein jodun?')).toBe('Samaan mein जोड़ूँ?');
     expect(prepareSpeechText('Anil ko customer mein jodun?')).toBe('Anil ko customer mein जोड़ूँ?');
-    expect(prepareSpeechText('Haan bolo ya confirm dabao.')).toBe('Haan bolo ya confirm दबाओ.');
+    expect(prepareSpeechText('Haan bolo ya confirm dabao.')).toBe('हाँ bolo ya confirm दबाओ.');
     expect(prepareSpeechText('JODUN? Dabao!')).toBe('जोड़ूँ? दबाओ!');
   });
+  it('"haan" goes out as हाँ in every sentence that says it', () => {
+    expect(prepareSpeechText('Haan bolo ya confirm dabao.')).toBe('हाँ bolo ya confirm दबाओ.');
+    expect(prepareSpeechText('List dekh lo, phir haan bolo.')).toBe('List dekh lo, phir हाँ bolo.');
+    expect(prepareSpeechText('HAAN?')).toBe('हाँ?');
+  });
+  it('"badlav" goes out as बदलाव', () => {
+    expect(prepareSpeechText('Badlav samajh nahi aaya. Item aur quantity saaf bolo.')).toBe('बदलाव samajh nahi aaya. Item aur quantity saaf bolo.');
+    expect(prepareSpeechText('badlav!')).toBe('बदलाव!');
+    expect(prepareSpeechText('badlavon')).toBe('badlavon');
+  });
   it('leaves similar words alone', () => {
-    expect(prepareSpeechText('jodna dabaoo jodunga')).toBe('jodna dabaoo jodunga');
+    expect(prepareSpeechText('jodna dabaoo jodunga haanji')).toBe('jodna dabaoo jodunga haanji');
   });
   it('no template reply sends either Latin spelling any more', () => {
     for (const sentence of allSpokenStrings()) {
       const sent = (prepareSpeechText(sentence) ?? '').toLowerCase();
-      expect(sent, sentence).not.toMatch(/\bjodun\b|\bdabao\b/);
+      expect(sent, sentence).not.toMatch(/\bjodun\b|\bdabao\b|\bhaan\b|\bbadlav\b/);
     }
   });
   it('the sweep reaches the sentences that say them', () => {

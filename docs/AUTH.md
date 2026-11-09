@@ -1,6 +1,6 @@
 # Accounts, business profiles and receipts
 
-Bol-Bill uses Supabase email/password authentication and one cloud business profile per user, through existing `fetch` and Zod packages. No extra dependency, AWS service or custom password database was added.
+BoloKhata uses Supabase email/password authentication and one cloud business profile per user, through existing `fetch` and Zod packages. No extra dependency, AWS service or custom password database was added.
 
 ## Connect your project
 
@@ -39,7 +39,7 @@ For a demo where nobody should have to sign in, set `DEMO_NO_AUTH=true`:
 - in the root `.env` (the gateway, and the production compose file passes it to the web container), and
 - in `apps/web/.env.local` when you run the web app yourself.
 
-Then restart both. The app opens as a synthetic "Demo Kirana Store" (no real person, shop or phone number), the gateway session is issued without an account token, and **a banner on every screen says "Demo mode: login is switched off"**. Settings hides Logout. A business profile edited in demo mode lasts only for that page load.
+Then restart both. The app opens as a synthetic "Demo Kirana Store" (no real person, shop or phone number), the gateway session is issued without an account token, and Settings hides Logout (there is nothing to log out of). There is no on-screen banner, so remember it is on. A business profile edited in demo mode lasts only for that page load.
 
 What it does not change: the gateway's origin allowlist, per-IP and global rate limits, session cap and daily Gnani credit caps still apply, and `DEMO_ACCESS_CODE` still works if set. Bills and the ledger stay in this browser's IndexedDB as before, so **everyone who opens the demo on the same browser shares one local ledger**.
 

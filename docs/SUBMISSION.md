@@ -1,18 +1,18 @@
-# Submission: Bol-Bill
+# Submission: BoloKhata
 
 Every statement below is true of this repository today, or is a marked placeholder you must fill from a real measurement before submitting. **Search this file for `[FILL` before you submit: nothing may remain.** The storyboard is in `STORYBOARD.md` and the post drafts in `POSTS.md`.
 
 ## Title and one-line pitch
 
-**Bol-Bill** — a kirana shopkeeper holds a button, says the order in Hinglish, and the bill appears while the app reads it back.
+**BoloKhata** — a kirana shopkeeper holds a button, says the order in Hinglish, and the bill appears while the app reads it back.
 
 ## The problem and the users
 
-Small shops in India (kirana stores) bill customers and track *udhaar* (credit) by hand or with typing-heavy apps, while their hands are busy at the counter. They speak Hinglish, not clean English or clean Hindi, and they say quantities the way people do ("dedh kilo", "dhai kilo", "teen sau ka udhaar"). A form-based billing app is slow at exactly the moment the customer is waiting. Bol-Bill makes speaking the interface, and keeps the credit ledger honest (balances are always computed from entries, never typed in).
+Small shops in India (kirana stores) bill customers and track *udhaar* (credit) by hand or with typing-heavy apps, while their hands are busy at the counter. They speak Hinglish, not clean English or clean Hindi, and they say quantities the way people do ("dedh kilo", "dhai kilo", "teen sau ka udhaar"). A form-based billing app is slow at exactly the moment the customer is waiting. BoloKhata makes speaking the interface, and keeps the credit ledger honest (balances are always computed from entries, never typed in).
 
 ## What we built (about 200 words)
 
-Bol-Bill is a mobile-first, installable web app (PWA) with a separate realtime Node.js gateway. The shopkeeper holds the mic (or taps to latch) and speaks. The phone streams 16 kHz audio over one WebSocket to our gateway, which paces it into Gnani Prisma's realtime speech-to-text and sends a commit the instant the button is released. The transcript goes to a rule-based Hinglish parser; an optional language model is tried only when the rules are not confident, under a hard timeout, and never prices anything. Items are matched to the shop's catalog and priced by deterministic shared code. The bill draft is shown on screen immediately and, at the same time, Gnani Timbre streams a spoken readback that plays through a gapless audio worklet. The shopkeeper confirms with a tap or by saying "haan"; the bill and the udhaar entry are saved in an on-device database (IndexedDB), so the ledger works offline. They can ask "Sharma ji ka kitna udhaar hai?" and hear the answer, interrupt the voice by pressing the mic again, correct items on the card, and watch a latency HUD that shows the measured time of each stage of the turn. A demo guard (rate limits, session and daily caps, optional access code) protects our limited Gnani credits.
+BoloKhata is a mobile-first, installable web app (PWA) with a separate realtime Node.js gateway. The shopkeeper holds the mic (or taps to latch) and speaks. The phone streams 16 kHz audio over one WebSocket to our gateway, which paces it into Gnani Prisma's realtime speech-to-text and sends a commit the instant the button is released. The transcript goes to a rule-based Hinglish parser; an optional language model is tried only when the rules are not confident, under a hard timeout, and never prices anything. Items are matched to the shop's catalog and priced by deterministic shared code. The bill draft is shown on screen immediately and, at the same time, Gnani Timbre streams a spoken readback that plays through a gapless audio worklet. The shopkeeper confirms with a tap or by saying "haan"; the bill and the udhaar entry are saved in an on-device database (IndexedDB), so the ledger works offline. They can ask "Sharma ji ka kitna udhaar hai?" and hear the answer, interrupt the voice by pressing the mic again, correct items on the card, and watch a latency HUD that shows the measured time of each stage of the turn. A demo guard (rate limits, session and daily caps, optional access code) protects our limited Gnani credits.
 
 ## Gnani models used, and exactly where
 

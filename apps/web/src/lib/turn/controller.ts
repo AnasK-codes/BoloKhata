@@ -124,6 +124,11 @@ export class TurnController {
     this.dispatch({ type: 'dismiss_error' });
   }
 
+  /** Forget the conversation shown on screen. */
+  clearHistory(): void {
+    this.dispatch({ type: 'clear_history' });
+  }
+
   // ---- input from the lower layers --------------------------------------------------------
 
   /** Hot path (about 31 times a second while talking). */

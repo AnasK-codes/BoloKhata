@@ -26,6 +26,7 @@ import type { TtsLink } from '../gnani/ttsLink';
 import type { CreditGuard } from '../guard/creditGuard';
 import type { Metrics } from '../metrics';
 import type { Orchestrator, ParseOutcome } from '../parse/orchestrator';
+import { ConversationLog } from './conversationLog';
 import { resolveUtterance } from '../parse/resolve';
 import type { TurnTimer } from '../timing';
 import { buildDraft, type Catalog, type PendingDraft } from './draftBuilder';
@@ -91,6 +92,10 @@ export class TurnEngine {
   private correctionContext: DraftMessage | null = null;
   /** Samaan items still waiting for a rate after the one being asked about. */
   private rateQueue: MissingRate[] = [];
+  /** The conversation so far, as context for the AI. In memory only; never logged. */
+  private readonly history = new ConversationLog();
+  /** Sentences in a row the rules could not read. At two, the AI is asked (see `rescue`). */
+  private misses = 0;
   private sttReserved = 0;
   private disposed = false;
   /** The turn whose `tts_end` went out most recently, so an interrupt does not send timing twice. */
@@ -288,30 +293,36 @@ export class TurnEngine {
           return;
         }
       }
-      const outcome = await this.orchestrator.parse({
-        transcript,
-        index,
-        names: catalog,
-        signal: ctx.abort.signal,
-        mark: (span) => this.timer.mark(ctx.turnId, span),
-      });
+      const request = { transcript, index, names: catalog, history: this.history.recent(), signal: ctx.abort.signal, mark: (span: 'rules_done' | 'llm_done') => this.timer.mark(ctx.turnId, span) };
+      let outcome = await this.orchestrator.parse(request);
       if (ctx.cancelled) return; // interrupted or superseded while parsing
 
       this.timer.setParseSource(ctx.turnId, outcome.source);
       this.countLlm(outcome.llm);
-      const result = buildDraft({
-        turnId: ctx.turnId,
-        outcome,
-        catalog,
-        pending: this.pending,
-        draftId: this.newDraftId(),
-        transcript,
-      });
+      const build = (o: ParseOutcome) => buildDraft({ turnId: ctx.turnId, outcome: o, catalog, pending: this.pending, draftId: this.newDraftId(), transcript });
+      let result = build(outcome);
+
+      // Two sentences in a row that nobody understood: hand the conversation to the AI. Its answer is
+      // spoken and shown; if it does a task, that goes through the same pricing and "haan" as any bill.
+      const missed = result.draft.intent === 'unknown' && result.draft.clarification === undefined;
+      this.misses = missed ? this.misses + 1 : 0;
+      if (missed && this.misses >= MISSES_BEFORE_AI && outcome.llm !== 'ok') {
+        this.misses = 0;
+        const rescued = await this.orchestrator.rescue(request);
+        if (ctx.cancelled) return;
+        if (rescued) {
+          outcome = rescued;
+          this.timer.setParseSource(ctx.turnId, outcome.source);
+          this.countLlm(outcome.llm);
+          result = build(outcome);
+        }
+      }
       if (result.draft.intent === 'create_bill' || (result.draft.intent === 'add_products' && result.draft.clarification)) this.correctionContext = result.draft;
       this.rateQueue = result.draft.clarification?.slot === 'rate' ? (outcome.parsed.missingRate ?? []).slice(1) : [];
       if (result.pendingChange.action === 'set') this.pending = result.pendingChange.pending;
       else if (result.pendingChange.action === 'clear') this.pending = null;
 
+      this.history.add(transcript, result.draft.replyText.join(' '));
       this.timer.mark(ctx.turnId, 'draft');
       this.out.json(result.draft);
       this.sendTiming(ctx.turnId);
@@ -377,12 +388,14 @@ export class TurnEngine {
       this.correctionContext = draft.intent === 'create_bill' ? draft : null;
       this.pending = isConfirmable(draft) ? { draftId: draft.draftId, intent: 'create_bill', canConfirm: true } : null;
     }
-    this.sendReply(ctx, draft, cache);
+    this.sendReply(ctx, draft, cache, transcript);
     return true;
   }
 
   /** Sends a draft built without the orchestrator (rules only) and starts speaking its reply. */
-  private sendReply(ctx: TurnContext, draft: DraftMessage, cache: boolean): void {
+  private sendReply(ctx: TurnContext, draft: DraftMessage, cache: boolean, heard = ''): void {
+    this.misses = 0; // answering an open question is being understood
+    this.history.add(heard, draft.replyText.join(' '));
     this.timer.mark(ctx.turnId, 'draft');
     this.out.json(draft);
     this.sendTiming(ctx.turnId);
@@ -408,7 +421,7 @@ export class TurnEngine {
       this.correctionContext = null;
       this.pending = null;
       this.rateQueue = [];
-      this.sendReply(ctx, { type: 'draft', turnId: ctx.turnId, draftId: context.draftId, intent: 'cancel', source: 'rules', confidence: 0.95, unresolved: [], warnings: [], replyText: cancelled(ctx.turnId) }, true);
+      this.sendReply(ctx, { type: 'draft', turnId: ctx.turnId, draftId: context.draftId, intent: 'cancel', source: 'rules', confidence: 0.95, unresolved: [], warnings: [], replyText: cancelled(ctx.turnId) }, true, transcript);
       return true;
     }
     const unit = ask.unit ?? rate?.unit ?? null;
@@ -416,7 +429,7 @@ export class TurnEngine {
       const clarification = repeatClarification(ask, ask.transcript);
       const draft: DraftMessage = { ...context, turnId: ctx.turnId, clarification, replyText: clarifyAsk(clarification, undefined, ctx.turnId) };
       this.correctionContext = draft;
-      this.sendReply(ctx, draft, clarification.fallback);
+      this.sendReply(ctx, draft, clarification.fallback, transcript);
       return true;
     }
 
@@ -436,7 +449,7 @@ export class TurnEngine {
     this.rateQueue = draft.clarification?.slot === 'rate' ? queue.slice(1) : [];
     this.correctionContext = draft.clarification ? draft : null;
     this.pending = isConfirmable(draft) ? { draftId: draft.draftId, intent: 'add_products', canConfirm: true } : null;
-    this.sendReply(ctx, draft, false);
+    this.sendReply(ctx, draft, false, transcript);
     return true;
   }
 
@@ -528,6 +541,9 @@ export class TurnEngine {
     if (timing) this.out.json(timing);
   }
 }
+
+/** Consecutive misses after which the AI is asked to help. */
+const MISSES_BEFORE_AI = 2;
 
 const PENDING_INTENTS: ReadonlySet<string> = new Set<PendingDraft['intent']>(['create_bill', 'record_payment', 'out_of_stock', 'add_customer', 'add_product', 'add_products', 'update_price']);
 const isPendingIntent = (intent: DraftMessage['intent']): intent is PendingDraft['intent'] => PENDING_INTENTS.has(intent);

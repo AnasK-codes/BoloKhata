@@ -7,7 +7,7 @@ import { Icon, type IconName } from './Icon';
 import { useT, type MessageKey } from '@/lib/i18n';
 
 const ITEMS: { href: string; label: MessageKey; icon: IconName }[] = [
-  { href: '/', label: 'nav.voice', icon: 'mic' },
+  { href: '/app', label: 'nav.voice', icon: 'mic' },
   { href: '/ledger', label: 'nav.ledger', icon: 'book' },
   { href: '/bills', label: 'nav.bills', icon: 'receipt' },
   { href: '/catalog', label: 'nav.catalog', icon: 'box' },
@@ -19,10 +19,10 @@ export function BottomNav() {
   const path = usePathname();
   return (
     <nav aria-label={t('nav.main')} className="app-nav">
-      <Link href="/" className="nav-brand"><Image src="/icons/logo.png" alt={t('app.name')} width={28} height={28} className="rounded-md" />{t('app.name')}</Link>
+      <Link href="/app" className="nav-brand"><Image src="/icons/logo.png" alt={t('app.name')} width={28} height={28} className="rounded-md" />{t('app.name')}</Link>
       <ul>
         {ITEMS.map((item) => {
-          const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
+          const active = path.startsWith(item.href);
           return (
             <li key={item.href}>
               <Link
