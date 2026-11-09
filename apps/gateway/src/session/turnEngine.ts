@@ -8,6 +8,7 @@ import {
   buildBill,
   cancelled,
   clarifyAsk,
+  adjustDraft,
   correctDraft,
   isConfirmable,
   parseRateAnswer,
@@ -278,8 +279,9 @@ export class TurnEngine {
         const priced = buildBill({ parsedItems: items, products: index, amountPaid: base.bill!.udhaar === 0 ? null : base.bill!.paid,
           ...(base.bill!.adjust ? { adjust: base.bill!.adjust } : {}),
           ...(base.customer?.id ? { customerId: base.customer.id } : {}) });
-        const correction = correctDraft({ ...base, bill: priced.bill,
-          unresolved: [...base.unresolved, ...priced.unresolvedItems].slice(0, 10) }, transcript, catalog.products);
+        const repriced = { ...base, bill: priced.bill,
+          unresolved: [...base.unresolved, ...priced.unresolvedItems].slice(0, 10) };
+        const correction = correctDraft(repriced, transcript, catalog.products) ?? adjustDraft(repriced, transcript);
         if (correction) {
           const draft = { ...correction.draft, turnId: ctx.turnId, source: 'rules' as const };
           this.correctionContext = draft;
