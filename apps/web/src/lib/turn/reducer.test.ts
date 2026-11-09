@@ -757,3 +757,44 @@ describe('start_draft (a quick tile starts a bill by hand)', () => {
     expect(next.pending?.draftId).toBe('tile-3');
   });
 });
+
+describe('conversation history', () => {
+  it('records what was heard and what the assistant answered, per turn, oldest first', () => {
+    const sim = new Sim();
+    const first = sim.draft({ replyText: ['Bill do sau rupaye ka hai.', 'Save karun?'] });
+    expect(sim.state.conversation).toEqual([{ turnId: first, user: 'do kilo aata Sharma ji ko udhaar', assistant: 'Bill do sau rupaye ka hai. Save karun?' }]);
+    const second = sim.draft({ draftId: 'x2', replyText: ['Theek hai.'] });
+    expect(sim.state.conversation.map((c) => c.turnId)).toEqual([first, second]);
+  });
+
+  it('shows what was heard even when no answer came (an error, a silent reply)', () => {
+    const sim = new Sim();
+    const id = sim.speak();
+    expect(sim.state.conversation).toEqual([{ turnId: id, user: 'do kilo aata Sharma ji ko udhaar' }]);
+  });
+
+  it('ignores an empty transcript, and a draft from a turn that is not current', () => {
+    const sim = new Sim();
+    sim.press();
+    const id = sim.state.turnId as number;
+    sim.server({ type: 'transcript', turnId: id, text: '' });
+    expect(sim.state.conversation).toEqual([]);
+    sim.server(draftMessage(id + 7));
+    expect(sim.state.conversation).toEqual([]);
+  });
+
+  it('keeps the last 40 exchanges', () => {
+    const sim = new Sim();
+    for (let i = 0; i < 45; i++) sim.draft({ draftId: `d${i}` });
+    expect(sim.state.conversation).toHaveLength(40);
+  });
+
+  it('is cleared on request, and a new press does not clear it', () => {
+    const sim = new Sim();
+    sim.draft();
+    sim.press();
+    expect(sim.state.conversation).toHaveLength(1);
+    sim.send({ type: 'clear_history' });
+    expect(sim.state.conversation).toEqual([]);
+  });
+});

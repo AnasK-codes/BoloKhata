@@ -1,4 +1,4 @@
-# Deploying Bol-Bill on one small AWS instance
+# Deploying BoloKhata on one small AWS instance
 
 This guide is written for someone who has never deployed a server. You will create **one virtual machine (EC2)**, run **three Docker containers** on it, and point a web address at it. Nothing here has been run on your AWS account yet, and AWS prices and Free Plan rules change: wherever this guide quotes an AWS limit, confirm it in the console first. Items marked **(verify)** are the ones I could not check for you.
 

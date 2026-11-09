@@ -45,6 +45,14 @@ export interface TurnRecord {
   pressToSilenceMs?: number;
 }
 
+/** One exchange of the conversation: what the shopkeeper said and what the assistant answered. */
+export interface ChatEntry {
+  turnId: number;
+  user: string;
+  /** Absent until the answer arrives (or when there was none). */
+  assistant?: string;
+}
+
 export interface TurnState {
   phase: Phase;
   /** The turn that events are accepted for. `null` when nothing is in flight. */
@@ -66,6 +74,8 @@ export interface TurnState {
   error: TurnError | null;
   /** The last 20 turns, oldest first. */
   turns: TurnRecord[];
+  /** The conversation so far, oldest first (the last 40 exchanges). The gateway keeps its own copy as context for the AI. */
+  conversation: ChatEntry[];
 }
 
 export type TurnEvent =
@@ -90,6 +100,8 @@ export type TurnEvent =
   | { type: 'edit_draft'; draft: DraftMessage }
   /** A bill started by hand (a quick tile). Ignored while another draft is waiting for confirmation. */
   | { type: 'start_draft'; draft: DraftMessage }
+  /** Forget the conversation shown on screen. */
+  | { type: 'clear_history' }
   | { type: 'accept_replacement' }
   | { type: 'keep_pending' }
   | { type: 'confirm' }

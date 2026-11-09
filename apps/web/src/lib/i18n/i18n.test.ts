@@ -157,7 +157,7 @@ describe('choosing a language', () => {
  * under app/dev and lines marked `i18n-ignore` are skipped.
  */
 describe('no hard-coded interface text', () => {
-  const files = sourceFiles(SRC).filter((f) => f.endsWith('.tsx') && !f.includes(join('app', 'dev')));
+  const files = sourceFiles(SRC).filter((f) => f.endsWith('.tsx') && !f.includes(join('app', 'dev')) && !f.includes(join('(app)', 'dev')));
   const LETTERS = /[A-Za-z]{2,}|\p{Script=Devanagari}{2,}/u;
   const ATTRIBUTES = new Set(['aria-label', 'placeholder', 'title', 'alt']);
 

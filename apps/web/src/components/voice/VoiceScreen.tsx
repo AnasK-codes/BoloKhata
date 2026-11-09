@@ -22,6 +22,7 @@ import { Icon } from '../Icon';
 import { StateView } from '../StateView';
 import { LanguageSheet } from '../LanguagePicker';
 import { BillCard } from './BillCard';
+import { ChatBubbles, ConversationSheet } from './ConversationSheet';
 import { BalanceCard, CustomerCard, PaymentCard, ProductCard, ProductListCard, StockCard, SummaryCard } from './InfoCards';
 import { LatencyHud } from './LatencyHud';
 import { MicButton } from './MicButton';
@@ -62,6 +63,39 @@ function AccessCodeForm({ onSubmit }: { onSubmit(code: string): void }) {
         </div>
       </div>
     </form>
+  );
+}
+
+/** The same hints as a swipeable row, for the home screen. Still not buttons. */
+function ExampleChips() {
+  const t = useT();
+  const examples = [t('voice.example1'), t('voice.example2'), t('voice.example3')];
+  return (
+    <div>
+      <p className="vs-section-title mb-2"><span>{t('voice.examplesTitle')}</span></p>
+      <div className="vs-chips">{examples.map((example) => <span key={example}>&ldquo;{example}&rdquo;</span>)}</div>
+    </div>
+  );
+}
+
+/** Today's numbers at a glance; each tile that leads somewhere is a link. */
+function TodayStrip({ stats }: { stats: { todaySales: number; todayBills: number; totalUdhaar: number } }) {
+  const t = useT();
+  return (
+    <section className="vs-today num" aria-label={t('voice.todayTitle')}>
+      <Link href="/bills" className="wide">
+        <small>{t('info.salesToday')}</small>
+        <strong>{rupees(stats.todaySales)}</strong>
+      </Link>
+      <Link href="/bills">
+        <small>{t('info.billsMade')}</small>
+        <strong>{stats.todayBills}</strong>
+      </Link>
+      <Link href="/ledger" className="col-span-2">
+        <small>{t('info.totalOwed')}</small>
+        <strong className={stats.totalUdhaar > 0 ? 'text-warn' : 'text-good'}>{rupees(stats.totalUdhaar)}</strong>
+      </Link>
+    </section>
   );
 }
 
@@ -126,6 +160,8 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   const { toast } = useApp();
   const { profile } = useAccount();
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const closeHistory = useCallback(() => setHistoryOpen(false), []);
   const closeLanguage = useCallback(() => setLanguageOpen(false), []);
   const controller = session.controller;
   const store = controller.store;
@@ -139,6 +175,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   const error = useTurnStore(store, (s) => s.error);
   const degraded = useTurnStore(store, (s) => s.degraded);
   const turns = useTurnStore(store, (s) => s.turns);
+  const conversation = useTurnStore(store, (s) => s.conversation);
   const hud = useSettings((s) => s.hud);
 
   const online = useOnline();
@@ -161,6 +198,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
   const products = useLive(() => repo.listProducts(), [repo]);
   const customers = useLive(() => repo.listCustomersWithBalance(), [repo]);
   const frequent = useLive(() => repo.listFrequentProducts(8), [repo]);
+  const shopStats = useLive(() => repo.getShopStats(), [repo]);
   useEffect(() => {
     if (!draft?.bill || draft.bill.udhaar <= 0 || !draft.customer || !customers.data) return;
     const ready = hasCreditDetails(customers.data.find((c) => c.customer.id === draft.customer?.id)?.customer);
@@ -267,8 +305,12 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
             </span>
           </Link>
           <div className="vs-top-actions">
+            <button type="button" className="vs-icon-btn relative" aria-label={t('history.open')} aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}>
+              <Icon name="chat" size={20} />
+              {conversation.length > 0 && <span className="vs-dot" aria-hidden="true" />}
+            </button>
             <button type="button" className="vs-icon-btn" aria-label={t('lang.button')} aria-haspopup="dialog" onClick={() => setLanguageOpen(true)}><Icon name="globe" size={20} /></button>
-            <Link href="/ledger" className="vs-icon-btn" aria-label={t('nav.ledger')}><Icon name="book" size={20} /></Link>
+            <Link href="/ledger" className="vs-icon-btn max-[480px]:hidden" aria-label={t('nav.ledger')}><Icon name="book" size={20} /></Link>
             <Link href="/settings" className="vs-icon-btn" aria-label={t('nav.settings')}><Icon name="gear" size={20} /></Link>
           </div>
         </header>
@@ -292,12 +334,21 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
           )}
 
           {idleEmpty && (
-            <div className="vs-hello">
+            <div className="vs-hero">
+              <p className="vs-greet">{t('voice.greeting', { name: profile.businessName })}</p>
               <h1>{t('voice.helloTitle')}</h1>
               <p>{t('voice.helloHint')}</p>
             </div>
           )}
-          {idleEmpty && <div className="hide-wide"><Examples /></div>}
+          {idleEmpty && shopStats.data && <TodayStrip stats={shopStats.data} />}
+          {idleEmpty && <div className="hide-wide"><ExampleChips /></div>}
+          {idleEmpty && conversation.length > 0 && (
+            <section className="vs-recent" aria-label={t('history.recent')}>
+              <p className="vs-section-title"><span>{t('history.recent')}</span></p>
+              <ol className="chat-list">{conversation.slice(-2).map((e) => <ChatBubbles key={e.turnId} entry={e} />)}</ol>
+              {conversation.length > 2 && <button type="button" className="more" onClick={() => setHistoryOpen(true)}>{t('history.seeAll', { count: conversation.length })}</button>}
+            </section>
+          )}
 
           {listening && !transcript && (
             <span className="bubble-live" role="status" aria-label={t('voice.listening')}><i /><i /><i /></span>
@@ -413,6 +464,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
       </aside>
 
       {languageOpen && <LanguageSheet onClose={closeLanguage} />}
+      {historyOpen && <ConversationSheet entries={conversation} onClear={() => controller.clearHistory()} onClose={closeHistory} />}
 
       {replacement && pending && (
         <ReplaceDialog current={pending} incoming={replacement} onAccept={() => controller.acceptReplacement()} onKeep={() => controller.keepPending()} />

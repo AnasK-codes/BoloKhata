@@ -1,8 +1,8 @@
-# Bol-Bill — Realtime Hinglish Voice Billing for Kirana Stores
+# BoloKhata — Realtime Hinglish Voice Billing for Kirana Stores
 
 > Hold the mic, speak your order, hear the bill read back in under two seconds. No typing.
 
-Bol-Bill is a mobile-first Progressive Web App (PWA) that lets a kirana (neighbourhood grocery) shopkeeper create bills and manage customer credit (**udhaar**) by talking in Hinglish:
+BoloKhata is a mobile-first Progressive Web App (PWA) that lets a kirana (neighbourhood grocery) shopkeeper create bills and manage customer credit (**udhaar**) by talking in Hinglish:
 
 > *"Sharma ji ko do kilo aata, ek Maggi, aur teen sau ka udhaar likh do."*
 
@@ -54,7 +54,7 @@ Existing ledger apps are built around forms. Voice is an afterthought, and gener
 
 ## 2. The solution
 
-Bol-Bill makes **realtime voice the primary interface**:
+BoloKhata makes **realtime voice the primary interface**:
 
 1. Hold the big mic button and speak one order in natural Hinglish.
 2. Audio streams live over a single WebSocket to our Node.js gateway, then on to Gnani's streaming speech-to-text.
@@ -331,6 +331,16 @@ Two manual scripts call the real LLM, one request at a time, and are never run b
 ### Rules first, LLM as a timeboxed fallback
 
 `packages/shared/src/parser/ruleBased.ts` handles the common sentence shapes with keyword patterns, Hinglish number words, unit normalization and catalog matching. If its confidence is high and every item resolves, the draft is sent immediately. Otherwise the gateway calls the LLM (Amazon Bedrock if it works on your AWS plan; the adapter is swappable and `none` is a valid setting), validates the answer with Zod, and sends the improved draft. If the LLM is slow or fails, the rules result is shown with a review banner. The transcript is untrusted input and is delimited in the prompt.
+
+### Conversation history and the AI rescue
+
+The gateway keeps the last 8 exchanges (what the shopkeeper said and what the app answered) **in memory for the session only**: they are never logged or stored. They go to the model, fenced as data in a `<history>` block, whenever it is asked, so a short follow-up like "nahi, teen kilo" makes sense. The browser keeps its own copy (last 40) for the conversation sheet on the home screen; "Clear" empties that screen, while the assistant's memory ends with the connection.
+
+If the rules fail to understand **two sentences in a row**, the gateway hands the conversation to the model (the tool-calling path of `PARSER_MODE=ai_only`, for that sentence only). It either asks one short question, which is spoken and shown, or performs the task through the usual tools: names are matched and priced by code from the catalog, and nothing is saved until the shopkeeper says "haan". It is timeboxed by `LLM_TIMEOUT_MS` and skipped when no model is configured or the circuit breaker is open; the normal "samajh nahi aaya" answer stays in those cases. A sentence that looks like an instruction is never sent.
+
+### Pages
+
+`/` is the landing page. `/app` is the voice screen; Khata, Bills, Samaan and Settings are `/ledger`, `/bills`, `/catalog` and `/settings`, all behind the account gate (or the demo switch in `docs/AUTH.md`). The installed app opens at `/app`. A new device starts with the synthetic demo shop already loaded; Settings → Reset demo data restores it.
 
 ### Spoken replies
 

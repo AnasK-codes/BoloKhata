@@ -1,6 +1,6 @@
 # Madhya Pradesh dialects: what is supported
 
-**Short version:** Bol-Bill understands Hindi and Hinglish through Gnani Prisma. For Malwi, Nimadi, Bundeli and Bagheli it adds a small regional word list at the parser layer. **None of that list has been checked by a native speaker yet.** Bhili/Bhilodi is not supported.
+**Short version:** BoloKhata understands Hindi and Hinglish through Gnani Prisma. For Malwi, Nimadi, Bundeli and Bagheli it adds a small regional word list at the parser layer. **None of that list has been checked by a native speaker yet.** Bhili/Bhilodi is not supported.
 
 ## What Gnani supports (docs read 2026-11-08)
 

@@ -5,8 +5,8 @@ import { accountUserSchema, type AccountState } from './schema';
  * TEMPORARY demo switch: with DEMO_NO_AUTH=true on the web server, nobody has to log in. The app
  * opens as a synthetic demo shop and the gateway session is requested without an account token.
  *
- * It is a server-side variable (never NEXT_PUBLIC_), it must be exactly "true", and the screen shows
- * a "Demo mode: login is off" banner while it is on. Remove the variable to bring login back; no
+ * It is a server-side variable (never NEXT_PUBLIC_) and it must be exactly "true". There is no
+ * on-screen banner. Remove the variable to bring login back; no
  * data or code path depends on it. The gateway must run without Supabase (ACCOUNT_AUTH_REQUIRED=false).
  */
 export const isDemoNoAuth = (env: Record<string, string | undefined> = process.env): boolean => env.DEMO_NO_AUTH === 'true';

@@ -42,13 +42,18 @@ describe('reported mispronunciations are fixed in what Timbre is sent', () => {
     expect(prepareSpeechText('List dekh lo, phir haan bolo.')).toBe('List dekh lo, phir हाँ bolo.');
     expect(prepareSpeechText('HAAN?')).toBe('हाँ?');
   });
+  it('"badlav" goes out as बदलाव', () => {
+    expect(prepareSpeechText('Badlav samajh nahi aaya. Item aur quantity saaf bolo.')).toBe('बदलाव samajh nahi aaya. Item aur quantity saaf bolo.');
+    expect(prepareSpeechText('badlav!')).toBe('बदलाव!');
+    expect(prepareSpeechText('badlavon')).toBe('badlavon');
+  });
   it('leaves similar words alone', () => {
     expect(prepareSpeechText('jodna dabaoo jodunga haanji')).toBe('jodna dabaoo jodunga haanji');
   });
   it('no template reply sends either Latin spelling any more', () => {
     for (const sentence of allSpokenStrings()) {
       const sent = (prepareSpeechText(sentence) ?? '').toLowerCase();
-      expect(sent, sentence).not.toMatch(/\bjodun\b|\bdabao\b|\bhaan\b/);
+      expect(sent, sentence).not.toMatch(/\bjodun\b|\bdabao\b|\bhaan\b|\bbadlav\b/);
     }
   });
   it('the sweep reaches the sentences that say them', () => {

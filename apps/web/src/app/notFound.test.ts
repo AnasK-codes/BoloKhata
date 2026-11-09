@@ -14,7 +14,7 @@ describe('the 404 page', () => {
   });
 
   it('links home and to every main section', () => {
-    for (const href of ['/', '/ledger', '/bills', '/catalog']) expect(html).toContain(`href="${href}"`);
+    for (const href of ['/app', '/ledger', '/bills', '/catalog']) expect(html).toContain(`href="${href}"`);
   });
 
   it('has one heading and shows the error code', () => {

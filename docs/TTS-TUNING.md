@@ -130,6 +130,8 @@ Two more words were heard wrong in the app, both written in Latin script. The pe
 | `jodun` ("Samaan mein jodun?") | जोडून: a retroflex ड and a hard n | जोड़ूँ | `जोड़ूँ` |
 | `dabao` ("... confirm dabao.") | डबाओ: a retroflex ड | दबाओ (dental द) | `दबाओ` |
 
+**Also requested, 2026-11-09:** `badlav` ("Badlav samajh nahi aaya") always goes out as `बदलाव`.
+
 **Update, later on 2026-11-09:** `haan` was reported again (still heard as हान). It now goes out as `हाँ` too. `kar dun` is the only known-bad word still waiting for a listening result.
 
 Both are in `KNOWN_BAD_SPELLINGS`, and a test proves no template reply sends either Latin spelling any more. **Not yet confirmed by ear:** the Devanagari versions were chosen from what the person said it should be, not from listening. `pnpm spike --only P --entries jodun,dabao` made 9 clips (186 characters, one request at a time) in `scripts/spike/results/tts-check-2026-11-09T08-18-00-974Z/pronunciation/` (`LISTENING.html` has a player for each). Clip 05-jodun-E and 21-dabao-B are exactly what the app now sends. If either still sounds wrong, pick a better one from the other clips and change the override.

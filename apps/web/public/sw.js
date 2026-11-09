@@ -1,5 +1,5 @@
 /*
- * Bol-Bill service worker. Small and hand-written.
+ * BoloKhata service worker. Small and hand-written.
  *
  * What it does: keeps the app shell and static files so the app opens offline, and shows an
  * offline page when a page cannot be fetched and was never saved.
@@ -12,11 +12,11 @@
  * Releasing: change VERSION when the shell changes in a way network-first fetching would not
  * pick up; old caches are deleted on activation.
  */
-const VERSION = 'v5';
+const VERSION = 'v6';
 const SHELL_CACHE = `bolbill-shell-${VERSION}`;
 const ASSET_CACHE = `bolbill-assets-${VERSION}`;
 
-const SHELL_PAGES = ['/', '/ledger', '/bills', '/catalog', '/settings'];
+const SHELL_PAGES = ['/app', '/ledger', '/bills', '/catalog', '/settings'];
 const SHELL_FILES = ['/offline.html', '/manifest.webmanifest'];
 // Served from the asset cache (see the fetch handler), so they are saved there.
 const ASSET_FILES = [

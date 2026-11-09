@@ -1,4 +1,5 @@
 import {
+  type ShopStats,
   LIMITS,
   applyBill,
   applyPayment,
@@ -23,6 +24,7 @@ import {
 } from '@bolbill/shared';
 import { t } from '../i18n';
 import type { BolDb } from './schema';
+import { buildSnapshot } from './snapshot';
 
 export interface SaveBillInput {
   /** The draft's id: saving the same draft twice stores it once. */
@@ -317,6 +319,11 @@ export function createRepo(db: BolDb, clock: Clock = Date.now, newId: NewId = de
 
     async getCustomerStatement(customerId: string): Promise<StatementRow[]> {
       return statement(customerId, await db.ledgerEntries.where('customerId').equals(customerId).toArray());
+    },
+
+    /** Today's sales and bills (reversed ones excluded) and what is owed in total: the home screen's strip. */
+    async getShopStats(): Promise<ShopStats> {
+      return (await buildSnapshot(db)).shop ?? { todaySales: 0, todayBills: 0, totalUdhaar: 0 };
     },
 
     async getBalances(): Promise<Map<string, number>> {

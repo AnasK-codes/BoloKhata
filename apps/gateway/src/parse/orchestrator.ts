@@ -8,6 +8,7 @@ import {
   type ParsedUtterance,
 } from '@bolbill/shared';
 import { SYSTEM_PROMPT, buildUserBlock, type LlmAdapter, type LlmFailureReason } from './llm';
+import type { PromptHistoryTurn } from './llm/prompt';
 import type { PromptCatalog } from './llm/prompt';
 import { AGENT_SYSTEM_PROMPT } from './agent/prompt';
 import { AGENT_TOOLS, interpretToolCall } from './agent/tools';
@@ -34,6 +35,8 @@ export interface ParseRequest {
   index: CatalogIndex;
   /** Names for the model prompt. */
   names: PromptCatalog;
+  /** The earlier conversation, oldest first: context for the model, never for the rules. */
+  history?: readonly PromptHistoryTurn[];
   /** Fires when the turn is interrupted or superseded; cancels a model call in flight. */
   signal?: AbortSignal;
   /** Called right after each stage, so the caller can record `rules_done` and `llm_done`. */
@@ -111,7 +114,7 @@ export class Orchestrator {
 
     const result = await this.options.llm.generateStructured({
       system: SYSTEM_PROMPT,
-      userBlock: buildUserBlock(request.transcript, request.names),
+      userBlock: buildUserBlock(request.transcript, request.names, request.history),
       schema: parsedUtteranceSchema,
       timeoutMs: this.options.timeoutMs,
       ...(request.signal ? { signal: request.signal } : {}),
@@ -152,7 +155,7 @@ export class Orchestrator {
 
     const result = await llm.callTool({
       system: AGENT_SYSTEM_PROMPT,
-      userBlock: buildUserBlock(request.transcript, request.names),
+      userBlock: buildUserBlock(request.transcript, request.names, request.history),
       tools: AGENT_TOOLS,
       timeoutMs: this.options.timeoutMs,
       ...(request.signal ? { signal: request.signal } : {}),
@@ -163,6 +166,33 @@ export class Orchestrator {
 
     const interpreted = interpretToolCall(result.value, request.transcript);
     if (!interpreted) return { ...(await this.rulesFallback(request, 'invalid_output')), llmMs: result.ms };
+    const resolution = resolveUtterance(interpreted.parsed, request.index);
+    return { ...outcome(interpreted.parsed, resolution, 'llm', resolution.bill?.needsReview ?? false, 'ok'), llmMs: result.ms, modelReply: interpreted.reply };
+  }
+
+  /**
+   * The AI takes over after the rules missed twice in a row. It sees the conversation so far and
+   * either does the task through the same tools (priced by code, still waiting for "haan") or asks
+   * one short question (`modelReply`). Null when there is nothing to use: no model, the breaker is
+   * open, it is slow or answers badly, or the sentence looks like an instruction. The turn is never
+   * blocked longer than the model timeout, and the caller keeps its own "samajh nahi aaya" answer.
+   */
+  async rescue(request: ParseRequest): Promise<ParseOutcome | null> {
+    const llm = this.options.llm;
+    if (!llm.callTool || request.transcript.trim() === '' || isInstructionLike(request.transcript)) return null;
+    if (this.options.breaker !== false && this.now() < this.openUntil) return null;
+    const result = await llm.callTool({
+      system: AGENT_SYSTEM_PROMPT,
+      userBlock: buildUserBlock(request.transcript, request.names, request.history),
+      tools: AGENT_TOOLS,
+      timeoutMs: this.options.timeoutMs,
+      ...(request.signal ? { signal: request.signal } : {}),
+    });
+    request.mark?.('llm_done');
+    this.track(result);
+    if (!result.ok) return null;
+    const interpreted = interpretToolCall(result.value, request.transcript);
+    if (!interpreted) return null;
     const resolution = resolveUtterance(interpreted.parsed, request.index);
     return { ...outcome(interpreted.parsed, resolution, 'llm', resolution.bill?.needsReview ?? false, 'ok'), llmMs: result.ms, modelReply: interpreted.reply };
   }

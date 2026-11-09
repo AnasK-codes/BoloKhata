@@ -4,7 +4,7 @@ import { formatDate, formatQuantity, rupees } from './format';
 /** Receipts deliberately omit customer contact details. */
 export function receiptText(bill: Bill, customerName?: string): string {
   return [
-    ...(bill.business ? [bill.business.businessName, bill.business.address, `Mobile: ${bill.business.mobile}`] : ['Bol-Bill']),
+    ...(bill.business ? [bill.business.businessName, bill.business.address, `Mobile: ${bill.business.mobile}`] : ['BoloKhata']),
     `Bill: ${bill.id}`, formatDate(bill.createdAt),
     ...(customerName ? [`Grahak: ${customerName}`] : []),
     ...(bill.reversedAt !== undefined ? [`REVERSED: ${formatDate(bill.reversedAt)}`, `Wajah: ${bill.reversalReason ?? ''}`] : []),
