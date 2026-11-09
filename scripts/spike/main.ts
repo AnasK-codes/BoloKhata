@@ -43,7 +43,7 @@ function estimateTtsChars(args: SpikeArgs, experiments: ExperimentId[]): number 
     }
   }
   if (experiments.includes('E')) total += RESERVE_FOR_E;
-  if (experiments.includes('P')) total += pronunciationChars();
+  if (experiments.includes('P')) total += pronunciationChars(args.entries);
   return total;
 }
 

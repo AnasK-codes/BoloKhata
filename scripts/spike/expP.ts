@@ -26,10 +26,13 @@ export function pronunciationRequest(text: string): TtsRequest {
   };
 }
 
-/** Every candidate in order, with a stable label: "03-kar-dun-C". */
-export function pronunciationPlan(): { n: number; entry: string; label: string; text: string; file: string }[] {
+/**
+ * Every candidate in order, with a stable label: "03-kar-dun-C". The number is the entry's place in
+ * the whole corpus, so a filtered run keeps the same names as a full one.
+ */
+export function pronunciationPlan(only: readonly string[] | null = null): { n: number; entry: string; label: string; text: string; file: string }[] {
   return PRONUNCIATION_CORPUS.flatMap((e, i) =>
-    e.candidates.map((text, k) => {
+    (only !== null && !only.includes(e.id) ? [] : e.candidates).map((text, k) => {
       const letter = String.fromCharCode(65 + k);
       const n = String(i + 1).padStart(2, '0');
       return { n: i + 1, entry: e.id, label: `${n}-${e.id}-${letter}`, text, file: `${n}-${e.id}-${letter}.wav` };
@@ -37,9 +40,9 @@ export function pronunciationPlan(): { n: number; entry: string; label: string; 
   );
 }
 
-export const pronunciationChars = (): number => pronunciationPlan().reduce((s, p) => s + p.text.length, 0);
+export const pronunciationChars = (only: readonly string[] | null = null): number => pronunciationPlan(only).reduce((s, p) => s + p.text.length, 0);
 
-function sheet(results: Map<string, { ok: boolean; note: string }>, settings: TtsRequest): string {
+function sheet(results: Map<string, { ok: boolean; note: string }>, settings: TtsRequest, only: readonly string[] | null): string {
   const lines = [
     '# Pronunciation listening sheet',
     '',
@@ -49,8 +52,9 @@ function sheet(results: Map<string, { ok: boolean; note: string }>, settings: Tt
     '',
   ];
   for (const [i, e] of PRONUNCIATION_CORPUS.entries()) {
+    if (only !== null && !only.includes(e.id)) continue;
     lines.push(`## ${i + 1}. ${e.word} (${e.hindi}), ${e.kind}`, '', `Spoken in: ${e.usedIn}`, '', '| clip | text sent | file | sounds right? |', '| :- | :- | :- | :- |');
-    for (const p of pronunciationPlan().filter((x) => x.entry === e.id)) {
+    for (const p of pronunciationPlan(only).filter((x) => x.entry === e.id)) {
       const r = results.get(p.label);
       const file = r?.ok ? `\`${p.file}\`` : `not made: ${r?.note ?? 'skipped (budget)'}`;
       lines.push(`| ${p.label.slice(-1)} | ${p.text.replace(/\|/g, '\\|')} | ${file} | |`);
@@ -63,9 +67,10 @@ function sheet(results: Map<string, { ok: boolean; note: string }>, settings: Tt
 const escapeHtml = (t: string): string => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** The same sheet as a page with a player per clip, to open next to the WAV files in any browser. */
-export function listeningPage(made: ReadonlySet<string>, settings: TtsRequest): string {
+export function listeningPage(made: ReadonlySet<string>, settings: TtsRequest, only: readonly string[] | null = null): string {
   const sections = PRONUNCIATION_CORPUS.map((e, i) => {
-    const rows = pronunciationPlan().filter((p) => p.entry === e.id).map((p) => {
+    if (only !== null && !only.includes(e.id)) return '';
+    const rows = pronunciationPlan(only).filter((p) => p.entry === e.id).map((p) => {
       const player = made.has(p.label) ? `<audio controls preload="none" src="${p.file}"></audio>` : '<em>not made</em>';
       return `<tr><td>${p.label.slice(-1)}</td><td lang="hi">${escapeHtml(p.text)}</td><td>${player}</td><td><input type="radio" name="${e.id}" aria-label="${p.label} sounds right"></td></tr>`;
     }).join('');
@@ -85,7 +90,7 @@ export async function runExperimentP(ctx: ExperimentContext): Promise<Experiment
   let made = 0;
   let chars = 0;
   try {
-    for (const p of pronunciationPlan()) {
+    for (const p of pronunciationPlan(ctx.args.entries)) {
       if (!ctx.budget.canSpendChars(p.text.length)) {
         results.set(p.label, { ok: false, note: 'skipped (budget)' });
         continue;
@@ -112,9 +117,9 @@ export async function runExperimentP(ctx: ExperimentContext): Promise<Experiment
     }
   }
   const sheetFile = path.join(dir, 'LISTENING.md');
-  writeFileSync(sheetFile, sheet(results, settings));
+  writeFileSync(sheetFile, sheet(results, settings, ctx.args.entries));
   const madeLabels = new Set([...results.entries()].filter(([, r]) => r.ok).map(([label]) => label));
-  writeFileSync(path.join(dir, 'LISTENING.html'), listeningPage(madeLabels, settings));
+  writeFileSync(path.join(dir, 'LISTENING.html'), listeningPage(madeLabels, settings, ctx.args.entries));
   const failed = [...results.entries()].filter(([, r]) => !r.ok);
   return {
     id: 'P',
@@ -122,7 +127,7 @@ export async function runExperimentP(ctx: ExperimentContext): Promise<Experiment
     tables: [{
       title: 'Clips',
       headers: ['entries', 'clips planned', 'clips made', 'characters sent'],
-      rows: [[String(PRONUNCIATION_CORPUS.length), String(pronunciationPlan().length), String(made), String(chars)]],
+      rows: [[String(PRONUNCIATION_CORPUS.length), String(pronunciationPlan(ctx.args.entries).length), String(made), String(chars)]],
     }],
     notes: [
       `Listening sheet: ${path.relative(path.dirname(ctx.outDir), sheetFile)}. Numbers cannot pick a winner; a person must listen.`,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { startMockTts } from '@bolbill/mock-gnani';
 import { TtsSession } from './ttsClient';
-import { pronunciationRequest } from './expP';
+import { pronunciationChars, pronunciationPlan, pronunciationRequest } from './expP';
 import { parseSpikeArgs, selectedExperiments } from './args';
 import { Budget } from './budget';
 import { pickSubset, type Clip } from './clips';
@@ -198,5 +198,20 @@ describe('TtsSession: sequential requests on one socket (Gnani sends complete tw
   it('experiment P is opt-in: a full spike run never selects it', () => {
     expect(selectedExperiments(parseSpikeArgs([]))).not.toContain('P');
     expect(selectedExperiments(parseSpikeArgs(['--only', 'P']))).toEqual(['P']);
+  });
+});
+
+describe('experiment P entry filter', () => {
+  it('runs only the named entries and keeps the numbering of a full run', () => {
+    const all = pronunciationPlan();
+    const some = pronunciationPlan(['dabao']);
+    expect(some.length).toBeGreaterThan(0);
+    expect(some.every((p) => p.entry === 'dabao')).toBe(true);
+    expect(some.map((p) => p.label)).toEqual(all.filter((p) => p.entry === 'dabao').map((p) => p.label));
+    expect(pronunciationChars(['dabao'])).toBeLessThan(pronunciationChars());
+  });
+  it('parses --entries', () => {
+    expect(parseSpikeArgs(['--only', 'P', '--entries', 'jodun, dabao']).entries).toEqual(['jodun', 'dabao']);
+    expect(parseSpikeArgs([]).entries).toBeNull();
   });
 });

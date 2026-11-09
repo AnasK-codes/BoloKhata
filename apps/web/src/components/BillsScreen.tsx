@@ -8,6 +8,7 @@ import { useLive } from '@/lib/db/live';
 import { useOnline } from '@/lib/useOnline';
 import { formatDate, rupees } from '@/lib/format';
 import { formatDateFor, useT } from '@/lib/i18n';
+import { paymentStatus, type Bill } from '@bolbill/shared';
 import { receiptText } from '@/lib/receipt';
 import { thermalReceipt } from '@/lib/thermalReceipt';
 
@@ -68,9 +69,17 @@ export function BillsScreen() {
       {filtered.length === 0 ? <StateView kind="empty" title={query ? t('bills.noMatch') : t('bills.empty')} hint={t('bills.emptyHint')} /> : <ul className="divide-y divide-line rounded-xl bg-card">
         {filtered.map((b) => <li key={b.id}><button className="flex min-h-16 w-full items-center justify-between gap-3 p-4 text-left" onClick={() => setSelected(b.id)}>
           <span><span className="block font-bold">{names.get(b.customerId ?? '') ?? t('bills.cash')}</span><span className="text-sm text-muted">{formatDateFor(b.createdAt)}{b.reversedAt !== undefined ? ` · ${t('bills.reversedTag')}` : ''}</span></span>
-          <span className="num font-bold">{rupees(b.total)}</span>
+          <span className="text-right"><span className="num block font-bold">{rupees(b.total)}</span>{b.reversedAt === undefined && <PaymentBadge bill={b} />}</span>
         </button></li>)}
       </ul>}
     </>}
   </main>;
+}
+
+/** PAID, UNPAID (everything on khata) or PART PAID, so a khata bill is never mistaken for cash. */
+function PaymentBadge({ bill }: { bill: Bill }) {
+  const t = useT();
+  const status = paymentStatus(bill);
+  const [label, tone] = status === 'paid' ? [t('bills.paid'), 'badge'] : status === 'unpaid' ? [t('bills.unpaid'), 'badge badge-bad'] : [t('bills.partPaid'), 'badge badge-warn'];
+  return <span className={tone} data-payment={status}>{label}</span>;
 }

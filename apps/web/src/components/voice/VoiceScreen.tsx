@@ -240,7 +240,7 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
     if (d.intent === 'query_summary') return <SummaryCard draft={d} />;
     if (d.intent === 'out_of_stock') return <StockCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'add_product' || d.intent === 'update_price') return <ProductCard draft={d} saved={pending?.draftId !== d.draftId} />;
-    if (d.intent === 'add_products') return <ProductListCard draft={d} saved={pending?.draftId !== d.draftId} />;
+    if (d.intent === 'add_products') return <ProductListCard draft={d} saved={pending?.draftId !== d.draftId && !d.clarification} onChange={change} />;
     if (d.intent === 'add_customer') return <CustomerCard draft={d} saved={pending?.draftId !== d.draftId} />;
     if (d.intent === 'create_bill') return <BillCard draft={d} products={productList} customers={customerList} repo={repo} onChange={change} />;
     return null;

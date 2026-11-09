@@ -19,7 +19,7 @@ export function isConfirmable(draft: DraftMessage): boolean {
     case 'out_of_stock':
       return draft.stock !== undefined;
     case 'add_products':
-      return draft.products?.some((p) => p.isNew && p.id === undefined) === true;
+      return draft.clarification === undefined && draft.products?.some((p) => p.isNew && p.id === undefined) === true;
     case 'update_price':
       return draft.product?.id !== undefined && draft.product.pricePerUnit !== draft.product.previousPrice;
     case 'add_product':

@@ -13,3 +13,4 @@ export * from './correction';
 export * from './overdue';
 export * from './confirm';
 export * from './spokenNumbers';
+export * from './paymentStatus';

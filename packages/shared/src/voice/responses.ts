@@ -153,10 +153,19 @@ export function customerExists(spoken: string | null | undefined, variant = 0): 
 const UNIT_WORDS: Record<string, string> = { kg: 'kilo', g: 'gram', l: 'litre', ml: 'ml', piece: 'piece', packet: 'packet', dozen: 'darjan' };
 
 /** "Samaan mein chawal 40 rupaye kilo": reads the product back with its rate before it is created. */
-export function addProductAsk(productName: string | null | undefined, unit: string, price: number, variant = 0): string[] {
+export function addProductAsk(productName: string | null | undefined, unit: string, price: number, variant = 0, stock?: number): string[] {
   const item = name(productName);
   const per = UNIT_WORDS[unit] ?? unit;
+  const have = stock === undefined ? '' : spokenQuantity(stock, unit);
+  // With a quantity: "Rajma, paanch kilo, ek sau bees rupaye per kilo. Samaan mein jodun?"
+  if (have) return [clip(`${item}, ${have}, ${rupees(price)} per ${per}. Samaan mein jodun?`)];
   return [clip(pick([`${item}, ${rupees(price)} per ${per}. Samaan mein jodun?`, `${item} ${rupees(price)} per ${per}, likh dun?`], variant))];
+}
+
+/** A list where some items were named with no rate: the complete ones wait, the rate is asked for. */
+export function addProductsNeedRate(ready: number, productName: string | null | undefined): string[] {
+  const item = name(productName);
+  return [clip(ready > 0 ? `${ready} samaan taiyar hain.` : `${item} ka rate bhi bolo.`), clip(ready > 0 ? `${item} ka rate bhi bolo.` : `Rupaye aur kilo ke saath.`)];
 }
 
 /** "Samaan mein rajma add karo" with no price: the rate is never guessed, so ask for it. */
@@ -222,6 +231,10 @@ export function clarifyAsk(c: Clarification, itemName: string | undefined, varia
     case 'quantity': {
       const item = name(itemName);
       return [clip(item ? `${item} kitna chahiye?` : `Kitna chahiye?`), pick([`Jaise ek kilo ya aadha kilo.`, `Kilo ya gram mein boliye.`], variant)];
+    }
+    case 'rate': {
+      const unit = c.unit ? ` per ${UNIT_WORDS[c.unit] ?? c.unit}` : '';
+      return [clip(`${name(c.spoken) || 'Is samaan'} ka rate${unit} kitna hai?`), `Jaise: chaalis rupaye kilo.`];
     }
     case 'customer':
       return c.spoken ? [clip(`${name(c.spoken)} kaun hain?`), `Poora naam boliye.`] : customerNeeded(variant);

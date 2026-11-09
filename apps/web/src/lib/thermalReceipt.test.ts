@@ -88,3 +88,23 @@ describe('thermalReceipt', () => {
     expect(thermalReceipt(quoted)).toMatch(/1\.5 kg \(bola Rs165\)\s+Rs165/);
   });
 });
+
+describe('payment status on the thermal receipt', () => {
+  const base: Bill = { id: 'abcdef123456', items: [{ productId: 'a', name: 'Aata', quantity: 2, unit: 'kg', unitPrice: 45, lineTotal: 90 }], total: 90, paid: 90, udhaar: 0, createdAt: 1 };
+  it('prints a PAID banner for a paid bill and an UNPAID one for a khata bill', () => {
+    expect(lines(base).some((l) => l.includes('** PAID **'))).toBe(true);
+    const unpaid = lines({ ...base, paid: 0, udhaar: 90 });
+    expect(unpaid.some((l) => l.includes('** UNPAID - KHATA **'))).toBe(true);
+    expect(unpaid.some((l) => l.includes('PAID **') && !l.includes('UNPAID'))).toBe(false);
+  });
+  it('shows PART PAID and the amount left for a split bill, never wider than the roll', () => {
+    const part = lines({ ...base, paid: 50, udhaar: 40 });
+    expect(part.some((l) => l.includes('** PART PAID **'))).toBe(true);
+    expect(part.every((l) => l.length <= 32)).toBe(true);
+  });
+  it('prints no status on a reversed bill', () => {
+    const out = lines({ ...base, reversedAt: 2, reversalReason: 'x' }).join('\n');
+    expect(out).not.toContain('PAID **');
+    expect(out).toContain('REVERSED');
+  });
+});

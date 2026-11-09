@@ -121,6 +121,21 @@ That is about 2,224 characters in total. How Gnani turns characters into credits
 | 20 | readback | बिल … सेव कर दूँ? | nasal | 20-readback-A | Bill do sau pachas rupaye ka hai. Save kar dun? | not yet heard | pending |
 |  |  |  |  | 20-readback-B | बिल दो सौ पचास रुपये का है। सेव कर दूँ? | not yet heard | pending |
 
+## Reported 2026-11-09 (heard by a person, fixed in the app)
+
+Two more words were heard wrong in the app, both written in Latin script. The person also said what they should sound like, so these are the first entries in `PRONUNCIATION_OVERRIDES`:
+
+| spelling sent | heard | should be | now sent |
+| :- | :- | :- | :- |
+| `jodun` ("Samaan mein jodun?") | जोडून: a retroflex ड and a hard n | जोड़ूँ | `जोड़ूँ` |
+| `dabao` ("... confirm dabao.") | डबाओ: a retroflex ड | दबाओ (dental द) | `दबाओ` |
+
+Both are in `KNOWN_BAD_SPELLINGS`, and a test proves no template reply sends either Latin spelling any more. **Not yet confirmed by ear:** the Devanagari versions were chosen from what the person said it should be, not from listening. `pnpm spike --only P --entries jodun,dabao` made 9 clips (186 characters, one request at a time) in `scripts/spike/results/tts-check-2026-11-09T08-18-00-974Z/pronunciation/` (`LISTENING.html` has a player for each). Clip 05-jodun-E and 21-dabao-B are exactly what the app now sends. If either still sounds wrong, pick a better one from the other clips and change the override.
+
+The new `--entries` flag runs only the named corpus entries, so a re-check costs a few hundred characters instead of 1,100. Total spent so far: about 2,410 TTS characters.
+
+Words with the same shape that are **still Latin** and unconfirmed: `kar dun`, `likh dun`, `likhun`, `karun`, `dunga`, `haan`. They are likely to have the same problem; they stay as they are until someone listens, as before.
+
 ## How to record a result
 
 1. Open `LISTENING.html` from the newest `scripts/spike/results/tts-ab-*/pronunciation/` folder in a browser (double-click it in Finder), with headphones.

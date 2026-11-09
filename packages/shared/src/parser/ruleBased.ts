@@ -19,7 +19,7 @@ import { LIMITS } from '../protocol/constants';
 import type { Unit } from '../protocol/common';
 import type { CatalogMatcher } from '../domain/matching';
 import { extractQuantityAndUnit, normalizeUnit, parseNumber, tokenizeSpeech } from '../domain/numberWords';
-import type { MissingItem, ParsedUtterance, ParsedItemOutput } from './schema';
+import type { MissingItem, MissingRate, ParsedUtterance, ParsedItemOutput } from './schema';
 import { pricedItems, hasMoneyTail, isMoneyWord } from './pricedItems';
 import { extractAdjust, fold, foldSet, parseStockOut, parseSummaryQuery } from './extras';
 
@@ -52,12 +52,12 @@ const MARKER_NEEDS_KEYWORD = foldSet(['ka', 'ki', 'ke']);
 const AFTER_MARKER_KW = foldSet(['kitna', 'kitni', 'kitne', 'udhaar', 'udhar', 'udhari', 'baki', 'bakaya', 'hisab', 'balance', 'khata', 'khate', 'total', 'pending', 'liye']);
 const CUSTOMER_FILLER = foldSet(['bill', 'bana', 'banao', 'likho', 'likh', 'naya', 'hisab', 'aaj', 'abhi', 'please', 'pls', 'uh', 'um', 'umm', 'hmm', 'matlab', 'toh', 'haan']);
 /** Particles that follow a customer name at the end of an order: "... Sharma ji ke naam pe". */
-const TRAILING_PARTICLES = foldSet(['ko', 'ke', 'ki', 'liye', 'naam', 'nam', 'pe', 'par', 'mein', 'me', 'mei']);
+const TRAILING_PARTICLES = foldSet(['ko', 'ke', 'ki', 'liye', 'naam', 'nam', 'pe', 'par', 'mein', 'me', 'mei', 'mai', 'main']);
 const SEPARATORS = foldSet(['aur', 'and', 'plus', 'tatha', 'saath']);
 const NOISE = foldSet([
   'likh', 'likho', 'jod', 'jodo', 'kar', 'karo', 'dena', 'de', 'dijiye', 'chahiye', 'bill', 'bana', 'banao',
   'banado', 'hai', 'hain', 'ka', 'ki', 'ke', 'ko', 'ne', 'se', 'ye', 'wo', 'please', 'pls', 'bhi', 'bas',
-  'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab', 'haan',
+  'aaj', 'abhi', 'wala', 'wali', 'wale', 'mein', 'me', 'mei', 'mai', 'main', 'men', 'liye', 'uh', 'um', 'umm', 'hmm', 'matlab', 'haan',
   'toh', 'acha', 'accha', 'yaar', 'dekho', 'suno', 'add', 'aid', 'kardo', 'kardijiye', 'daalo', 'dalo', 'dedo',
   'dijie', 'ऐड', 'एड', 'करो', 'कर', 'दीजिए', 'चाहिए',
 ]);
@@ -76,7 +76,7 @@ const ADD_KW = foldSet([
 ]);
 /** Words around the name that are not part of it. */
 const ADD_PARTICLES = foldSet([
-  'ka', 'ki', 'ke', 'ko', 'mein', 'men', 'me', 'mei', 'se', 'naam', 'nam', 'name', 'karo', 'kar', 'do', 'dijiye', 'kijiye',
+  'ka', 'ki', 'ke', 'ko', 'mein', 'men', 'me', 'mei', 'mai', 'main', 'se', 'naam', 'nam', 'name', 'karo', 'kar', 'do', 'dijiye', 'kijiye',
   'dena', 'de', 'hai', 'please', 'pls', 'ek', 'mera', 'meri', 'ye', 'is', 'isko', 'bhi', 'list', 'mere', 'apne',
 ]);
 const MAX_NAME_TOKENS = 4;
@@ -167,7 +167,7 @@ const SAMAAN_KW = foldSet(['samaan', 'saman', 'saaman', 'सामान', 'cata
 const TAKE_KW = foldSet(['le', 'lelo', 'lo']);
 /** "do" is the number two in "do kilo" but the verb in "jod do"; it is a particle only after one of these. */
 const GIVE_VERBS = foldSet(['karo', 'kar', 'jod', 'jodo', 'daal', 'daalo', 'dalo', 'add', 'aid', 'le', 'rakh', 'rakho', 'likh', 'likho', 'bana', 'banao']);
-const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali', 'list', 'लिस्ट', 'den', 'dein', 'दें', 'दीजिए']);
+const PRODUCT_PARTICLES = foldSet(['rate', 'daam', 'bhav', 'bhaav', 'price', 'kimat', 'per', 'prati', 'har', 'wala', 'wali', 'list', 'लिस्ट', 'den', 'dein', 'दें', 'दीजिए', 'item', 'items', 'aitem', 'cheez', 'cheezein', 'आइटम', 'आईटम', 'चीज़', 'चीज']);
 
 const MAX_PRODUCT_ROWS = 20;
 
@@ -184,17 +184,42 @@ function parseAddProducts(raw: readonly string[], f: readonly string[]): ParsedU
   if (f.some((t) => CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t) || RATE_KW.has(t))) return null;
 
   const rows: ParsedItemOutput[] = [];
+  const missingRate: MissingRate[] = [];
   const seen = new Set<string>();
   let words: string[] = [];
   let rowUnit: Unit | null = null;
-  const finish = (price: number): boolean => {
-    if (words.length < 1 || words.length > MAX_NAME_TOKENS || price <= 0 || !Number.isInteger(price)) return false;
+  let rowStock: number | null = null;
+  /** True right after a row got its price: a "20 kilo" that follows belongs to that row. */
+  let justFinished = false;
+  const claim = (): string | null => {
+    if (words.length < 1 || words.length > MAX_NAME_TOKENS) return null;
     const key = words.join(' ').toLowerCase();
-    if (seen.has(key)) return false;
+    if (seen.has(key)) return null;
     seen.add(key);
-    rows.push({ name: titleCase(words), quantity: 1, unit: rowUnit, spokenPrice: { amount: price, basis: 'unit', unit: rowUnit } });
+    return titleCase(words);
+  };
+  const reset = (): void => {
     words = [];
     rowUnit = null;
+    rowStock = null;
+  };
+  const finish = (price: number): boolean => {
+    if (price <= 0 || !Number.isInteger(price)) return false;
+    const name = claim();
+    if (name === null) return false;
+    rows.push({ name, quantity: 1, unit: rowUnit, ...(rowStock !== null ? { stock: rowStock } : {}), spokenPrice: { amount: price, basis: 'unit', unit: rowUnit } });
+    reset();
+    justFinished = true;
+    return true;
+  };
+  /** A row with a quantity but no rate: kept, so the rate can be asked for. Without a quantity it stays unclear. */
+  const closeWithoutRate = (): boolean => {
+    if (words.length === 0) return true;
+    if (rowStock === null) return false;
+    const name = claim();
+    if (name === null) return false;
+    missingRate.push({ name, unit: rowUnit, stock: rowStock });
+    reset();
     return true;
   };
 
@@ -202,14 +227,29 @@ function parseAddProducts(raw: readonly string[], f: readonly string[]): ParsedU
   while (i < raw.length) {
     const t = f[i] ?? '';
     const word = raw[i] ?? '';
-    if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t) || SEPARATORS.has(t)) { i++; continue; }
+    if (SEPARATORS.has(t)) {
+      if (!closeWithoutRate()) return null;
+      justFinished = false;
+      i++;
+      continue;
+    }
+    if (SAMAAN_KW.has(t) || ADD_KW.has(t) || TAKE_KW.has(t) || PRODUCT_PARTICLES.has(t)) { i++; continue; }
     const countWord = t === fold('ek') || t === fold('do');
     if (ADD_PARTICLES.has(t) && (!countWord || (t === fold('do') && GIVE_VERBS.has(f[i - 1] ?? '')))) { i++; continue; }
-    // "ek kilo": a one-unit phrase belongs to the row it sits in.
+    // "ek kilo": a one-unit phrase belongs to the row it sits in. "20 kilo": how much is on the shelf.
     const qty = extractQuantityAndUnit(raw.slice(i));
     if (qty && qty.unit !== null) {
-      if (qty.quantity !== 1) return null;
-      rowUnit = qty.unit;
+      if (qty.quantity === 1) {
+        rowUnit = qty.unit;
+      } else if (justFinished && words.length === 0 && rows.length > 0 && rows[rows.length - 1]?.stock === undefined) {
+        const last = rows[rows.length - 1]!;
+        if (last.unit !== null && last.unit !== qty.unit) return null;
+        rows[rows.length - 1] = { ...last, stock: qty.quantity, unit: last.unit ?? qty.unit };
+      } else {
+        if (rowStock !== null || (rowUnit !== null && rowUnit !== qty.unit)) return null;
+        rowStock = qty.quantity;
+        rowUnit = qty.unit;
+      }
       i += qty.consumed;
       continue;
     }
@@ -223,17 +263,23 @@ function parseAddProducts(raw: readonly string[], f: readonly string[]): ParsedU
       while (i < raw.length && (isMoneyWord(raw[i] ?? '') || PRODUCT_PARTICLES.has(f[i] ?? ''))) i++;
       const unitWord = raw[i] ?? '';
       const asUnit = unitWord.length > 1 ? normalizeUnit(unitWord) : null;
-      if (asUnit) { rowUnit = rowUnit ?? asUnit; i++; }
+      if (asUnit) {
+        if (rowUnit !== null && rowUnit !== asUnit) return null;
+        rowUnit = rowUnit ?? asUnit;
+        i++;
+      }
       if (!finish(price.value)) return null;
       continue;
     }
     const asUnit = word.length > 1 ? normalizeUnit(word) : null;
     if (asUnit) { rowUnit = rowUnit ?? asUnit; i++; continue; }
+    justFinished = false;
     words.push(word);
     i++;
   }
-  if (words.length > 0 || rows.length < 2 || rows.length > MAX_PRODUCT_ROWS) return null;
-  return { ...EMPTY, intent: 'add_products', items: rows, confidence: 0.9 };
+  if (!closeWithoutRate()) return null;
+  if (rows.length < 1 || rows.length + missingRate.length < 2 || rows.length + missingRate.length > MAX_PRODUCT_ROWS) return null;
+  return { ...EMPTY, intent: 'add_products', items: rows, ...(missingRate.length > 0 ? { missingRate } : {}), confidence: 0.9 };
 }
 
 /** The longest number run ending right before, or starting right after, the money word. */
@@ -248,6 +294,17 @@ function priceAround(raw: readonly string[], money: number): { value: number; fr
   }
   return null;
 }
+
+/** True when a unit word sits right after the money word: "40 rupaye kilo", "120 rupaye per kilo". */
+function rateHasUnit(raw: readonly string[], money: number): boolean {
+  for (let k = money + 1; k <= money + 2 && k < raw.length; k++) {
+    const word = raw[k] ?? '';
+    if (PER_WORDS.has(fold(word))) continue;
+    return word.length > 1 && normalizeUnit(word) !== null;
+  }
+  return false;
+}
+const PER_WORDS = foldSet(['per', 'prati', 'har', 'प्रति', 'हर']);
 
 /**
  * "Samaan mein chawal add karo 40 rupaye kilo", "सामान में एक किलो चावल ले लो, चालीस रुपए के एक किलो".
@@ -280,11 +337,17 @@ function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUt
   }
 
   let unit: Unit | null = null;
+  let stock: number | null = null;
   const name: string[] = [];
   for (let i = 0; i < left.length; i++) {
     const found = extractQuantityAndUnit(left.slice(i));
     if (found) {
-      if (found.quantity !== 1 || (unit !== null && found.unit !== null && found.unit !== unit)) return null;
+      if (unit !== null && found.unit !== null && found.unit !== unit) return null;
+      if (found.quantity !== 1) {
+        // "rajma 5 kilo ... jodo": a counted amount with a unit is how much is on the shelf.
+        if (found.unit === null || stock !== null) return null;
+        stock = found.quantity;
+      }
       unit = unit ?? found.unit;
       i += found.consumed - 1;
       continue;
@@ -304,10 +367,12 @@ function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUt
     name.push(word);
   }
   if (name.length < 1 || name.length > MAX_NAME_TOKENS) return null;
+  // A rate for a counted amount must say what it is per ("40 rupaye kilo"); "do kilo chawal 80 rupaye" is ambiguous.
+  if (stock !== null && price && !rateHasUnit(raw, money)) return null;
   return {
     ...EMPTY,
     intent: 'add_product',
-    items: [{ name: titleCase(name), quantity: 1, unit, ...(price ? { spokenPrice: { amount: price.value, basis: 'unit' as const, unit } } : {}) }],
+    items: [{ name: titleCase(name), quantity: 1, unit, ...(stock !== null ? { stock } : {}), ...(price ? { spokenPrice: { amount: price.value, basis: 'unit' as const, unit } } : {}) }],
     confidence: 0.9,
   };
 }
@@ -315,7 +380,7 @@ function parseAddProduct(raw: readonly string[], f: readonly string[]): ParsedUt
 // --- Change a product's rate ---------------------------------------------------------------
 
 const RATE_KW = foldSet(['rate', 'daam', 'dam', 'bhav', 'bhaav', 'price', 'kimat', 'keemat', 'रेट', 'दाम', 'भाव', 'कीमत']);
-const CHANGE_KW = foldSet(['karo', 'kar', 'kardo', 'badlo', 'badal', 'badalna', 'set', 'kijiye', 'kiye', 'ho', 'gaya', 'gayi', 'hua', 'rakho', 'rakh']);
+const CHANGE_KW = foldSet(['karo', 'kar', 'kardo', 'badlo', 'badal', 'badalna', 'badalke', 'badalkar', 'karke', 'set', 'kijiye', 'kiye', 'ho', 'gaya', 'gayi', 'hua', 'rakho', 'rakh']);
 const RATE_FILLER = foldSet(['ka', 'ki', 'ke', 'ko', 'ab', 'se', 'hai', 'mein', 'men', 'me', 'ek', 'do', 'bhi', 'naya', 'nayi', 'new', 'please', 'pls']);
 
 /**
@@ -329,7 +394,7 @@ function parseUpdatePrice(raw: readonly string[], f: readonly string[]): ParsedU
   if (f.some((t) => SAMAAN_KW.has(t) || ADD_KW.has(t) || CUSTOMER_KW.has(t) || PAID_KW.has(t) || UDHAAR_KW.has(t) || BALANCE_KW.has(t))) return null;
 
   let start = rate + 1;
-  while (start < raw.length && RATE_FILLER.has(f[start] ?? '') && !isNumeric(raw[start] ?? '')) start++;
+  while (start < raw.length && (RATE_FILLER.has(f[start] ?? '') || CHANGE_KW.has(f[start] ?? '')) && !isNumeric(raw[start] ?? '')) start++;
   let run: { value: number; end: number } | null = null;
   for (let size = Math.min(4, raw.length - start); size >= 1 && !run; size--) {
     const value = parseNumber(raw.slice(start, start + size).join(' '));
@@ -592,7 +657,10 @@ function itemsInSegment(
 
 function findItems(w: Working, matcher: CatalogMatcher | undefined, missing: MissingItem[]): ParsedItemOutput[] {
   for (let i = 1; i < w.f.length; i++) {
-    if (!w.used[i] && w.f[i] === fold('do') && DO_AFTER.has(w.f[i - 1] ?? '')) w.used[i] = true;
+    if (w.used[i] || w.f[i] !== fold('do') || !DO_AFTER.has(w.f[i - 1] ?? '')) continue;
+    // "khate mein jodo do kilo aata": a "do" that starts "do kilo" is the number two, not the verb.
+    const count = extractQuantityAndUnit(w.raw.slice(i, i + MAX_AMOUNT_TOKENS + 1));
+    if (!(count && count.unit !== null && count.consumed > 0 && count.quantity === 2)) w.used[i] = true;
   }
   const items: ParsedItemOutput[] = [];
   let segment: Piece[] = [];

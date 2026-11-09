@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogCustomer, CatalogProduct } from '@bolbill/shared';
 import { draftMessage } from '../turn/testing';
-import { addProductToDraft, answerMissingItem, billFromProduct, dismissQuestion, draftFromTranscript, quantityChoices, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
+import { addProductToDraft, answerMissingItem, answerRate, billFromProduct, dismissQuestion, draftFromTranscript, quantityChoices, removeItem, resolveItem, setAdjust, setCustomer, setItemQuantity, setPaid } from './draftEdit';
 
 const products: CatalogProduct[] = [
   { id: 'p1', name: 'Aata', aliases: ['atta'], unit: 'kg', pricePerUnit: 45 },
@@ -266,5 +266,42 @@ describe('editing the transcript of a credit bill', () => {
   it('"udhaar" with no amount keeps the whole bill on credit', () => {
     const d = draftFromTranscript(draftMessage(1), 'Sharma ji ko do kilo aata udhaar', products, customers);
     expect(d?.bill).toMatchObject({ total: 90, paid: 0, udhaar: 90 });
+  });
+});
+
+describe('answering "rate kitna hai?" by tap', () => {
+  const asked = (extra: Partial<ReturnType<typeof draftMessage>> = {}) => draftMessage(1, {
+    intent: 'add_products', bill: undefined, customer: undefined,
+    products: [{ name: 'Maida', unit: 'kg', pricePerUnit: 35, stock: 20, isNew: true }],
+    clarification: { slot: 'rate', spoken: 'Sooji', quantity: 10, unit: 'kg', attempts: 1, fallback: false, transcript: 'x' },
+    ...extra,
+  });
+
+  it('adds the item with its quantity and the typed rate, and closes the question', () => {
+    const d = answerRate(asked(), 52);
+    expect(d.clarification).toBeUndefined();
+    expect(d.products).toEqual([
+      { name: 'Maida', unit: 'kg', pricePerUnit: 35, stock: 20, isNew: true },
+      { name: 'Sooji', unit: 'kg', pricePerUnit: 52, stock: 10, isNew: true },
+    ]);
+  });
+
+  it('keeps the draft id, so it is the same list', () => {
+    expect(answerRate(asked(), 52).draftId).toBe(asked().draftId);
+  });
+
+  it('refuses a rate that is not a whole number above zero, and changes nothing', () => {
+    for (const bad of [0, -5, 4.5, Number.NaN]) expect(answerRate(asked(), bad)).toEqual(asked());
+  });
+
+  it('does nothing when there is no rate question open', () => {
+    const plain = asked({ clarification: undefined });
+    expect(answerRate(plain, 52)).toEqual(plain);
+  });
+
+  it('dismissQuestion drops the item without a rate and keeps the rest', () => {
+    const d = dismissQuestion(asked());
+    expect(d.clarification).toBeUndefined();
+    expect(d.products?.map((p) => p.name)).toEqual(['Maida']);
   });
 });

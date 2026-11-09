@@ -225,3 +225,17 @@ describe('dialect hint', () => {
     expect(parseClientMessage(enc(hello)).ok).toBe(true);
   });
 });
+
+describe('stock on a spoken product', () => {
+  const draft = draftSchema.parse(SERVER_FIXTURES.draft.valid);
+  const product = { name: 'Rajma', unit: 'kg', pricePerUnit: 120, isNew: true };
+  it('accepts a quantity on a new product and on a list of products', () => {
+    expect(parseServerMessage(enc({ ...draft, intent: 'add_product', product: { ...product, stock: 5 } })).ok).toBe(true);
+    expect(parseServerMessage(enc({ ...draft, intent: 'add_products', products: [{ ...product, stock: 2.5 }, product] })).ok).toBe(true);
+  });
+  it('rejects zero, negative or absurd quantities', () => {
+    for (const stock of [0, -1, 1_000_001]) {
+      expect(parseServerMessage(enc({ ...draft, intent: 'add_product', product: { ...product, stock } })).ok).toBe(false);
+    }
+  });
+});

@@ -5,7 +5,7 @@ import {
   creditDetailsNeeded,
   detailsFirst,
   addProductAsk,
-  addProductNeedsRate,
+  addProductsNeedRate,
   addProductsAsk,
   applyPayment,
   balanceReply,
@@ -37,6 +37,7 @@ import {
 } from '@bolbill/shared';
 import type { ParseOutcome } from '../parse/orchestrator';
 import { modelReplyFor } from '../parse/agent/reply';
+import type { MissingRate, ParsedItemOutput } from '@bolbill/shared';
 
 export interface Catalog {
   version: number;
@@ -308,16 +309,22 @@ function addCustomer(input: DraftInput, base: Base, variant: number): DraftResul
 }
 
 /**
- * "Samaan mein chawal 40 rupaye kilo": a new product waits for "haan"; the browser creates it. The
- * price is the literal one the rules heard, shown on the card, never a model's guess.
+ * "Samaan mein chawal 10 kilo 40 rupaye kilo": a new product waits for "haan"; the browser creates
+ * it. The price and the quantity are the literal ones the rules heard, shown on the card, never a
+ * model's guess. A name with no rate is kept and the rate is asked for (see productsDraft).
  */
 function addProduct(input: DraftInput, base: Base, variant: number): DraftResult {
   const item = input.outcome.parsed.items[0];
   const price = item?.spokenPrice?.amount;
   const intent = 'add_product' as const;
-  // Name only: ask for the rate. A price is never guessed, and a spoken but unusable one is "not understood".
   if (item && item.spokenPrice === undefined && item.name.trim() !== '') {
-    return plain(input, base, 'unknown', addProductNeedsRate(item.name.slice(0, LIMITS.maxNameLength), variant), false, { action: 'clear' });
+    const known = input.outcome.resolution.stockMatch;
+    if (known?.best && !known.ambiguous) {
+      const draft: DraftMessage = { ...base, draftId: input.draftId, intent, product: { id: known.best.id, name: known.best.name, unit: item.unit ?? 'piece', pricePerUnit: 1, isNew: false }, unresolved: [], warnings: [], replyText: productExists(known.best.name, variant) };
+      return { draft, cacheReply: false, pendingChange: { action: 'clear' } };
+    }
+    const missing = [{ name: item.name, unit: item.unit, ...(item.stock !== undefined ? { stock: item.stock } : {}) }];
+    return productsDraft(input, base, variant, [], missing);
   }
   if (!item || price === undefined || !Number.isInteger(price) || price <= 0) {
     return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
@@ -343,17 +350,27 @@ function addProduct(input: DraftInput, base: Base, variant: number): DraftResult
     ...base,
     draftId: input.draftId,
     intent,
-    product: { name, unit, pricePerUnit: price, isNew: true },
+    product: { name, unit, pricePerUnit: price, isNew: true, ...(item.stock !== undefined ? { stock: item.stock } : {}) },
     unresolved: [],
-    warnings: warningsOf([], input.outcome.needsReview),
-    replyText: addProductAsk(name, unit, price, variant),
+    warnings: warningsOf(item.stock === undefined ? [NO_STOCK_WARNING] : [], input.outcome.needsReview),
+    replyText: addProductAsk(name, unit, price, variant, item.stock),
   };
   return { draft, cacheReply: false, pendingChange: { action: 'set', pending: { draftId: input.draftId, intent } } };
 }
 
 /** "Samaan mein aata 45, cheeni 50, ...": the whole list waits for one "haan"; existing products are skipped. */
 function addProducts(input: DraftInput, base: Base, variant: number): DraftResult {
-  const items = input.outcome.parsed.items;
+  return productsDraft(input, base, variant, input.outcome.parsed.items, input.outcome.parsed.missingRate ?? []);
+}
+
+const NO_STOCK_WARNING = 'Stock nahi bataya: Samaan mein baad mein bhar sakte ho.';
+
+/**
+ * A list of products to create, plus the items that were named without a rate. Complete rows wait
+ * for one confirmation; the first item without a rate becomes the open question (`clarification`),
+ * so the draft cannot be saved until it is answered, by voice ("chaalis rupaye kilo") or on screen.
+ */
+function productsDraft(input: DraftInput, base: Base, variant: number, items: readonly ParsedItemOutput[], missing: readonly MissingRate[]): DraftResult {
   const matches = input.outcome.resolution.rowMatches ?? [];
   const intent = 'add_products' as const;
   const products: NonNullable<DraftMessage['products']> = [];
@@ -367,21 +384,40 @@ function addProducts(input: DraftInput, base: Base, variant: number): DraftResul
       const shown = existing?.name ?? match?.candidates[0]?.name ?? item.name;
       products.push({ ...(existing ? { id: existing.id } : {}), name: shown.slice(0, LIMITS.maxNameLength), unit, pricePerUnit: price, isNew: false });
     } else {
-      products.push({ name: item.name.slice(0, LIMITS.maxNameLength), unit, pricePerUnit: price, isNew: true });
+      products.push({ name: item.name.slice(0, LIMITS.maxNameLength), unit, pricePerUnit: price, isNew: true, ...(item.stock !== undefined ? { stock: item.stock } : {}) });
     }
   });
+  const first = missing[0];
+  if (products.length === 0 && !first) return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
   const fresh = products.filter((p) => p.isNew).length;
-  if (products.length === 0) return plain(input, base, 'unknown', notUnderstood(variant), true, { action: 'clear' });
+  const noStock = products.some((p) => p.isNew && p.stock === undefined);
+  const clarification: Clarification | undefined = first
+    ? {
+        slot: 'rate',
+        spoken: first.name.slice(0, LIMITS.maxNameLength),
+        ...(first.stock !== undefined ? { quantity: first.stock } : {}),
+        ...(first.unit ? { unit: first.unit } : {}),
+        attempts: 1,
+        fallback: false,
+        transcript: (input.transcript ?? '').slice(0, LIMITS.maxTranscriptLength),
+      }
+    : undefined;
+  const reply = first
+    ? addProductsNeedRate(fresh, first.name)
+    : fresh > 0
+      ? addProductsAsk(fresh, products.length - fresh, variant)
+      : allProductsExist();
   const draft: DraftMessage = {
     ...base,
     draftId: input.draftId,
     intent,
     products: products.slice(0, LIMITS.maxBillItems),
     unresolved: [],
-    warnings: warningsOf([], input.outcome.needsReview),
-    replyText: fresh > 0 ? addProductsAsk(fresh, products.length - fresh, variant) : allProductsExist(),
+    ...(clarification ? { clarification } : {}),
+    warnings: warningsOf(noStock ? [NO_STOCK_WARNING] : [], input.outcome.needsReview),
+    replyText: reply,
   };
-  return { draft, cacheReply: false, pendingChange: fresh > 0 ? { action: 'set', pending: { draftId: input.draftId, intent } } : { action: 'clear' } };
+  return { draft, cacheReply: false, pendingChange: fresh > 0 && !clarification ? { action: 'set', pending: { draftId: input.draftId, intent } } : { action: 'clear' } };
 }
 
 /**
