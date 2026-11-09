@@ -7,5 +7,7 @@ export const accountUserSchema = z.object({ id: z.uuid(), email: z.email() });
 export const accountStateSchema = z.object({
   configured: z.boolean(), user: accountUserSchema.nullable(), profile: businessProfileSchema.nullable(),
   confirmationRequired: z.boolean().optional(),
+  /** True while the temporary demo switch (DEMO_NO_AUTH) has login turned off. */
+  demo: z.boolean().optional(),
 });
 export type AccountState = z.infer<typeof accountStateSchema>;

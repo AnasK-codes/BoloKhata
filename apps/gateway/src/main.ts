@@ -35,6 +35,7 @@ function main() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
   app.log.info({ parserMode: config.llm.parserMode, llmProvider: config.llm.provider }, 'parser mode');
+  if (config.demoNoAuth) app.log.warn('DEMO_NO_AUTH is on: account login is switched off. Remove it to require login again.');
   app.listen({ port: config.server.port, host: '0.0.0.0' }).catch((error: unknown) => {
     app.log.error({ err: error }, 'failed to start');
     process.exit(1);

@@ -13,6 +13,8 @@ interface AccountContext {
   profile: BusinessProfile;
   saveProfile(profile: BusinessProfile): Promise<void>;
   logout(): Promise<void>;
+  /** True while the temporary demo switch has login turned off (there is nothing to log out of). */
+  demo: boolean;
 }
 const Context = createContext<AccountContext | null>(null);
 export function useAccount(): AccountContext {
@@ -107,5 +109,8 @@ export function AccountGate({ children }: { children: ReactNode }) {
     <AuthForm onSubmit={async (action, input) => { const result = await requestAccount(action, input); setState(result); broadcast(); }} />
   </>;
   if (!state.profile) return <><BusinessProfileForm onSave={saveProfile} /><button className="mx-auto block min-h-12 rounded-xl bg-control px-5" onClick={() => void logout().catch(() => setError(tr('settings.logoutFailed')))}>{tr('settings.logout')}</button></>;
-  return <Context.Provider value={{ user: state.user, profile: state.profile, saveProfile, logout }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ user: state.user, profile: state.profile, saveProfile, logout, demo: state.demo === true }}>
+    {state.demo === true && <p role="status" data-demo-banner className="demo-banner">{tr('auth.demoBanner')}</p>}
+    {children}
+  </Context.Provider>;
 }

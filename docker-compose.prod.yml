@@ -83,6 +83,8 @@ services:
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set SUPABASE_ANON_KEY in .env}
       GATEWAY_INTERNAL_URL: http://gateway:8080
       APP_ORIGIN: https://${DOMAIN}
+      # TEMPORARY demo switch: true turns login off (see docs/AUTH.md). Default is off.
+      DEMO_NO_AUTH: ${DEMO_NO_AUTH:-false}
       NODE_OPTIONS: --max-old-space-size=512
     expose:
       - "3000"
