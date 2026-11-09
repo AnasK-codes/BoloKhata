@@ -33,6 +33,8 @@ export const PRONUNCIATION_OVERRIDES: readonly PronunciationOverride[] = [
   // Applied on their report; the clips that confirm it by ear are in docs/TTS-TUNING.md.
   { from: 'jodun', to: 'जोड़ूँ', evidence: 'TTS-TUNING.md "Reported 2026-11-09": jodun' },
   { from: 'dabao', to: 'दबाओ', evidence: 'TTS-TUNING.md "Reported 2026-11-09": dabao' },
+  // Still heard as हान after the first round; the person said it should be हाँ (a soft nasal vowel).
+  { from: 'haan', to: 'हाँ', evidence: 'TTS-TUNING.md "Reported 2026-11-09": haan' },
 ];
 
 /**
@@ -47,7 +49,7 @@ export const KNOWN_BAD_SPELLINGS: readonly { spelling: string; heard: string }[]
 ];
 
 /** Known-bad spellings whose fix is waiting for a person to judge the A/B clips. */
-export const AWAITING_LISTENING: readonly string[] = ['kar dun', 'haan'];
+export const AWAITING_LISTENING: readonly string[] = ['kar dun'];
 
 // eslint-disable-next-line no-control-regex -- stripping control characters is the point
 const CONTROL = /[\u0000-\u001f\u007f]/g;
