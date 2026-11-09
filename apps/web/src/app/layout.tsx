@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { LocaleSync } from '@/components/LocaleSync';
+import { ThemeSync } from '@/components/ThemeSync';
+import { themeBootScript } from '@/lib/theme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -24,8 +26,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   // `lang` is set on the client to the chosen language before first paint (LocaleSync).
   return (
     <html lang="hi-Latn" suppressHydrationWarning>
+      <head>
+        {/* Sets data-theme before the first paint, so a saved light/dark choice never flashes the other one. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="min-h-dvh antialiased">
         <LocaleSync />
+        <ThemeSync />
         {children}
       </body>
     </html>

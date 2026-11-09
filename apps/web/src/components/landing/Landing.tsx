@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Icon, type IconName } from '../Icon';
 import { useT, type MessageKey } from '@/lib/i18n';
+import { ThemeToggle } from '../ThemeToggle';
 
 const STEPS: { n: number; icon: IconName; title: MessageKey; body: MessageKey }[] = [
   { n: 1, icon: 'mic', title: 'landing.step1.title', body: 'landing.step1.body' },
@@ -31,7 +32,8 @@ export function Landing() {
         <Link href="/" className="lp-brand" aria-label={t('app.name')}>
           <Image src="/brand/bolokhata-logo.png" alt={t('app.name')} width={1000} height={327} priority className="lp-logo" />
         </Link>
-        <nav aria-label={t('landing.nav')}>
+        <nav aria-label={t('landing.nav')} className="lp-nav">
+          <ThemeToggle />
           <Link href="/app" className="lp-btn lp-btn-solid lp-btn-sm">{t('landing.openApp')}</Link>
         </nav>
       </header>

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { DIALECTS, DIALECT_SUPPORT, UNSUPPORTED_SPEECH, type Dialect, type DialectSupport } from '@bolbill/shared';
 import { useSettings } from '@/lib/settings';
+import { THEMES, useTheme, type Theme } from '@/lib/theme';
 import { useApp } from './AppProvider';
 import { useAccount } from './AccountGate';
 import { BusinessProfileForm } from './BusinessProfileForm';
@@ -91,6 +92,10 @@ export function SettingsScreen() {
         </div>
       </Section>
 
+      <Section title={t('theme.title')}>
+        <ThemePicker />
+      </Section>
+
       <Section title={t('settings.display')}>
         <Toggle label={t('settings.hud')} hint={t('settings.hudHint')} checked={hud} onChange={(v) => set({ hud: v })} />
       </Section>
@@ -158,6 +163,27 @@ function DialectPicker({ value, onChange }: { value: Dialect; onChange(d: Dialec
       </select>
       <p className="text-sm text-dim">{DIALECT_SUPPORT[value].note}</p>
       <p className="text-sm text-muted">Speech is recognised by Gnani&apos;s Hindi model in every case. Malwi, Nimadi, Bundeli and Bagheli only add a small word list, not checked by a native speaker yet. {UNSUPPORTED_SPEECH.join(', ')}: not supported.</p> {/* i18n-ignore: technical note about Gnani model; dialect names are proper nouns */}
+    </div>
+  );
+}
+
+/** Light, dark, or follow the phone. The choice is kept on this device. */
+function ThemePicker() {
+  const t = useT();
+  const theme = useTheme((s) => s.theme);
+  const set = useTheme((s) => s.set);
+  const label: Record<Theme, string> = { system: t('theme.system'), light: t('theme.light'), dark: t('theme.dark') };
+  return (
+    <div className="space-y-2 p-4">
+      <div role="radiogroup" aria-label={t('theme.title')} className="grid grid-cols-3 gap-2">
+        {THEMES.map((choice) => (
+          <button key={choice} type="button" role="radio" aria-checked={theme === choice} onClick={() => set(choice)}
+            className={`min-h-12 rounded-xl px-2 font-semibold ${theme === choice ? 'bg-accent text-on-solid' : 'bg-control'}`}>
+            {label[choice]}
+          </button>
+        ))}
+      </div>
+      <p className="text-sm text-muted">{t('theme.hint')}</p>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { useAccount } from '../AccountGate';
 import { Icon } from '../Icon';
 import { StateView } from '../StateView';
 import { LanguageSheet } from '../LanguagePicker';
+import { ThemeToggle } from '../ThemeToggle';
 import { BillCard } from './BillCard';
 import { ChatBubbles, ConversationSheet } from './ConversationSheet';
 import { BalanceCard, CustomerCard, PaymentCard, ProductCard, ProductListCard, StockCard, SummaryCard } from './InfoCards';
@@ -309,8 +310,9 @@ function Voice({ session, repo }: { session: NonNullable<ReturnType<typeof useAp
               <Icon name="chat" size={20} />
               {conversation.length > 0 && <span className="vs-dot" aria-hidden="true" />}
             </button>
+            <ThemeToggle />
             <button type="button" className="vs-icon-btn" aria-label={t('lang.button')} aria-haspopup="dialog" onClick={() => setLanguageOpen(true)}><Icon name="globe" size={20} /></button>
-            <Link href="/ledger" className="vs-icon-btn max-[480px]:hidden" aria-label={t('nav.ledger')}><Icon name="book" size={20} /></Link>
+            <Link href="/ledger" className="vs-icon-btn vs-hide-narrow" aria-label={t('nav.ledger')}><Icon name="book" size={20} /></Link>
             <Link href="/settings" className="vs-icon-btn" aria-label={t('nav.settings')}><Icon name="gear" size={20} /></Link>
           </div>
         </header>
